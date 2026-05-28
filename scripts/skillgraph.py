@@ -1216,7 +1216,7 @@ HTML_TEMPLATE = r"""<!doctype html>
     aside { padding: 16px; border-right: 1px solid var(--line); background: var(--panel); overflow: auto; }
     .details { border-right: 0; border-left: 1px solid var(--line); }
     main { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; overflow: hidden; }
-    header { padding: 14px 16px; border-bottom: 1px solid var(--line); display: flex; gap: 16px; align-items: baseline; justify-content: space-between; }
+    header { padding: 14px 16px; border-bottom: 1px solid var(--line); display: flex; gap: 16px; align-items: center; justify-content: space-between; }
     h1 { font-size: 18px; margin: 0; }
     h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; margin: 18px 0 8px; color: var(--muted); }
     label { display: block; font-size: 13px; color: var(--muted); margin: 12px 0 4px; }
@@ -1233,24 +1233,28 @@ HTML_TEMPLATE = r"""<!doctype html>
     .error { color: var(--error); }
     button { min-height: 32px; border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px; background: #fff; color: var(--text); cursor: pointer; }
     button:hover { border-color: var(--accent); }
-    #graph { width: 100%; height: 100%; min-height: 0; background: linear-gradient(#fff, #f9fbfd); }
+    .graph-actions { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 13px; }
+    #graph { width: 100%; height: 100%; min-height: 0; background-color: #fbfdff; background-image: linear-gradient(#edf2f7 1px, transparent 1px), linear-gradient(90deg, #edf2f7 1px, transparent 1px); background-size: 28px 28px; touch-action: none; }
     .status { padding: 10px 16px; border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; }
-    .node { cursor: pointer; }
-    .node circle { fill: #fff; stroke: #0d6efd; stroke-width: 2; }
-    .node.asset circle { stroke: #667085; }
+    .node { cursor: grab; }
+    .node:active { cursor: grabbing; }
+    .node circle { fill: #f8fbff; stroke: #2563eb; stroke-width: 2; filter: drop-shadow(0 6px 10px rgba(15, 23, 42, .18)); }
+    .node.asset circle { fill: #f8fafc; stroke: #64748b; }
+    .node:hover circle { fill: #eff6ff; stroke-width: 3; }
     .node.related circle { fill: #fff7ed; stroke: #f97316; stroke-width: 3; }
-    .node.selected circle { fill: #eaf1ff; stroke: #b42318; stroke-width: 4; }
+    .node.selected circle { fill: #dbeafe; stroke: #b42318; stroke-width: 4; }
     .node text { font-size: 12px; paint-order: stroke; stroke: #fff; stroke-width: 4px; stroke-linejoin: round; fill: var(--text); pointer-events: none; }
-    .edge { stroke: #98a2b3; stroke-width: 1.5; marker-end: url(#arrow); cursor: pointer; }
+    .edge { fill: none; stroke: #94a3b8; stroke-width: 1.5; marker-end: url(#arrow); cursor: pointer; opacity: .82; }
     .edge.mentions { stroke-dasharray: 4 3; }
     .edge.high { stroke-width: 2.2; }
     .edge.related { stroke: #f97316; stroke-width: 3; }
     .edge.selected { stroke: #b42318; stroke-width: 4; }
-    .edge-hit { stroke: transparent; stroke-width: 14; cursor: pointer; pointer-events: stroke; }
+    .edge-hit { fill: none; stroke: transparent; stroke-width: 18; cursor: pointer; pointer-events: stroke; }
     pre { white-space: pre-wrap; overflow-wrap: anywhere; background: #0f172a; color: #e5e7eb; padding: 10px; border-radius: 6px; font-size: 12px; }
     @media (max-width: 980px) {
       html, body { height: auto; overflow: auto; }
       .app { grid-template-columns: 1fr; height: auto; min-height: 100vh; overflow: visible; }
+      main { order: -1; min-height: 560px; }
       aside, .details { border: 0; border-bottom: 1px solid var(--line); }
       #graph { min-height: 420px; }
     }
@@ -1281,7 +1285,10 @@ HTML_TEMPLATE = r"""<!doctype html>
     <main>
       <header>
         <h1>Graph</h1>
-        <div id="summary"></div>
+        <div class="graph-actions">
+          <button id="resetLayout" type="button">Reset layout</button>
+          <div id="summary"></div>
+        </div>
       </header>
       <svg id="graph" role="img" aria-label="Skill graph"></svg>
       <div class="status" id="status"></div>
@@ -1298,13 +1305,14 @@ HTML_TEMPLATE = r"""<!doctype html>
   <script>
     const graph = __GRAPH_JSON__;
     const showMentionsDefault = false;
-    const state = { selected: null };
+    const state = { selected: null, positions: {}, layoutKey: "", dragging: null };
     const nodeKind = document.getElementById("nodeKind");
     const extension = document.getElementById("extension");
     const edgeType = document.getElementById("edgeType");
     const confidence = document.getElementById("confidence");
     const search = document.getElementById("search");
     const showMentions = document.getElementById("showMentions");
+    const resetLayout = document.getElementById("resetLayout");
     showMentions.checked = showMentionsDefault;
 
     for (const type of [...new Set(graph.edges.map(edge => edge.type))].sort()) {
@@ -1401,20 +1409,110 @@ HTML_TEMPLATE = r"""<!doctype html>
       return [value.type, value.path, value.skill, value.target, value.message].filter(Boolean).join("|");
     }
 
-    function layout(nodes, width, height) {
-      const positions = new Map();
-      const centerX = width / 2;
-      const radius = Math.max(120, Math.min(width, height) * 0.38);
-      const topPadding = 72;
-      const centerY = Math.min(height / 2, radius + topPadding);
+    function layoutKey(nodes, edges, width, height) {
+      return [
+        Math.round(width),
+        Math.round(height),
+        nodes.map(node => node.id).join("|"),
+        edges.map(edge => edge.id).join("|"),
+      ].join("::");
+    }
+
+    function initialPosition(index, count, width, height) {
+      const columns = Math.max(1, Math.ceil(Math.sqrt(count)));
+      const rows = Math.max(1, Math.ceil(count / columns));
+      const col = index % columns;
+      const row = Math.floor(index / columns);
+      const x = ((col + 1) / (columns + 1)) * width;
+      const y = 72 + ((row + 1) / (rows + 1)) * Math.max(220, height - 144);
+      return clampPosition({ x, y }, width, height);
+    }
+
+    function clampPosition(point, width, height) {
+      const padding = 42;
+      return {
+        x: Math.min(width - padding, Math.max(padding, point.x)),
+        y: Math.min(height - padding, Math.max(padding, point.y)),
+      };
+    }
+
+    function ensureLayout(nodes, edges, width, height) {
       nodes.forEach((node, index) => {
-        const angle = (Math.PI * 2 * index) / Math.max(nodes.length, 1) - Math.PI / 2;
-        positions.set(node.id, {
-          x: centerX + Math.cos(angle) * radius,
-          y: centerY + Math.sin(angle) * radius,
-        });
+        if (!state.positions[node.id]) {
+          state.positions[node.id] = initialPosition(index, nodes.length, width, height);
+        }
       });
-      return positions;
+      const key = layoutKey(nodes, edges, width, height);
+      if (state.layoutKey !== key && !state.dragging) {
+        runForceLayout(nodes, edges, width, height);
+        state.layoutKey = key;
+      }
+      return new Map(nodes.map(node => [node.id, state.positions[node.id]]));
+    }
+
+    function runForceLayout(nodes, edges, width, height) {
+      const ids = new Set(nodes.map(node => node.id));
+      const centerX = width / 2;
+      const centerY = Math.min(height * .42, Math.max(140, height / 2));
+      const visibleEdges = edges.filter(edge => ids.has(edge.source) && ids.has(edge.target));
+      for (let step = 0; step < 90; step += 1) {
+        const velocity = new Map(nodes.map(node => [node.id, { x: 0, y: 0 }]));
+        for (let i = 0; i < nodes.length; i += 1) {
+          for (let j = i + 1; j < nodes.length; j += 1) {
+            const a = state.positions[nodes[i].id];
+            const b = state.positions[nodes[j].id];
+            const dx = a.x - b.x || .01;
+            const dy = a.y - b.y || .01;
+            const distance = Math.max(24, Math.hypot(dx, dy));
+            const force = Math.min(90, 4200 / (distance * distance));
+            const fx = (dx / distance) * force;
+            const fy = (dy / distance) * force;
+            velocity.get(nodes[i].id).x += fx;
+            velocity.get(nodes[i].id).y += fy;
+            velocity.get(nodes[j].id).x -= fx;
+            velocity.get(nodes[j].id).y -= fy;
+          }
+        }
+        for (const edge of visibleEdges) {
+          const source = state.positions[edge.source];
+          const target = state.positions[edge.target];
+          const dx = target.x - source.x || .01;
+          const dy = target.y - source.y || .01;
+          const distance = Math.max(1, Math.hypot(dx, dy));
+          const desired = edge.type === "mentions" ? 180 : 140;
+          const force = (distance - desired) * .018;
+          const fx = (dx / distance) * force;
+          const fy = (dy / distance) * force;
+          velocity.get(edge.source).x += fx;
+          velocity.get(edge.source).y += fy;
+          velocity.get(edge.target).x -= fx;
+          velocity.get(edge.target).y -= fy;
+        }
+        for (const node of nodes) {
+          const point = state.positions[node.id];
+          const v = velocity.get(node.id);
+          v.x += (centerX - point.x) * .012;
+          v.y += (centerY - point.y) * .012;
+          state.positions[node.id] = clampPosition(
+            {
+              x: point.x + Math.max(-16, Math.min(16, v.x)),
+              y: point.y + Math.max(-16, Math.min(16, v.y)),
+            },
+            width,
+            height,
+          );
+        }
+      }
+    }
+
+    function edgePath(source, target, index = 0) {
+      const dx = target.x - source.x;
+      const dy = target.y - source.y;
+      const distance = Math.max(1, Math.hypot(dx, dy));
+      const curve = ((index % 5) - 2) * 16;
+      const mx = (source.x + target.x) / 2 - (dy / distance) * curve;
+      const my = (source.y + target.y) / 2 + (dx / distance) * curve;
+      return `M ${source.x} ${source.y} Q ${mx} ${my} ${target.x} ${target.y}`;
     }
 
     function draw() {
@@ -1425,35 +1523,34 @@ HTML_TEMPLATE = r"""<!doctype html>
       svg.innerHTML = `<defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto"><path d="M0,0 L0,6 L7,3 z" fill="#98a2b3"></path></marker></defs>`;
       const nodes = visibleNodes();
       const edges = visibleEdges(nodes);
-      const positions = layout(nodes, width, height);
+      const positions = ensureLayout(nodes, edges, width, height);
       const selected = state.selected;
       const selectedKey = selected?.key || "";
       const selectedNodeId = selected?.kind === "node" ? selected.value.id : "";
       const selectedEdge = selected?.kind === "edge" ? selected.value : null;
       const selectedEdgeNodes = selectedEdge ? new Set([selectedEdge.source, selectedEdge.target]) : new Set();
+      const edgeOccurrences = new Map();
       for (const edge of edges) {
         const source = positions.get(edge.source);
         const target = positions.get(edge.target);
         if (!source || !target) continue;
+        const occurrenceKey = `${edge.source}->${edge.target}`;
+        const occurrenceIndex = edgeOccurrences.get(occurrenceKey) || 0;
+        edgeOccurrences.set(occurrenceKey, occurrenceIndex + 1);
+        const pathData = edgePath(source, target, occurrenceIndex);
         const isSelected = selected?.kind === "edge" && edge.id === selectedKey;
         const isRelated = selectedNodeId && (edge.source === selectedNodeId || edge.target === selectedNodeId);
         const edgeClass = `edge ${edge.type} ${edge.confidence}${isSelected ? " selected" : ""}${isRelated ? " related" : ""}`;
-        const hitLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
-        hitLine.setAttribute("x1", source.x);
-        hitLine.setAttribute("y1", source.y);
-        hitLine.setAttribute("x2", target.x);
-        hitLine.setAttribute("y2", target.y);
-        hitLine.setAttribute("class", "edge-hit");
-        hitLine.addEventListener("click", () => select(edge, "edge"));
-        svg.append(hitLine);
-        const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
-        line.setAttribute("x1", source.x);
-        line.setAttribute("y1", source.y);
-        line.setAttribute("x2", target.x);
-        line.setAttribute("y2", target.y);
-        line.setAttribute("class", edgeClass);
-        line.addEventListener("click", () => select(edge, "edge"));
-        svg.append(line);
+        const hitPath = document.createElementNS("http://www.w3.org/2000/svg", "path");
+        hitPath.setAttribute("d", pathData);
+        hitPath.setAttribute("class", "edge-hit");
+        hitPath.addEventListener("click", () => select(edge, "edge"));
+        svg.append(hitPath);
+        const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
+        path.setAttribute("d", pathData);
+        path.setAttribute("class", edgeClass);
+        path.addEventListener("click", () => select(edge, "edge"));
+        svg.append(path);
       }
       for (const node of nodes) {
         const point = positions.get(node.id);
@@ -1463,7 +1560,7 @@ HTML_TEMPLATE = r"""<!doctype html>
         const isRelated = selectedEdgeNodes.has(node.id);
         group.setAttribute("class", `node ${node.kind !== "skill" ? "asset" : ""}${isSelected ? " selected" : ""}${isRelated ? " related" : ""}`);
         group.setAttribute("transform", `translate(${point.x}, ${point.y})`);
-        group.addEventListener("click", () => select(node, "node"));
+        group.addEventListener("pointerdown", event => beginNodeDrag(event, node));
         const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
         circle.setAttribute("r", node.kind === "skill" ? "18" : "13");
         const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
@@ -1528,6 +1625,70 @@ HTML_TEMPLATE = r"""<!doctype html>
       draw();
     }
 
+    function resetGraphLayout() {
+      state.positions = {};
+      state.layoutKey = "";
+      draw();
+    }
+
+    function svgPoint(svg, event) {
+      const point = svg.createSVGPoint();
+      point.x = event.clientX;
+      point.y = event.clientY;
+      return point.matrixTransform(svg.getScreenCTM().inverse());
+    }
+
+    function beginNodeDrag(event, node) {
+      event.preventDefault();
+      event.stopPropagation();
+      const svg = document.getElementById("graph");
+      const current = state.positions[node.id] || { x: 0, y: 0 };
+      const point = svgPoint(svg, event);
+      state.dragging = {
+        id: node.id,
+        node,
+        startX: point.x,
+        startY: point.y,
+        offsetX: current.x - point.x,
+        offsetY: current.y - point.y,
+        moved: false,
+      };
+      window.addEventListener("pointermove", dragNode);
+      window.addEventListener("pointerup", endNodeDrag);
+      window.addEventListener("pointercancel", endNodeDrag);
+    }
+
+    function dragNode(event) {
+      if (!state.dragging) return;
+      const svg = document.getElementById("graph");
+      const width = Math.max(svg.clientWidth, 360);
+      const height = Math.max(svg.clientHeight, 420);
+      const point = svgPoint(svg, event);
+      const distance = Math.hypot(point.x - state.dragging.startX, point.y - state.dragging.startY);
+      if (!state.dragging.moved && distance <= 3) return;
+      state.dragging.moved = true;
+      state.positions[state.dragging.id] = clampPosition(
+        {
+          x: point.x + state.dragging.offsetX,
+          y: point.y + state.dragging.offsetY,
+        },
+        width,
+        height,
+      );
+      draw();
+    }
+
+    function endNodeDrag() {
+      const dragging = state.dragging;
+      window.removeEventListener("pointermove", dragNode);
+      window.removeEventListener("pointerup", endNodeDrag);
+      window.removeEventListener("pointercancel", endNodeDrag);
+      state.dragging = null;
+      if (dragging && !dragging.moved) {
+        select(dragging.node, "node");
+      }
+    }
+
     function escapeHtml(value) {
       return String(value ?? "").replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" }[char]));
     }
@@ -1536,6 +1697,7 @@ HTML_TEMPLATE = r"""<!doctype html>
       input.addEventListener("input", draw);
       input.addEventListener("change", draw);
     }
+    resetLayout.addEventListener("click", resetGraphLayout);
     window.addEventListener("resize", draw);
     draw();
   </script>
