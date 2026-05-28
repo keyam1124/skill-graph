@@ -1,70 +1,135 @@
 ---
 name: skillgraph-cartographer
 description: >
-  Use when analyzing, updating, or rendering relationships among SKILL.md files.
-  Run the local skillgraph scripts to build registry, graph, diagnostics, and HTML.
-  Do not call external LLM APIs; use local deterministic outputs and propose
-  SKILL.md or skillgraph.yaml updates for human review.
+  Use when inspecting, classifying, or rendering relationships among SKILL.md
+  files and adjacent agent instruction files. Run the local read-only
+  skillgraph viewer runtime, enrich the base graph with this agent's own
+  labels, categories, clusters, and inferred relationship hints, then display
+  the result without writing graph files or modifying the repository.
 ---
 # SkillGraph Cartographer
 
-Analyze local SKILL relationships with deterministic repository scripts, then
-explain the generated graph and diagnostics to the user.
+Explore a repository's current SkillGraph as a read-only map. The local
+`scripts/skillgraph.py` tool scans files and opens the viewer; this Skill
+defines the analysis flow that Codex or Claude Code performs around that tool.
 
-This Skill must not call external LLM APIs. Use only the current agent's normal
-reasoning over local files and the outputs produced by `scripts/skillgraph.py`.
+The tool must not call Codex, Claude Code, external LLM APIs, or write graph
+artifacts. The agent using this Skill performs any inference itself and passes
+temporary enriched JSON to the viewer.
 
 ## When To Use
 
-Use this Skill when the user asks to analyze, update, render, inspect, or explain
-relationships among `SKILL.md` files, including related skills, path references,
-mentions, duplicate aliases, orphan skills, dangling references, or description
-conflicts.
+Use this Skill when the user asks to visualize, inspect, classify, label, group,
+or explain relationships among `SKILL.md` files, related instruction/rule files,
+references, templates, scripts, path references, mentions, duplicate aliases,
+or orphan skills.
 
 ## Workflow
 
 1. Confirm the repository root. Unless the user provides another root, use the
-   current working directory as the root.
-2. Run the local SkillGraph pipeline:
+   current working directory.
+2. Collect the deterministic base graph:
 
    ```bash
-   python3 scripts/skillgraph.py all --root .
+   python3 scripts/skillgraph.py collect .
    ```
 
-   If the repository provides `python` as a Python 3 executable, that command is
-   also acceptable. Prefer `python3` when the environment is unknown.
+   Capture stdout as JSON. Do not expect `.skillgraph/` or HTML files to be
+   created.
 
-3. Read the generated files:
+3. Read the base graph:
 
-   - `.skillgraph/registry.json`
-   - `.skillgraph/graph.json`
-   - `.skillgraph/diagnostics.json`
+   - `nodes`
+   - `edges`
+   - `diagnostics`
+   - `languageVariants`
+   - relation `origin`, `confidence`, and `evidence`
 
-4. Summarize the results for the user:
+4. Enrich the graph in memory with agent-inferred annotations:
 
-   - registry size and notable Skill groups
-   - graph nodes and edge types
-   - diagnostics that require attention
-   - generated viewer path, when `.skillgraph/skillgraph.html` exists
+   - concise display labels
+   - one-line summaries
+   - suggested categories
+   - cluster IDs
+   - role tags
+   - trigger phrases
+   - optional inferred relationship hints
+   - optional view suggestions
 
-5. Explain relation quality and improvement candidates:
+5. Keep deterministic and inferred information separate. Use `nodeAnnotations`
+   for inferred node metadata and `inferredEdges` for inferred relationship
+   hints. Do not rewrite existing deterministic nodes or edges.
 
-   - If a `mentions` edge is a false positive, propose a
-     `skillgraph.yaml` `ignore_mentions` entry.
-   - If an intentional relationship is missing, propose an explicit
-     `skillgraph.yaml` relation.
-   - If a relationship should be visible to humans, propose adding or updating
-     the `Related Skills` section in the relevant `SKILL.md`.
-   - If descriptions overlap or compete for the same trigger, propose clearer
-     `description` boundaries.
+6. Display the enriched graph:
 
-6. Ask for human confirmation before editing `SKILL.md` or `skillgraph.yaml`.
-   Do not edit implementation files or tests as part of this SkillGraph review
-   workflow unless the user explicitly requests that separate work.
+   ```bash
+   python3 scripts/skillgraph.py view --stdin
+   ```
+
+   Pipe the enriched JSON to stdin. The command prints the local viewer URL.
+
+## Enrichment JSON Shape
+
+Add these top-level fields to the collected graph when useful:
+
+```json
+{
+  "nodeAnnotations": [
+    {
+      "nodeId": "ddd-tactical.aggregate-design",
+      "label": "Aggregate boundary design",
+      "summary": "Helps decide aggregate boundaries and related tradeoffs.",
+      "suggestedCategory": "ddd-tactical",
+      "clusterId": "domain-modeling",
+      "roleTags": ["specialist", "design-review"],
+      "triggerPhrases": ["aggregate boundary", "DDD aggregate"]
+    }
+  ],
+  "inferredEdges": [
+    {
+      "source": "ddd-tactical.aggregate-design",
+      "target": "architecture.clean-architecture-review",
+      "type": "related_to",
+      "confidence": 0.68,
+      "rationale": "Both can participate in boundary design reviews.",
+      "evidence": [
+        {
+          "path": "skills/ddd_tactical/aggregate_design/SKILL.md",
+          "text": "architecture-level consequences"
+        }
+      ]
+    }
+  ],
+  "viewSuggestions": [
+    {
+      "name": "Domain modeling cluster",
+      "description": "Focus on DDD tactical design skills.",
+      "filter": {
+        "clusterId": "domain-modeling"
+      }
+    }
+  ]
+}
+```
+
+## Rules
+
+- Keep the workflow read-only.
+- Do not create `.skillgraph/`.
+- Do not write `skillgraph.yaml`.
+- Do not edit `SKILL.md`, instruction files, references, templates, or scripts
+  as part of this visualization workflow.
+- Do not propose write-back or approval workflows.
+- Treat inferred labels, categories, clusters, and edges as temporary viewer
+  annotations, not source of truth.
+- Prefer weak inferred edges with rationale over overstating uncertain
+  relationships.
+- If an inferred edge has no evidence, include a rationale and keep confidence
+  low.
 
 ## Output Guidance
 
-Keep the report concise and actionable. Distinguish deterministic script output
-from the agent's interpretation. Do not present inferred relations as confirmed
-facts unless they are backed by `graph.json`, `diagnostics.json`, `Related
-Skills`, or `skillgraph.yaml`.
+When reporting to the user, distinguish deterministic graph facts from this
+agent's inferred annotations. Keep the summary focused on what the viewer shows:
+notable clusters, likely entry skills, reference/template coverage, ambiguous
+mentions, and diagnostics that affect understanding the current graph.

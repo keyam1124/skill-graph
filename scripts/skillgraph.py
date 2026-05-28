@@ -1,20 +1,21 @@
 #!/usr/bin/env python3
-"""Build a lightweight graph of SKILL.md relationships.
+"""Read-only SkillGraph viewer runtime.
 
 The tool is intentionally deterministic. It does not call external LLM APIs;
-agents read the generated JSON/HTML and decide how to improve the skill set.
+agents can run ``collect`` to get a base graph, enrich it themselves, and pipe
+the result into ``view`` for local display.
 """
 
 from __future__ import annotations
 
 import argparse
 import datetime as dt
-import html
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
-import os
 import posixpath
 import re
 import sys
+import webbrowser
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterable
@@ -26,11 +27,6 @@ except Exception:  # pragma: no cover - exercised only when PyYAML is absent.
 
 
 SCHEMA_VERSION = "skillgraph-lite.v1"
-OUT_DIR = ".skillgraph"
-REGISTRY_FILE = "registry.json"
-GRAPH_FILE = "graph.json"
-DIAGNOSTICS_FILE = "diagnostics.json"
-HTML_FILE = "skillgraph.html"
 
 EXCLUDED_DIRS = {
     ".git",
@@ -60,7 +56,6 @@ RELATION_TYPES = {
     "uses_script",
     "mentions",
     "should_not_co_trigger",
-    "language_variant",
 }
 SKILL_RELATION_TYPES = {
     "routes_to",
@@ -68,7 +63,6 @@ SKILL_RELATION_TYPES = {
     "related_to",
     "mentions",
     "should_not_co_trigger",
-    "language_variant",
 }
 PATH_RELATION_TYPES = {
     "uses_reference",
@@ -231,12 +225,6 @@ def iter_files(root: Path, patterns: Iterable[str] | None = None) -> Iterable[Pa
             yield path
 
 
-def ensure_out_dir(root: Path) -> Path:
-    out = root / OUT_DIR
-    out.mkdir(parents=True, exist_ok=True)
-    return out
-
-
 def read_text(path: Path) -> str:
     return path.read_text(encoding="utf-8", errors="replace")
 
@@ -346,6 +334,29 @@ def first_h1(text: str) -> str | None:
     return None
 
 
+def first_meaningful_paragraph(text: str) -> str:
+    body = strip_frontmatter(text)
+    paragraphs: list[str] = []
+    current: list[str] = []
+    in_fence = False
+    for raw_line in body.splitlines():
+        line = raw_line.strip()
+        if line.startswith(("```", "~~~")):
+            in_fence = not in_fence
+            continue
+        if in_fence or not line or line.startswith("#"):
+            if current:
+                paragraphs.append(" ".join(current))
+                current = []
+            continue
+        if line.startswith(("-", "*", "+", ">", "|")):
+            continue
+        current.append(line)
+    if current:
+        paragraphs.append(" ".join(current))
+    return paragraphs[0] if paragraphs else ""
+
+
 def as_list(value: Any) -> list[str]:
     if value is None:
         return []
@@ -367,6 +378,74 @@ def unique(values: Iterable[str]) -> list[str]:
         seen.add(key)
         result.append(item)
     return result
+
+
+def slugify(value: str) -> str:
+    value = value.strip().lower().replace("_", "-")
+    value = re.sub(r"[^a-z0-9.-]+", "-", value)
+    value = re.sub(r"-+", "-", value)
+    return value.strip("-") or "source"
+
+
+def source_node_id(kind: str, rel: str) -> str:
+    stem = rel
+    if stem.endswith((".md", ".mdc", ".txt")):
+        stem = posixpath.splitext(stem)[0]
+    if rel == "AGENTS.md":
+        return "instruction.root.agents"
+    if rel == ".github/copilot-instructions.md":
+        return "instruction.github.copilot-instructions"
+    if rel.startswith(".github/instructions/"):
+        suffix = slugify(stem.removeprefix(".github/instructions/").replace("/", "."))
+        return f"instruction.github.instructions.{suffix}"
+    if rel.startswith(".cursor/rules/"):
+        suffix = slugify(stem.removeprefix(".cursor/rules/").replace("/", "."))
+        return f"rule.cursor.{suffix}"
+    if kind in {"reference", "template", "script"}:
+        return rel
+    return f"{kind}.{slugify(stem.replace('/', '.'))}"
+
+
+def source_kind_for_path(rel: str) -> str | None:
+    if rel == "AGENTS.md" or rel == ".github/copilot-instructions.md" or rel.startswith(".github/instructions/"):
+        return "instruction"
+    if rel.startswith(".cursor/rules/"):
+        return "rule"
+    if rel.startswith("references/"):
+        return "reference"
+    if rel.startswith("templates/"):
+        return "template"
+    if rel.startswith("scripts/"):
+        return "script"
+    return None
+
+
+def source_node_for_file(root: Path, path: Path) -> dict[str, Any] | None:
+    rel = rel_path(path, root)
+    kind = source_kind_for_path(rel)
+    if not kind:
+        return None
+    title = ""
+    description = ""
+    frontmatter: dict[str, Any] = {}
+    if path.suffix.lower() in {".md", ".mdc"}:
+        text = read_text(path)
+        frontmatter, _ = parse_frontmatter(text)
+        title = str(frontmatter.get("title") or frontmatter.get("name") or first_h1(text) or "")
+        description = str(frontmatter.get("description") or first_meaningful_paragraph(text) or "")
+    label = title or path.name
+    node_id = source_node_id(kind, rel)
+    return {
+        "id": node_id,
+        "kind": kind,
+        "label": label,
+        "name": label,
+        "path": rel,
+        "dir": posixpath.dirname(rel),
+        "category": kind,
+        "description": description,
+        "aliases": unique([node_id, rel, path.name, title]),
+    }
 
 
 def sidecar_for(skill_file: Path) -> tuple[dict[str, Any], Path | None]:
@@ -417,16 +496,6 @@ def scan_registry(root: Path) -> dict[str, Any]:
                     severity="warning",
                     message="SKILL.md is missing frontmatter name and/or description.",
                     path=rel_path(skill_file, root),
-                    skill=skill_id,
-                )
-            )
-        if not sidecar_path:
-            diagnostics.append(
-                Diagnostic(
-                    type="missing_sidecar",
-                    severity="info",
-                    message="skillgraph.yaml is not present; inferred relations will still be analyzed.",
-                    path=rel_path(skill_file.parent, root),
                     skill=skill_id,
                 )
             )
@@ -486,15 +555,10 @@ def scan_registry(root: Path) -> dict[str, Any]:
         "skills": [record.to_json() for record in records],
         "diagnostics": [diag.to_json() for diag in diagnostics],
     }
-    out = ensure_out_dir(root)
-    (out / REGISTRY_FILE).write_text(json.dumps(registry, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     return registry
 
 
 def load_registry(root: Path) -> dict[str, Any]:
-    registry_path = root / OUT_DIR / REGISTRY_FILE
-    if registry_path.exists():
-        return json.loads(read_text(registry_path))
     return scan_registry(root)
 
 
@@ -711,22 +775,6 @@ def sidecar_relations(
                 )
             )
     return edges, diagnostics
-
-
-def language_variant_edges(skill: dict[str, Any]) -> list[Edge]:
-    edges: list[Edge] = []
-    for variant in skill.get("languageVariants", []):
-        edges.append(
-            make_edge(
-                skill["id"],
-                variant["path"],
-                "language_variant",
-                "language_variant",
-                "high",
-                [evidence(skill["path"], variant["path"], "language_variant")],
-            )
-        )
-    return edges
 
 
 def markdown_link_edges(
@@ -1009,13 +1057,35 @@ def duplicate_alias_diagnostics(skills: dict[str, dict[str, Any]], alias_map: di
     return diagnostics
 
 
+def scanned_source_nodes(root: Path, existing_node_ids: set[str]) -> list[dict[str, Any]]:
+    patterns = [
+        "AGENTS.md",
+        ".github/copilot-instructions.md",
+        ".github/instructions/**/*.md",
+        ".cursor/rules/**/*.md",
+        ".cursor/rules/**/*.mdc",
+        "references/**/*",
+        "templates/**/*",
+        "scripts/**/*",
+    ]
+    nodes: list[dict[str, Any]] = []
+    seen = set(existing_node_ids)
+    for path in iter_files(root, patterns):
+        node = source_node_for_file(root, path)
+        if not node or node["id"] in seen:
+            continue
+        nodes.append(node)
+        seen.add(node["id"])
+    return sorted(nodes, key=lambda item: item["id"])
+
+
 def asset_nodes(root: Path, edges: list[Edge], existing_node_ids: set[str]) -> list[dict[str, Any]]:
     nodes: list[dict[str, Any]] = []
     seen: set[str] = set()
     for edge in edges:
         if edge.target in existing_node_ids or edge.target in seen:
             continue
-        if edge.type not in PATH_RELATION_TYPES and edge.type != "language_variant":
+        if edge.type not in PATH_RELATION_TYPES:
             continue
         path = edge.target
         kind = "file"
@@ -1025,8 +1095,6 @@ def asset_nodes(root: Path, edges: list[Edge], existing_node_ids: set[str]) -> l
             kind = "template"
         elif edge.type == "uses_script":
             kind = "script"
-        elif edge.type == "language_variant":
-            kind = "skill_variant"
         nodes.append(
             {
                 "id": path,
@@ -1070,8 +1138,7 @@ def analyze_graph(root: Path) -> dict[str, Any]:
     skills, alias_map = skill_maps(registry)
     path_to_skill = {skill["path"]: skill_id for skill_id, skill in skills.items()}
     path_to_skill.update({skill["dir"]: skill_id for skill_id, skill in skills.items()})
-    diagnostics = [Diagnostic(**diag) for diag in registry.get("diagnostics", []) if diag.get("type") != "missing_sidecar"]
-    diagnostics.extend(Diagnostic(**diag) for diag in registry.get("diagnostics", []) if diag.get("type") == "missing_sidecar")
+    diagnostics = [Diagnostic(**diag) for diag in registry.get("diagnostics", [])]
     diagnostics.extend(duplicate_alias_diagnostics(skills, alias_map))
     edges: list[Edge] = []
 
@@ -1079,7 +1146,6 @@ def analyze_graph(root: Path) -> dict[str, Any]:
         side_edges, side_diags = sidecar_relations(root, skill, skills, alias_map)
         edges.extend(side_edges)
         diagnostics.extend(side_diags)
-        edges.extend(language_variant_edges(skill))
         link_edges, link_diags = markdown_link_edges(root, skill, path_to_skill)
         edges.extend(link_edges)
         diagnostics.extend(link_diags)
@@ -1125,7 +1191,9 @@ def analyze_graph(root: Path) -> dict[str, Any]:
 
     skill_nodes = [skills[skill_id] for skill_id in sorted(skills)]
     node_ids = {node["id"] for node in skill_nodes}
-    nodes = skill_nodes + asset_nodes(root, edges, node_ids)
+    source_nodes = scanned_source_nodes(root, node_ids)
+    node_ids.update(node["id"] for node in source_nodes)
+    nodes = skill_nodes + source_nodes + asset_nodes(root, edges, node_ids)
     graph = {
         "schemaVersion": SCHEMA_VERSION,
         "generatedAt": utc_now(),
@@ -1134,69 +1202,173 @@ def analyze_graph(root: Path) -> dict[str, Any]:
         "edges": assign_edge_ids(edges),
         "diagnostics": [diag.to_json() for diag in diagnostics],
     }
-    out = ensure_out_dir(root)
-    (out / GRAPH_FILE).write_text(json.dumps(graph, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    (out / DIAGNOSTICS_FILE).write_text(
-        json.dumps(graph["diagnostics"], ensure_ascii=False, indent=2) + "\n",
-        encoding="utf-8",
-    )
     return graph
 
 
-def render_html(root: Path) -> Path:
-    root = root.resolve()
-    graph_path = root / OUT_DIR / GRAPH_FILE
-    if not graph_path.exists():
-        analyze_graph(root)
-    graph = json.loads(read_text(graph_path))
-    graph_json = json.dumps(graph, ensure_ascii=False)
-    html_text = HTML_TEMPLATE.replace("__GRAPH_JSON__", graph_json.replace("</", "<\\/"))
-    out = ensure_out_dir(root) / HTML_FILE
-    out.write_text(html_text, encoding="utf-8")
-    return out
+def html_for_graph(graph: dict[str, Any] | None = None) -> str:
+    graph_json = "null" if graph is None else json.dumps(graph, ensure_ascii=False)
+    return HTML_TEMPLATE.replace("__GRAPH_JSON__", graph_json.replace("</", "<\\/"))
 
 
-def command_scan(args: argparse.Namespace) -> int:
-    registry = scan_registry(Path(args.root))
-    print(f"Wrote {Path(args.root) / OUT_DIR / REGISTRY_FILE} ({len(registry.get('skills', []))} skills)")
+def diagnostic_from_mapping(data: dict[str, Any], message: str) -> dict[str, Any]:
+    payload = {
+        "type": "invalid_agent_annotation",
+        "severity": "warning",
+        "message": message,
+    }
+    if "nodeId" in data:
+        payload["target"] = data.get("nodeId")
+    elif "source" in data or "target" in data:
+        payload["target"] = " -> ".join(str(data.get(key, "")) for key in ("source", "target") if data.get(key))
+    payload["evidence"] = {"value": data}
+    return payload
+
+
+def agent_list(graph: dict[str, Any], key: str, diagnostics: list[dict[str, Any]]) -> list[Any]:
+    value = graph.get(key, [])
+    if value is None:
+        return []
+    if isinstance(value, list):
+        return value
+    diagnostics.append(diagnostic_from_mapping({"value": value}, f"Agent {key} is not a list."))
+    graph[key] = []
+    return []
+
+
+def enrich_graph(graph: dict[str, Any]) -> dict[str, Any]:
+    graph = json.loads(json.dumps(graph))
+    nodes = graph.setdefault("nodes", [])
+    edges = graph.setdefault("edges", [])
+    diagnostics = graph.setdefault("diagnostics", [])
+    node_ids = {node.get("id") for node in nodes if node.get("id")}
+    node_index = {node.get("id"): node for node in nodes if node.get("id")}
+
+    valid_annotations: list[dict[str, Any]] = []
+    for annotation in agent_list(graph, "nodeAnnotations", diagnostics):
+        if not isinstance(annotation, dict):
+            diagnostics.append(diagnostic_from_mapping({"value": annotation}, "Agent node annotation is not an object."))
+            continue
+        node_id = str(annotation.get("nodeId") or "")
+        if node_id not in node_ids:
+            diagnostics.append(diagnostic_from_mapping(annotation, f"Agent node annotation target {node_id or '<missing>'} does not exist."))
+            continue
+        valid_annotations.append(annotation)
+        node_index[node_id]["annotation"] = annotation
+    graph["nodeAnnotations"] = valid_annotations
+
+    valid_inferred_edges: list[dict[str, Any]] = []
+    counters: dict[str, int] = {}
+    for edge in agent_list(graph, "inferredEdges", diagnostics):
+        if not isinstance(edge, dict):
+            diagnostics.append(diagnostic_from_mapping({"value": edge}, "Agent inferred edge is not an object."))
+            continue
+        source = str(edge.get("source") or "")
+        target = str(edge.get("target") or "")
+        edge_type = str(edge.get("type") or "related_to")
+        if source not in node_ids or target not in node_ids:
+            diagnostics.append(diagnostic_from_mapping(edge, f"Agent inferred edge {source or '<missing>'} -> {target or '<missing>'} references an unknown node."))
+            continue
+        base = re.sub(r"[^A-Za-z0-9_.-]+", "-", f"edge.inferred.{source}.{target}.{edge_type}").strip("-")
+        counters[base] = counters.get(base, 0) + 1
+        normalized = {
+            "id": edge.get("id") or f"{base}.{counters[base]}",
+            "source": source,
+            "target": target,
+            "type": edge_type,
+            "origin": edge.get("origin") or "agent_inferred",
+            "confidence": edge.get("confidence", "medium"),
+            "evidence": edge.get("evidence") if isinstance(edge.get("evidence"), list) else [],
+            "rationale": edge.get("rationale") or "",
+            "inferred": True,
+        }
+        valid_inferred_edges.append(normalized)
+        edges.append(normalized)
+    graph["inferredEdges"] = valid_inferred_edges
+
+    agent_list(graph, "viewSuggestions", diagnostics)
+    return graph
+
+
+def command_collect(args: argparse.Namespace) -> int:
+    graph = analyze_graph(Path(args.repo))
+    print(json.dumps(graph, ensure_ascii=False, indent=2))
     return 0
 
 
-def command_analyze(args: argparse.Namespace) -> int:
-    graph = analyze_graph(Path(args.root))
-    print(
-        f"Wrote {Path(args.root) / OUT_DIR / GRAPH_FILE} "
-        f"({len(graph.get('nodes', []))} nodes, {len(graph.get('edges', []))} edges)"
-    )
+def read_graph_from_stdin() -> dict[str, Any]:
+    try:
+        data = json.load(sys.stdin)
+    except json.JSONDecodeError as exc:
+        raise SystemExit(f"failed to read graph JSON from stdin: {exc}") from exc
+    if not isinstance(data, dict):
+        raise SystemExit("graph JSON must be an object")
+    return data
+
+
+def make_viewer_handler(graph: dict[str, Any]) -> type[BaseHTTPRequestHandler]:
+    html_text = html_for_graph().encode("utf-8")
+    graph_json = (json.dumps(graph, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
+
+    class ViewerHandler(BaseHTTPRequestHandler):
+        def do_GET(self) -> None:  # noqa: N802 - stdlib handler API
+            if self.path in {"/", "/index.html"}:
+                self.send_response(200)
+                self.send_header("Content-Type", "text/html; charset=utf-8")
+                self.send_header("Content-Length", str(len(html_text)))
+                self.end_headers()
+                self.wfile.write(html_text)
+                return
+            if self.path == "/graph.json":
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json; charset=utf-8")
+                self.send_header("Content-Length", str(len(graph_json)))
+                self.end_headers()
+                self.wfile.write(graph_json)
+                return
+            self.send_error(404)
+
+        def log_message(self, format: str, *args: Any) -> None:
+            return
+
+    return ViewerHandler
+
+
+def serve_viewer(graph: dict[str, Any], host: str, port: int, open_browser: bool) -> int:
+    server = ThreadingHTTPServer((host, port), make_viewer_handler(graph))
+    url = f"http://{server.server_address[0]}:{server.server_address[1]}/"
+    print(url, flush=True)
+    if open_browser:
+        webbrowser.open(url)
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        return 0
+    finally:
+        server.server_close()
     return 0
 
 
-def command_render(args: argparse.Namespace) -> int:
-    path = render_html(Path(args.root))
-    print(f"Wrote {path}")
-    return 0
-
-
-def command_all(args: argparse.Namespace) -> int:
-    scan_registry(Path(args.root))
-    analyze_graph(Path(args.root))
-    render_html(Path(args.root))
-    print(f"Wrote {Path(args.root) / OUT_DIR}")
-    return 0
+def command_view(args: argparse.Namespace) -> int:
+    if not args.stdin:
+        raise SystemExit("view requires --stdin")
+    graph = enrich_graph(read_graph_from_stdin())
+    return serve_viewer(graph, args.host, args.port, not args.no_open)
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Generate SkillGraph Lite registry, graph, diagnostics, and HTML.")
+    parser = argparse.ArgumentParser(description="Collect read-only SkillGraph JSON or display it in a local viewer.")
     subparsers = parser.add_subparsers(dest="command", required=True)
-    for name, handler in {
-        "scan": command_scan,
-        "analyze": command_analyze,
-        "render": command_render,
-        "all": command_all,
-    }.items():
-        sub = subparsers.add_parser(name)
-        sub.add_argument("--root", default=".", help="Repository root containing skills/")
-        sub.set_defaults(func=handler)
+    collect = subparsers.add_parser("collect", help="Write base graph JSON to stdout.")
+    collect.add_argument("repo", nargs="?", default=".", help="Repository root to inspect.")
+    collect.set_defaults(func=command_collect)
+
+    view = subparsers.add_parser("view", help="Serve graph JSON from stdin in a local viewer.")
+    view.add_argument("--stdin", action="store_true", help="Read base or enriched graph JSON from stdin.")
+    view.add_argument("--host", default="127.0.0.1", help="Viewer bind host.")
+    view.add_argument("--port", type=int, default=0, help="Viewer port; 0 chooses a free port.")
+    view.add_argument("--no-open", action="store_true", help="Print the viewer URL without opening a browser.")
+    view.set_defaults(func=command_view)
+
     return parser
 
 
@@ -1205,7 +1377,7 @@ HTML_TEMPLATE = r"""<!doctype html>
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>SkillGraph Lite</title>
+  <title>SkillGraph Viewer</title>
   <style>
     :root { color-scheme: light; --line: #d7dee8; --text: #17202a; --muted: #5f6f82; --accent: #0d6efd; --warn: #a15c00; --error: #b42318; --panel: #f6f8fb; }
     * { box-sizing: border-box; }
@@ -1235,6 +1407,7 @@ HTML_TEMPLATE = r"""<!doctype html>
     .badge { display: inline-block; font-size: 11px; padding: 2px 6px; border-radius: 999px; background: #eaf1ff; color: #174ea6; margin-right: 4px; }
     .badge.file { background: #f1f5f9; color: #475569; }
     .badge.edge-type { background: #fff7ed; color: #9a3412; }
+    .badge.inferred { background: #f3e8ff; color: #6b21a8; }
     .badge.warning { background: #fff7ed; color: var(--warn); }
     .badge.error { background: #fef2f2; color: var(--error); }
     .summary-card { border: 1px solid var(--line); background: #fff; border-radius: 6px; padding: 10px; }
@@ -1266,6 +1439,7 @@ HTML_TEMPLATE = r"""<!doctype html>
     .node text { font-size: 12px; paint-order: stroke; stroke: #fff; stroke-width: 4px; stroke-linejoin: round; fill: var(--text); pointer-events: none; }
     .edge { fill: none; stroke: #64748b; stroke-width: 2.2; cursor: pointer; opacity: .9; vector-effect: non-scaling-stroke; }
     .edge.mentions { stroke-dasharray: 4 3; }
+    .edge.inferred { stroke: #7c3aed; stroke-dasharray: 8 4; }
     .edge.high { stroke-width: 2.8; }
     .edge.related { stroke: #f97316; stroke-width: 4; }
     .edge.selected { stroke: #b42318; stroke-width: 5; }
@@ -1283,14 +1457,22 @@ HTML_TEMPLATE = r"""<!doctype html>
 <body>
   <div class="app">
     <aside>
-      <h1>SkillGraph Lite</h1>
+      <h1>SkillGraph Viewer</h1>
+      <label for="viewMode">View</label>
+      <select id="viewMode">
+        <option value="topology">Topology</option>
+        <option value="router">Router</option>
+        <option value="artifacts">Reference / Template</option>
+        <option value="inferred">Inferred Cluster</option>
+        <option value="diagnostics">Diagnostics</option>
+      </select>
       <label for="search">Skill Search</label>
       <input id="search" type="search" placeholder="id, name, path">
       <label for="nodeKind">Node Type</label>
       <select id="nodeKind">
         <option value="">All nodes</option>
         <option value="skill">SKILL.md</option>
-        <option value="file">Files / variants</option>
+        <option value="file">Sources</option>
       </select>
       <label for="extension">Extension</label>
       <select id="extension"><option value="">All extensions</option></select>
@@ -1331,7 +1513,13 @@ HTML_TEMPLATE = r"""<!doctype html>
     </aside>
   </div>
   <script>
-    const graph = __GRAPH_JSON__;
+    let graph = __GRAPH_JSON__;
+    if (!graph) {
+      const request = new XMLHttpRequest();
+      request.open("GET", "/graph.json", false);
+      request.send(null);
+      graph = JSON.parse(request.responseText);
+    }
     const showMentionsDefault = false;
     const state = {
       selected: null,
@@ -1342,6 +1530,7 @@ HTML_TEMPLATE = r"""<!doctype html>
       view: { x: 0, y: 0, scale: 1 },
     };
     const nodeIndex = new Map(graph.nodes.map(node => [node.id, node]));
+    const viewMode = document.getElementById("viewMode");
     const nodeKind = document.getElementById("nodeKind");
     const extension = document.getElementById("extension");
     const edgeType = document.getElementById("edgeType");
@@ -1390,15 +1579,19 @@ HTML_TEMPLATE = r"""<!doctype html>
       if (nodeKind.value === "file" && node.kind === "skill") return false;
       if (extension.value && nodeExtension(node) !== extension.value) return false;
       if (!q) return true;
-      return [node.id, node.label, node.path, node.description, ...(node.aliases || [])]
+      const annotation = node.annotation || {};
+      return [node.id, node.label, node.path, node.description, annotation.label, annotation.summary, annotation.suggestedCategory, annotation.clusterId, ...(annotation.roleTags || []), ...(node.aliases || [])]
         .filter(Boolean)
         .some(value => String(value).toLowerCase().includes(q));
     }
 
     function edgePassesControls(edge) {
       if (!showMentions.checked && edge.type === "mentions") return false;
+      if (viewMode.value === "router" && !["routes_to", "invokes"].includes(edge.type)) return false;
+      if (viewMode.value === "artifacts" && !["uses_reference", "uses_template", "uses_script"].includes(edge.type)) return false;
+      if (viewMode.value === "inferred" && !edge.inferred) return false;
       if (edgeType.value && edge.type !== edgeType.value) return false;
-      if (confidence.value && edge.confidence !== confidence.value) return false;
+      if (confidence.value && String(edge.confidence) !== confidence.value) return false;
       return true;
     }
 
@@ -1454,9 +1647,13 @@ HTML_TEMPLATE = r"""<!doctype html>
 
     function nodeTypeLabel(node) {
       if (node.kind === "skill") return "SKILL.md";
-      const filename = String(node.path || node.id || "").split("/").pop() || "";
-      if (filename.startsWith("SKILL.")) return `Skill variant ${nodeExtension(node) || ""}`.trim();
-      return `Reference ${nodeExtension(node) || "file"}`;
+      return {
+        instruction: "Instruction",
+        rule: "Rule",
+        reference: "Reference",
+        template: "Template",
+        script: "Script",
+      }[node.kind] || "Source";
     }
 
     function nodeTypeClass(node) {
@@ -1465,7 +1662,7 @@ HTML_TEMPLATE = r"""<!doctype html>
 
     function nodeDisplay(id) {
       const node = nodeIndex.get(id);
-      return node?.label || id;
+      return node?.annotation?.label || node?.label || id;
     }
 
     function nodePath(node) {
@@ -1478,10 +1675,12 @@ HTML_TEMPLATE = r"""<!doctype html>
 
     function relationLabel(type) {
       return {
+        routes_to: "Routes to",
         invokes: "Invokes",
         related_to: "Related skill",
         uses_reference: "Uses reference",
         uses_template: "Uses template",
+        uses_script: "Uses script",
         mentions: "Mentions",
         language_variant: "Language variant",
         should_not_co_trigger: "Should not co-trigger",
@@ -1701,7 +1900,7 @@ HTML_TEMPLATE = r"""<!doctype html>
         const pathData = edgePath(source, target, occurrenceIndex, nodeRadius(sourceNode), nodeRadius(targetNode));
         const isSelected = selected?.kind === "edge" && edge.id === selectedKey;
         const isRelated = selectedNodeId && (edge.source === selectedNodeId || edge.target === selectedNodeId);
-        const edgeClass = `edge ${edge.type} ${edge.confidence}${isSelected ? " selected" : ""}${isRelated ? " related" : ""}`;
+        const edgeClass = `edge ${edge.type} ${edgeConfidenceClass(edge)}${edge.inferred ? " inferred" : ""}${isSelected ? " selected" : ""}${isRelated ? " related" : ""}`;
         const hitPath = document.createElementNS("http://www.w3.org/2000/svg", "path");
         hitPath.setAttribute("d", pathData);
         hitPath.setAttribute("class", "edge-hit");
@@ -1728,7 +1927,7 @@ HTML_TEMPLATE = r"""<!doctype html>
         const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
         text.setAttribute("text-anchor", "middle");
         text.setAttribute("y", "34");
-        text.textContent = node.label || node.id;
+        text.textContent = node.annotation?.label || node.label || node.id;
         group.append(circle, text);
         layer.append(group);
       }
@@ -1739,27 +1938,37 @@ HTML_TEMPLATE = r"""<!doctype html>
     }
 
     function nodeItemHtml(node) {
-      const description = node.description ? `<span>${escapeHtml(node.description)}</span>` : "";
+      const annotation = node.annotation || {};
+      const description = annotation.summary || node.description ? `<span>${escapeHtml(annotation.summary || node.description)}</span>` : "";
+      const roleTags = Array.isArray(annotation.roleTags) ? annotation.roleTags : [];
       return `
         <div class="item-meta">
           <span class="badge ${nodeTypeClass(node)}">${escapeHtml(nodeTypeLabel(node))}</span>
-          ${node.category ? `<span class="badge">${escapeHtml(node.category)}</span>` : ""}
+          ${annotation.suggestedCategory ? `<span class="badge inferred">${escapeHtml(annotation.suggestedCategory)}</span>` : node.category ? `<span class="badge">${escapeHtml(node.category)}</span>` : ""}
+          ${annotation.clusterId ? `<span class="badge inferred">${escapeHtml(annotation.clusterId)}</span>` : ""}
         </div>
-        <strong>${escapeHtml(node.label || node.id)}</strong>
+        <strong>${escapeHtml(annotation.label || node.label || node.id)}</strong>
         <span>${escapeHtml(nodePath(node))}</span>
+        ${roleTags.length ? `<span>${roleTags.map(escapeHtml).join(", ")}</span>` : ""}
         ${description}
       `;
     }
 
+    function edgeConfidenceClass(edge) {
+      return String(edge.confidence || "").replace(/[^A-Za-z0-9_-]+/g, "-");
+    }
+
     function edgeItemHtml(edge) {
-      const confidenceClass = edge.confidence === "high" ? "" : edge.confidence;
+      const confidenceClass = edge.confidence === "high" ? "" : edgeConfidenceClass(edge);
       return `
         <div class="item-meta">
           <span class="badge edge-type">${escapeHtml(relationLabel(edge.type))}</span>
+          ${edge.inferred ? `<span class="badge inferred">inferred</span>` : ""}
           ${edge.confidence ? `<span class="badge ${escapeHtml(confidenceClass)}">${escapeHtml(edge.confidence)}</span>` : ""}
         </div>
         <strong>${escapeHtml(edgeSummary(edge))}</strong>
         <span>${escapeHtml(edge.origin || "inferred")}</span>
+        ${edge.rationale ? `<span>${escapeHtml(edge.rationale)}</span>` : ""}
       `;
     }
 
@@ -1787,7 +1996,9 @@ HTML_TEMPLATE = r"""<!doctype html>
     }
 
     function renderNodeGroups(nodeBox, nodes) {
-      const groups = groupBy(nodes, nodeTypeLabel);
+      const groups = groupBy(nodes, node => viewMode.value === "inferred"
+        ? (node.annotation?.clusterId || node.annotation?.suggestedCategory || "Unclustered")
+        : nodeTypeLabel(node));
       for (const [title, values] of groups) {
         appendGroup(nodeBox, title, values, node => {
           const item = document.createElement("div");
@@ -1867,20 +2078,26 @@ HTML_TEMPLATE = r"""<!doctype html>
     function renderNodeDetails(node) {
       const outgoing = graph.edges.filter(edge => edge.source === node.id);
       const incoming = graph.edges.filter(edge => edge.target === node.id);
+      const annotation = node.annotation || {};
+      const roleTags = Array.isArray(annotation.roleTags) ? annotation.roleTags : [];
+      const triggers = Array.isArray(annotation.triggerPhrases) ? annotation.triggerPhrases : [];
       return `
         <section class="summary-card">
           <h2>Node</h2>
           <div class="item-meta">
             <span class="badge ${nodeTypeClass(node)}">${escapeHtml(nodeTypeLabel(node))}</span>
-            ${node.category ? `<span class="badge">${escapeHtml(node.category)}</span>` : ""}
+            ${annotation.suggestedCategory ? `<span class="badge inferred">${escapeHtml(annotation.suggestedCategory)}</span>` : node.category ? `<span class="badge">${escapeHtml(node.category)}</span>` : ""}
+            ${annotation.clusterId ? `<span class="badge inferred">${escapeHtml(annotation.clusterId)}</span>` : ""}
           </div>
-          <p><strong>${escapeHtml(node.label || node.id)}</strong></p>
-          ${node.description ? `<p class="description">${escapeHtml(node.description)}</p>` : ""}
+          <p><strong>${escapeHtml(annotation.label || node.label || node.id)}</strong></p>
+          ${annotation.summary ? `<p class="description">${escapeHtml(annotation.summary)}</p>` : node.description ? `<p class="description">${escapeHtml(node.description)}</p>` : ""}
           <dl class="meta-grid">
             <dt>ID</dt><dd>${escapeHtml(node.id)}</dd>
             <dt>Path</dt><dd>${escapeHtml(nodePath(node))}</dd>
             <dt>Outgoing</dt><dd>${outgoing.length} dependencies / references</dd>
             <dt>Incoming</dt><dd>${incoming.length} dependents / mentions</dd>
+            ${roleTags.length ? `<dt>Role tags</dt><dd>${roleTags.map(escapeHtml).join(", ")}</dd>` : ""}
+            ${triggers.length ? `<dt>Trigger phrases</dt><dd>${triggers.map(escapeHtml).join(", ")}</dd>` : ""}
             ${node.aliases?.length ? `<dt>Aliases</dt><dd>${node.aliases.map(escapeHtml).join(", ")}</dd>` : ""}
           </dl>
           <button id="clearSelection" type="button">Clear selection</button>
@@ -1902,6 +2119,7 @@ HTML_TEMPLATE = r"""<!doctype html>
             <dt>From</dt><dd>${escapeHtml(nodeDisplay(edge.source))}<br>${escapeHtml(edge.source)}</dd>
             <dt>To</dt><dd>${escapeHtml(nodeDisplay(edge.target))}<br>${escapeHtml(edge.target)}</dd>
             <dt>Origin</dt><dd>${escapeHtml(edge.origin || "inferred")}</dd>
+            ${edge.rationale ? `<dt>Rationale</dt><dd>${escapeHtml(edge.rationale)}</dd>` : ""}
             <dt>Evidence</dt><dd>${escapeHtml((edge.evidence || []).map(item => item.path || item.text).filter(Boolean).join(", ") || "N/A")}</dd>
           </dl>
           <button id="clearSelection" type="button">Clear selection</button>
@@ -2061,7 +2279,7 @@ HTML_TEMPLATE = r"""<!doctype html>
       return String(value ?? "").replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" }[char]));
     }
 
-    for (const input of [nodeKind, extension, edgeType, confidence, search, showMentions]) {
+    for (const input of [viewMode, nodeKind, extension, edgeType, confidence, search, showMentions]) {
       input.addEventListener("input", draw);
       input.addEventListener("change", draw);
     }
