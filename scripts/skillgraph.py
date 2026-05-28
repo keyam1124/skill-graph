@@ -1233,23 +1233,26 @@ HTML_TEMPLATE = r"""<!doctype html>
     .error { color: var(--error); }
     button { min-height: 32px; border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px; background: #fff; color: var(--text); cursor: pointer; }
     button:hover { border-color: var(--accent); }
-    .graph-actions { display: flex; align-items: center; gap: 10px; color: var(--muted); font-size: 13px; }
+    .graph-actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 8px; color: var(--muted); font-size: 13px; }
+    .graph-actions .icon-button { width: 32px; padding: 6px 0; }
+    .view-state { min-width: 42px; text-align: center; }
     #graph { width: 100%; height: 100%; min-height: 0; background-color: #fbfdff; background-image: linear-gradient(#edf2f7 1px, transparent 1px), linear-gradient(90deg, #edf2f7 1px, transparent 1px); background-size: 28px 28px; touch-action: none; }
     .status { padding: 10px 16px; border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; }
     .node { cursor: grab; }
     .node:active { cursor: grabbing; }
-    .node circle { fill: #f8fbff; stroke: #2563eb; stroke-width: 2; filter: drop-shadow(0 6px 10px rgba(15, 23, 42, .18)); }
+    .graph-layer { transform-origin: 0 0; }
+    .node circle { fill: #f8fbff; stroke: #2563eb; stroke-width: 2; filter: drop-shadow(0 6px 10px rgba(15, 23, 42, .18)); vector-effect: non-scaling-stroke; }
     .node.asset circle { fill: #f8fafc; stroke: #64748b; }
     .node:hover circle { fill: #eff6ff; stroke-width: 3; }
     .node.related circle { fill: #fff7ed; stroke: #f97316; stroke-width: 3; }
     .node.selected circle { fill: #dbeafe; stroke: #b42318; stroke-width: 4; }
     .node text { font-size: 12px; paint-order: stroke; stroke: #fff; stroke-width: 4px; stroke-linejoin: round; fill: var(--text); pointer-events: none; }
-    .edge { fill: none; stroke: #94a3b8; stroke-width: 1.5; marker-end: url(#arrow); cursor: pointer; opacity: .82; }
+    .edge { fill: none; stroke: #94a3b8; stroke-width: 1.5; marker-end: url(#arrow); cursor: pointer; opacity: .82; vector-effect: non-scaling-stroke; }
     .edge.mentions { stroke-dasharray: 4 3; }
     .edge.high { stroke-width: 2.2; }
     .edge.related { stroke: #f97316; stroke-width: 3; }
     .edge.selected { stroke: #b42318; stroke-width: 4; }
-    .edge-hit { fill: none; stroke: transparent; stroke-width: 18; cursor: pointer; pointer-events: stroke; }
+    .edge-hit { fill: none; stroke: transparent; stroke-width: 18; cursor: pointer; pointer-events: stroke; vector-effect: non-scaling-stroke; }
     pre { white-space: pre-wrap; overflow-wrap: anywhere; background: #0f172a; color: #e5e7eb; padding: 10px; border-radius: 6px; font-size: 12px; }
     @media (max-width: 980px) {
       html, body { height: auto; overflow: auto; }
@@ -1286,6 +1289,14 @@ HTML_TEMPLATE = r"""<!doctype html>
       <header>
         <h1>Graph</h1>
         <div class="graph-actions">
+          <button id="zoomOut" class="icon-button" type="button" title="Zoom out">-</button>
+          <span id="viewState" class="view-state">100%</span>
+          <button id="zoomIn" class="icon-button" type="button" title="Zoom in">+</button>
+          <button id="panUp" class="icon-button" type="button" title="Pan up">&uarr;</button>
+          <button id="panLeft" class="icon-button" type="button" title="Pan left">&larr;</button>
+          <button id="panRight" class="icon-button" type="button" title="Pan right">&rarr;</button>
+          <button id="panDown" class="icon-button" type="button" title="Pan down">&darr;</button>
+          <button id="resetView" type="button">Reset view</button>
           <button id="resetLayout" type="button">Reset layout</button>
           <div id="summary"></div>
         </div>
@@ -1305,7 +1316,14 @@ HTML_TEMPLATE = r"""<!doctype html>
   <script>
     const graph = __GRAPH_JSON__;
     const showMentionsDefault = false;
-    const state = { selected: null, positions: {}, layoutKey: "", dragging: null };
+    const state = {
+      selected: null,
+      positions: {},
+      layoutKey: "",
+      dragging: null,
+      panning: null,
+      view: { x: 0, y: 0, scale: 1 },
+    };
     const nodeKind = document.getElementById("nodeKind");
     const extension = document.getElementById("extension");
     const edgeType = document.getElementById("edgeType");
@@ -1313,6 +1331,13 @@ HTML_TEMPLATE = r"""<!doctype html>
     const search = document.getElementById("search");
     const showMentions = document.getElementById("showMentions");
     const resetLayout = document.getElementById("resetLayout");
+    const resetView = document.getElementById("resetView");
+    const zoomIn = document.getElementById("zoomIn");
+    const zoomOut = document.getElementById("zoomOut");
+    const panUp = document.getElementById("panUp");
+    const panDown = document.getElementById("panDown");
+    const panLeft = document.getElementById("panLeft");
+    const panRight = document.getElementById("panRight");
     showMentions.checked = showMentionsDefault;
 
     for (const type of [...new Set(graph.edges.map(edge => edge.type))].sort()) {
@@ -1407,6 +1432,43 @@ HTML_TEMPLATE = r"""<!doctype html>
       if (!value) return "";
       if (kind === "node" || kind === "edge") return value.id || "";
       return [value.type, value.path, value.skill, value.target, value.message].filter(Boolean).join("|");
+    }
+
+    function clampZoom(scale) {
+      return Math.min(3, Math.max(.35, scale));
+    }
+
+    function viewTransform() {
+      return `translate(${state.view.x}, ${state.view.y}) scale(${state.view.scale})`;
+    }
+
+    function resetGraphViewState() {
+      state.view = { x: 0, y: 0, scale: 1 };
+    }
+
+    function zoomGraphAt(origin, nextScale) {
+      const scale = clampZoom(nextScale);
+      const graphX = (origin.x - state.view.x) / state.view.scale;
+      const graphY = (origin.y - state.view.y) / state.view.scale;
+      state.view = {
+        x: origin.x - graphX * scale,
+        y: origin.y - graphY * scale,
+        scale,
+      };
+      draw();
+    }
+
+    function zoomGraphBy(factor) {
+      const svg = document.getElementById("graph");
+      zoomGraphAt(
+        { x: svg.clientWidth / 2, y: svg.clientHeight / 2 },
+        state.view.scale * factor,
+      );
+    }
+
+    function panGraphBy(dx, dy) {
+      state.view = { ...state.view, x: state.view.x + dx, y: state.view.y + dy };
+      draw();
     }
 
     function layoutKey(nodes, edges, width, height) {
@@ -1521,6 +1583,10 @@ HTML_TEMPLATE = r"""<!doctype html>
       const height = Math.max(svg.clientHeight, 420);
       svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
       svg.innerHTML = `<defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto"><path d="M0,0 L0,6 L7,3 z" fill="#98a2b3"></path></marker></defs>`;
+      const layer = document.createElementNS("http://www.w3.org/2000/svg", "g");
+      layer.setAttribute("class", "graph-layer");
+      layer.setAttribute("transform", viewTransform());
+      svg.append(layer);
       const nodes = visibleNodes();
       const edges = visibleEdges(nodes);
       const positions = ensureLayout(nodes, edges, width, height);
@@ -1545,12 +1611,12 @@ HTML_TEMPLATE = r"""<!doctype html>
         hitPath.setAttribute("d", pathData);
         hitPath.setAttribute("class", "edge-hit");
         hitPath.addEventListener("click", () => select(edge, "edge"));
-        svg.append(hitPath);
+        layer.append(hitPath);
         const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
         path.setAttribute("d", pathData);
         path.setAttribute("class", edgeClass);
         path.addEventListener("click", () => select(edge, "edge"));
-        svg.append(path);
+        layer.append(path);
       }
       for (const node of nodes) {
         const point = positions.get(node.id);
@@ -1568,9 +1634,10 @@ HTML_TEMPLATE = r"""<!doctype html>
         text.setAttribute("y", "34");
         text.textContent = node.label || node.id;
         group.append(circle, text);
-        svg.append(group);
+        layer.append(group);
       }
       document.getElementById("summary").textContent = `${nodes.length} nodes / ${edges.length} edges`;
+      document.getElementById("viewState").textContent = `${Math.round(state.view.scale * 100)}%`;
       document.getElementById("status").textContent = `Generated ${graph.generatedAt} from ${graph.root}`;
       renderLists(nodes, edges);
     }
@@ -1628,6 +1695,7 @@ HTML_TEMPLATE = r"""<!doctype html>
     function resetGraphLayout() {
       state.positions = {};
       state.layoutKey = "";
+      resetGraphViewState();
       draw();
     }
 
@@ -1638,12 +1706,63 @@ HTML_TEMPLATE = r"""<!doctype html>
       return point.matrixTransform(svg.getScreenCTM().inverse());
     }
 
+    function graphPoint(svg, event) {
+      const point = svgPoint(svg, event);
+      return {
+        x: (point.x - state.view.x) / state.view.scale,
+        y: (point.y - state.view.y) / state.view.scale,
+      };
+    }
+
+    function beginGraphPan(event) {
+      if (event.button !== 0 || event.target !== event.currentTarget) return;
+      event.preventDefault();
+      const svg = document.getElementById("graph");
+      const point = svgPoint(svg, event);
+      state.panning = {
+        startX: point.x,
+        startY: point.y,
+        viewX: state.view.x,
+        viewY: state.view.y,
+      };
+      window.addEventListener("pointermove", panGraph);
+      window.addEventListener("pointerup", endGraphPan);
+      window.addEventListener("pointercancel", endGraphPan);
+    }
+
+    function panGraph(event) {
+      if (!state.panning) return;
+      const svg = document.getElementById("graph");
+      const point = svgPoint(svg, event);
+      state.view = {
+        ...state.view,
+        x: state.panning.viewX + point.x - state.panning.startX,
+        y: state.panning.viewY + point.y - state.panning.startY,
+      };
+      draw();
+    }
+
+    function endGraphPan() {
+      window.removeEventListener("pointermove", panGraph);
+      window.removeEventListener("pointerup", endGraphPan);
+      window.removeEventListener("pointercancel", endGraphPan);
+      state.panning = null;
+    }
+
+    function wheelZoomGraph(event) {
+      event.preventDefault();
+      const svg = document.getElementById("graph");
+      const origin = svgPoint(svg, event);
+      const factor = event.deltaY < 0 ? 1.12 : 1 / 1.12;
+      zoomGraphAt(origin, state.view.scale * factor);
+    }
+
     function beginNodeDrag(event, node) {
       event.preventDefault();
       event.stopPropagation();
       const svg = document.getElementById("graph");
       const current = state.positions[node.id] || { x: 0, y: 0 };
-      const point = svgPoint(svg, event);
+      const point = graphPoint(svg, event);
       state.dragging = {
         id: node.id,
         node,
@@ -1663,7 +1782,7 @@ HTML_TEMPLATE = r"""<!doctype html>
       const svg = document.getElementById("graph");
       const width = Math.max(svg.clientWidth, 360);
       const height = Math.max(svg.clientHeight, 420);
-      const point = svgPoint(svg, event);
+      const point = graphPoint(svg, event);
       const distance = Math.hypot(point.x - state.dragging.startX, point.y - state.dragging.startY);
       if (!state.dragging.moved && distance <= 3) return;
       state.dragging.moved = true;
@@ -1698,6 +1817,18 @@ HTML_TEMPLATE = r"""<!doctype html>
       input.addEventListener("change", draw);
     }
     resetLayout.addEventListener("click", resetGraphLayout);
+    resetView.addEventListener("click", () => {
+      resetGraphViewState();
+      draw();
+    });
+    zoomIn.addEventListener("click", () => zoomGraphBy(1.18));
+    zoomOut.addEventListener("click", () => zoomGraphBy(1 / 1.18));
+    panUp.addEventListener("click", () => panGraphBy(0, -72));
+    panDown.addEventListener("click", () => panGraphBy(0, 72));
+    panLeft.addEventListener("click", () => panGraphBy(-72, 0));
+    panRight.addEventListener("click", () => panGraphBy(72, 0));
+    document.getElementById("graph").addEventListener("pointerdown", beginGraphPan);
+    document.getElementById("graph").addEventListener("wheel", wheelZoomGraph, { passive: false });
     window.addEventListener("resize", draw);
     draw();
   </script>

@@ -300,9 +300,21 @@ class SkillGraphLiteWorkflowTest(unittest.TestCase):
         self.assertIn("clearSelection", html)
         self.assertIn("visibleDiagnostics", html)
         self.assertIn("Reset layout", html)
+        self.assertIn("Reset view", html)
+        self.assertIn('id="zoomIn"', html)
+        self.assertIn('id="zoomOut"', html)
+        self.assertIn('id="panUp"', html)
+        self.assertIn('id="panDown"', html)
+        self.assertIn('id="panLeft"', html)
+        self.assertIn('id="panRight"', html)
+        self.assertIn('id="viewState"', html)
         self.assertIn("runForceLayout", html)
         self.assertIn("edgePath", html)
         self.assertIn("beginNodeDrag", html)
+        self.assertIn("beginGraphPan", html)
+        self.assertIn("wheelZoomGraph", html)
+        self.assertIn("viewTransform", html)
+        self.assertIn("graphPoint", html)
         self.assertIn("pointermove", html)
         self.assertIn("touch-action: none", html)
         self.assertNotIn(
@@ -312,9 +324,32 @@ class SkillGraphLiteWorkflowTest(unittest.TestCase):
         self._assert_contains_ordered(
             html,
             [
+                "function resetGraphViewState()",
+                "state.view = { x: 0, y: 0, scale: 1 };",
+                "function zoomGraphAt(origin, nextScale)",
+                "const scale = clampZoom(nextScale);",
+                "state.view = {",
+                "draw();",
+                "function panGraphBy(dx, dy)",
+                "state.view = { ...state.view, x: state.view.x + dx, y: state.view.y + dy };",
+            ],
+        )
+        self._assert_contains_ordered(
+            html,
+            [
+                'const layer = document.createElementNS("http://www.w3.org/2000/svg", "g");',
+                'layer.setAttribute("class", "graph-layer");',
+                'layer.setAttribute("transform", viewTransform());',
+                "svg.append(layer);",
+            ],
+        )
+        self._assert_contains_ordered(
+            html,
+            [
                 "function resetGraphLayout()",
                 "state.positions = {};",
                 'state.layoutKey = "";',
+                "resetGraphViewState();",
                 "draw();",
                 'resetLayout.addEventListener("click", resetGraphLayout);',
             ],
@@ -326,6 +361,7 @@ class SkillGraphLiteWorkflowTest(unittest.TestCase):
                 'hitPath.setAttribute("d", pathData);',
                 'const path = document.createElementNS("http://www.w3.org/2000/svg", "path");',
                 'path.setAttribute("d", pathData);',
+                "layer.append(path);",
             ],
         )
         self.assertIn(
@@ -335,8 +371,40 @@ class SkillGraphLiteWorkflowTest(unittest.TestCase):
         self._assert_contains_ordered(
             html,
             [
+                "function graphPoint(svg, event)",
+                "x: (point.x - state.view.x) / state.view.scale,",
+                "y: (point.y - state.view.y) / state.view.scale,",
+            ],
+        )
+        self._assert_contains_ordered(
+            html,
+            [
+                "function beginGraphPan(event)",
+                "event.target !== event.currentTarget",
+                "state.panning = {",
+                'window.addEventListener("pointermove", panGraph);',
+                'window.addEventListener("pointerup", endGraphPan);',
+                "function panGraph(event)",
+                "state.panning.viewX + point.x - state.panning.startX",
+                "state.panning.viewY + point.y - state.panning.startY",
+                "draw();",
+            ],
+        )
+        self._assert_contains_ordered(
+            html,
+            [
+                "function wheelZoomGraph(event)",
+                "event.preventDefault();",
+                "const factor = event.deltaY < 0 ? 1.12 : 1 / 1.12;",
+                "zoomGraphAt(origin, state.view.scale * factor);",
+            ],
+        )
+        self._assert_contains_ordered(
+            html,
+            [
                 'group.addEventListener("pointerdown", event => beginNodeDrag(event, node));',
                 "function beginNodeDrag(event, node)",
+                "const point = graphPoint(svg, event);",
                 "moved: false,",
                 'window.addEventListener("pointermove", dragNode);',
                 'window.addEventListener("pointerup", endNodeDrag);',
@@ -351,6 +419,22 @@ class SkillGraphLiteWorkflowTest(unittest.TestCase):
                 "state.dragging.moved = true;",
                 "state.positions[state.dragging.id] = clampPosition(",
                 "draw();",
+            ],
+        )
+        self._assert_contains_ordered(
+            html,
+            [
+                'resetView.addEventListener("click", () => {',
+                "resetGraphViewState();",
+                "draw();",
+                'zoomIn.addEventListener("click", () => zoomGraphBy(1.18));',
+                'zoomOut.addEventListener("click", () => zoomGraphBy(1 / 1.18));',
+                'panUp.addEventListener("click", () => panGraphBy(0, -72));',
+                'panDown.addEventListener("click", () => panGraphBy(0, 72));',
+                'panLeft.addEventListener("click", () => panGraphBy(-72, 0));',
+                'panRight.addEventListener("click", () => panGraphBy(72, 0));',
+                'document.getElementById("graph").addEventListener("pointerdown", beginGraphPan);',
+                'document.getElementById("graph").addEventListener("wheel", wheelZoomGraph, { passive: false });',
             ],
         )
         self._assert_contains_ordered(
