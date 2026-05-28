@@ -1224,6 +1224,7 @@ HTML_TEMPLATE = r"""<!doctype html>
     .list { display: grid; gap: 6px; }
     .item { border: 1px solid var(--line); background: #fff; border-radius: 6px; padding: 8px; cursor: pointer; }
     .item:hover { border-color: var(--accent); }
+    .item.selected { border-color: var(--accent); background: #eef5ff; box-shadow: 0 0 0 1px var(--accent); }
     .item strong { display: block; font-size: 13px; overflow-wrap: anywhere; }
     .item span { display: block; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
     .badge { display: inline-block; font-size: 11px; padding: 2px 6px; border-radius: 999px; background: #eaf1ff; color: #174ea6; margin-right: 4px; }
@@ -1234,10 +1235,15 @@ HTML_TEMPLATE = r"""<!doctype html>
     .node { cursor: pointer; }
     .node circle { fill: #fff; stroke: #0d6efd; stroke-width: 2; }
     .node.asset circle { stroke: #667085; }
+    .node.related circle { fill: #fff7ed; stroke: #f97316; stroke-width: 3; }
+    .node.selected circle { fill: #eaf1ff; stroke: #b42318; stroke-width: 4; }
     .node text { font-size: 12px; paint-order: stroke; stroke: #fff; stroke-width: 4px; stroke-linejoin: round; fill: var(--text); pointer-events: none; }
     .edge { stroke: #98a2b3; stroke-width: 1.5; marker-end: url(#arrow); cursor: pointer; }
     .edge.mentions { stroke-dasharray: 4 3; }
     .edge.high { stroke-width: 2.2; }
+    .edge.related { stroke: #f97316; stroke-width: 3; }
+    .edge.selected { stroke: #b42318; stroke-width: 4; }
+    .edge-hit { stroke: transparent; stroke-width: 14; cursor: pointer; pointer-events: stroke; }
     pre { white-space: pre-wrap; overflow-wrap: anywhere; background: #0f172a; color: #e5e7eb; padding: 10px; border-radius: 6px; font-size: 12px; }
     @media (max-width: 980px) {
       .app { grid-template-columns: 1fr; }
@@ -1303,12 +1309,19 @@ HTML_TEMPLATE = r"""<!doctype html>
 
     function visibleNodes() {
       const q = search.value.trim().toLowerCase();
-      return graph.nodes.filter(node => {
+      const nodes = graph.nodes.filter(node => {
         if (!q) return true;
         return [node.id, node.label, node.path, node.description, ...(node.aliases || [])]
           .filter(Boolean)
           .some(value => String(value).toLowerCase().includes(q));
       });
+      if (state.selected?.kind === "edge") {
+        for (const id of [state.selected.value.source, state.selected.value.target]) {
+          const node = byId.get(id);
+          if (node && !nodes.some(item => item.id === id)) nodes.push(node);
+        }
+      }
+      return nodes;
     }
 
     function visibleEdges(nodes) {
@@ -1317,8 +1330,15 @@ HTML_TEMPLATE = r"""<!doctype html>
         if (!showMentions.checked && edge.type === "mentions") return false;
         if (edgeType.value && edge.type !== edgeType.value) return false;
         if (confidence.value && edge.confidence !== confidence.value) return false;
+        if (state.selected?.kind === "edge" && edge.id === state.selected.value.id) return true;
         return nodeIds.has(edge.source) || nodeIds.has(edge.target);
       });
+    }
+
+    function selectionKey(kind, value) {
+      if (!value) return "";
+      if (kind === "node" || kind === "edge") return value.id || "";
+      return [value.type, value.path, value.skill, value.target, value.message].filter(Boolean).join("|");
     }
 
     function layout(nodes, width, height) {
@@ -1344,18 +1364,33 @@ HTML_TEMPLATE = r"""<!doctype html>
       svg.innerHTML = `<defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto"><path d="M0,0 L0,6 L7,3 z" fill="#98a2b3"></path></marker></defs>`;
       const nodes = visibleNodes();
       const edges = visibleEdges(nodes);
-      const nodeMap = new Map(nodes.map(node => [node.id, node]));
       const positions = layout(nodes, width, height);
+      const selected = state.selected;
+      const selectedKey = selected?.key || "";
+      const selectedNodeId = selected?.kind === "node" ? selected.value.id : "";
+      const selectedEdge = selected?.kind === "edge" ? selected.value : null;
+      const selectedEdgeNodes = selectedEdge ? new Set([selectedEdge.source, selectedEdge.target]) : new Set();
       for (const edge of edges) {
         const source = positions.get(edge.source);
         const target = positions.get(edge.target);
         if (!source || !target) continue;
+        const isSelected = selected?.kind === "edge" && edge.id === selectedKey;
+        const isRelated = selectedNodeId && (edge.source === selectedNodeId || edge.target === selectedNodeId);
+        const edgeClass = `edge ${edge.type} ${edge.confidence}${isSelected ? " selected" : ""}${isRelated ? " related" : ""}`;
+        const hitLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
+        hitLine.setAttribute("x1", source.x);
+        hitLine.setAttribute("y1", source.y);
+        hitLine.setAttribute("x2", target.x);
+        hitLine.setAttribute("y2", target.y);
+        hitLine.setAttribute("class", "edge-hit");
+        hitLine.addEventListener("click", () => select(edge, "edge"));
+        svg.append(hitLine);
         const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
         line.setAttribute("x1", source.x);
         line.setAttribute("y1", source.y);
         line.setAttribute("x2", target.x);
         line.setAttribute("y2", target.y);
-        line.setAttribute("class", `edge ${edge.type} ${edge.confidence}`);
+        line.setAttribute("class", edgeClass);
         line.addEventListener("click", () => select(edge, "edge"));
         svg.append(line);
       }
@@ -1363,7 +1398,9 @@ HTML_TEMPLATE = r"""<!doctype html>
         const point = positions.get(node.id);
         if (!point) continue;
         const group = document.createElementNS("http://www.w3.org/2000/svg", "g");
-        group.setAttribute("class", `node ${node.kind !== "skill" ? "asset" : ""}`);
+        const isSelected = selected?.kind === "node" && node.id === selectedKey;
+        const isRelated = selectedEdgeNodes.has(node.id);
+        group.setAttribute("class", `node ${node.kind !== "skill" ? "asset" : ""}${isSelected ? " selected" : ""}${isRelated ? " related" : ""}`);
         group.setAttribute("transform", `translate(${point.x}, ${point.y})`);
         group.addEventListener("click", () => select(node, "node"));
         const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
@@ -1387,14 +1424,14 @@ HTML_TEMPLATE = r"""<!doctype html>
       edgeBox.innerHTML = "";
       for (const node of nodes) {
         const item = document.createElement("div");
-        item.className = "item";
+        item.className = `item ${state.selected?.kind === "node" && node.id === state.selected.key ? "selected" : ""}`;
         item.innerHTML = `<strong>${escapeHtml(node.label || node.id)}</strong><span>${escapeHtml(node.id)}</span>`;
         item.addEventListener("click", () => select(node, "node"));
         nodeBox.append(item);
       }
       for (const edge of edges) {
         const item = document.createElement("div");
-        item.className = "item";
+        item.className = `item ${state.selected?.kind === "edge" && edge.id === state.selected.key ? "selected" : ""}`;
         item.innerHTML = `<strong>${escapeHtml(edge.type)}</strong><span>${escapeHtml(edge.source)} -> ${escapeHtml(edge.target)}</span>`;
         item.addEventListener("click", () => select(edge, "edge"));
         edgeBox.append(item);
@@ -1407,7 +1444,7 @@ HTML_TEMPLATE = r"""<!doctype html>
       box.innerHTML = "";
       for (const diag of graph.diagnostics) {
         const item = document.createElement("div");
-        item.className = "item";
+        item.className = `item ${state.selected?.kind === "diagnostic" && selectionKey("diagnostic", diag) === state.selected.key ? "selected" : ""}`;
         const cls = diag.severity === "error" ? "error" : diag.severity === "warning" ? "warning" : "";
         item.innerHTML = `<strong class="${cls}">${escapeHtml(diag.type)}</strong><span>${escapeHtml(diag.message)}</span>`;
         item.addEventListener("click", () => select(diag, "diagnostic"));
@@ -1416,10 +1453,11 @@ HTML_TEMPLATE = r"""<!doctype html>
     }
 
     function select(value, kind) {
-      state.selected = { kind, value };
+      state.selected = { kind, value, key: selectionKey(kind, value) };
       const details = document.getElementById("details");
       const title = kind === "edge" ? `${value.type}: ${value.source} -> ${value.target}` : value.id || value.type;
       details.innerHTML = `<h2>${escapeHtml(kind)}</h2><p>${escapeHtml(title || "")}</p><pre>${escapeHtml(JSON.stringify(value, null, 2))}</pre>`;
+      draw();
     }
 
     function escapeHtml(value) {

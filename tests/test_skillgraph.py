@@ -289,6 +289,9 @@ class SkillGraphLiteWorkflowTest(unittest.TestCase):
             html.lower(),
             r"mentions[^\\n]{0,120}(false|hidden|none|unchecked|off)",
         )
+        self.assertIn(".node.selected", html)
+        self.assertIn(".edge.selected", html)
+        self.assertIn(".edge-hit", html)
 
     def _write(self, path, content):
         path.parent.mkdir(parents=True, exist_ok=True)
