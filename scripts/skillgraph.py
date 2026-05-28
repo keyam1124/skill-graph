@@ -246,6 +246,7 @@ def parse_simple_yaml(text: str) -> dict[str, Any]:
     result: dict[str, Any] = {}
     stack: list[tuple[int, Any]] = [(-1, result)]
     pending_key_by_indent: dict[int, tuple[dict[str, Any], str]] = {}
+    lines = text.splitlines()
 
     def scalar(value: str) -> Any:
         value = value.strip()
@@ -259,7 +260,26 @@ def parse_simple_yaml(text: str) -> dict[str, Any]:
             return value[1:-1]
         return value
 
-    for raw_line in text.splitlines():
+    def block_scalar(start: int, parent_indent: int, folded: bool) -> tuple[str, int]:
+        collected: list[str] = []
+        index = start
+        while index < len(lines):
+            line = lines[index]
+            if line.strip():
+                indent = len(line) - len(line.lstrip(" "))
+                if indent <= parent_indent:
+                    break
+                collected.append(line.strip())
+            else:
+                collected.append("")
+            index += 1
+        separator = " " if folded else "\n"
+        return separator.join(collected).strip(), index
+
+    index = 0
+    while index < len(lines):
+        raw_line = lines[index]
+        index += 1
         if not raw_line.strip() or raw_line.lstrip().startswith("#"):
             continue
         indent = len(raw_line) - len(raw_line.lstrip(" "))
@@ -286,7 +306,10 @@ def parse_simple_yaml(text: str) -> dict[str, Any]:
         key = key.strip()
         value = value.strip()
         if isinstance(parent, dict):
-            if value == "":
+            if value in {">", "|", ">-", "|-", ">+", "|+"}:
+                block_value, index = block_scalar(index, indent, value.startswith(">"))
+                parent[key] = block_value
+            elif value == "":
                 container: dict[str, Any] = {}
                 parent[key] = container
                 pending_key_by_indent[indent + 2] = (parent, key)
