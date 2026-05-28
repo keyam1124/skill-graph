@@ -296,6 +296,9 @@ class SkillGraphLiteWorkflowTest(unittest.TestCase):
         self.assertIn("Node Type", html)
         self.assertIn("All extensions", html)
         self.assertIn("nodeExtension", html)
+        self.assertIn("height: 100vh", html)
+        self.assertIn("clearSelection", html)
+        self.assertIn("visibleDiagnostics", html)
 
     def _write(self, path, content):
         path.parent.mkdir(parents=True, exist_ok=True)

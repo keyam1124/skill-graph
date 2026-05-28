@@ -1209,12 +1209,13 @@ HTML_TEMPLATE = r"""<!doctype html>
   <style>
     :root { color-scheme: light; --line: #d7dee8; --text: #17202a; --muted: #5f6f82; --accent: #0d6efd; --warn: #a15c00; --error: #b42318; --panel: #f6f8fb; }
     * { box-sizing: border-box; }
+    html, body { height: 100%; overflow: hidden; }
     body { margin: 0; font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: var(--text); background: #fff; }
-    .app { display: grid; grid-template-columns: minmax(260px, 320px) minmax(360px, 1fr) minmax(280px, 360px); min-height: 100vh; }
-    aside, main { min-width: 0; }
+    .app { display: grid; grid-template-columns: minmax(260px, 320px) minmax(360px, 1fr) minmax(280px, 360px); height: 100vh; min-height: 0; overflow: hidden; }
+    aside, main { min-width: 0; min-height: 0; }
     aside { padding: 16px; border-right: 1px solid var(--line); background: var(--panel); overflow: auto; }
     .details { border-right: 0; border-left: 1px solid var(--line); }
-    main { display: grid; grid-template-rows: auto 1fr auto; }
+    main { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; overflow: hidden; }
     header { padding: 14px 16px; border-bottom: 1px solid var(--line); display: flex; gap: 16px; align-items: baseline; justify-content: space-between; }
     h1 { font-size: 18px; margin: 0; }
     h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; margin: 18px 0 8px; color: var(--muted); }
@@ -1230,7 +1231,9 @@ HTML_TEMPLATE = r"""<!doctype html>
     .badge { display: inline-block; font-size: 11px; padding: 2px 6px; border-radius: 999px; background: #eaf1ff; color: #174ea6; margin-right: 4px; }
     .warning { color: var(--warn); }
     .error { color: var(--error); }
-    #graph { width: 100%; height: 100%; min-height: 520px; background: linear-gradient(#fff, #f9fbfd); }
+    button { min-height: 32px; border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px; background: #fff; color: var(--text); cursor: pointer; }
+    button:hover { border-color: var(--accent); }
+    #graph { width: 100%; height: 100%; min-height: 0; background: linear-gradient(#fff, #f9fbfd); }
     .status { padding: 10px 16px; border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; }
     .node { cursor: pointer; }
     .node circle { fill: #fff; stroke: #0d6efd; stroke-width: 2; }
@@ -1246,7 +1249,8 @@ HTML_TEMPLATE = r"""<!doctype html>
     .edge-hit { stroke: transparent; stroke-width: 14; cursor: pointer; pointer-events: stroke; }
     pre { white-space: pre-wrap; overflow-wrap: anywhere; background: #0f172a; color: #e5e7eb; padding: 10px; border-radius: 6px; font-size: 12px; }
     @media (max-width: 980px) {
-      .app { grid-template-columns: 1fr; }
+      html, body { height: auto; overflow: auto; }
+      .app { grid-template-columns: 1fr; height: auto; min-height: 100vh; overflow: visible; }
       aside, .details { border: 0; border-bottom: 1px solid var(--line); }
       #graph { min-height: 420px; }
     }
@@ -1328,29 +1332,67 @@ HTML_TEMPLATE = r"""<!doctype html>
       return dotIndex > 0 ? filename.slice(dotIndex).toLowerCase() : "";
     }
 
-    function visibleNodes() {
+    function nodePassesControls(node, keepSelected = false) {
+      if (keepSelected && state.selected?.kind === "node" && node.id === state.selected.value.id) return true;
       const q = search.value.trim().toLowerCase();
-      const nodes = graph.nodes.filter(node => {
-        if (nodeKind.value === "skill" && node.kind !== "skill") return false;
-        if (nodeKind.value === "file" && node.kind === "skill") return false;
-        if (extension.value && nodeExtension(node) !== extension.value) return false;
-        if (!q) return true;
-        return [node.id, node.label, node.path, node.description, ...(node.aliases || [])]
-          .filter(Boolean)
-          .some(value => String(value).toLowerCase().includes(q));
-      });
-      return nodes;
+      if (nodeKind.value === "skill" && node.kind !== "skill") return false;
+      if (nodeKind.value === "file" && node.kind === "skill") return false;
+      if (extension.value && nodeExtension(node) !== extension.value) return false;
+      if (!q) return true;
+      return [node.id, node.label, node.path, node.description, ...(node.aliases || [])]
+        .filter(Boolean)
+        .some(value => String(value).toLowerCase().includes(q));
+    }
+
+    function edgePassesControls(edge) {
+      if (!showMentions.checked && edge.type === "mentions") return false;
+      if (edgeType.value && edge.type !== edgeType.value) return false;
+      if (confidence.value && edge.confidence !== confidence.value) return false;
+      return true;
+    }
+
+    function visibleNodes() {
+      if (state.selected?.kind === "node") {
+        const selectedId = state.selected.value.id;
+        const relatedIds = new Set([selectedId]);
+        for (const edge of graph.edges) {
+          if (!edgePassesControls(edge)) continue;
+          if (edge.source === selectedId || edge.target === selectedId) {
+            relatedIds.add(edge.source);
+            relatedIds.add(edge.target);
+          }
+        }
+        return graph.nodes.filter(node => relatedIds.has(node.id) && nodePassesControls(node, true));
+      }
+      return graph.nodes.filter(node => nodePassesControls(node));
     }
 
     function visibleEdges(nodes) {
       const nodeIds = new Set(nodes.map(node => node.id));
       return graph.edges.filter(edge => {
-        if (!showMentions.checked && edge.type === "mentions") return false;
-        if (edgeType.value && edge.type !== edgeType.value) return false;
-        if (confidence.value && edge.confidence !== confidence.value) return false;
+        if (!edgePassesControls(edge)) return false;
+        if (state.selected?.kind === "node") {
+          const selectedId = state.selected.value.id;
+          if (edge.source !== selectedId && edge.target !== selectedId) return false;
+        }
         if (state.selected?.kind === "edge" && edge.id === state.selected.value.id) return true;
         return nodeIds.has(edge.source) && nodeIds.has(edge.target);
       });
+    }
+
+    function diagnosticMatchesNode(diag, node) {
+      if (!node) return true;
+      const id = node.id;
+      const paths = [node.path, node.dir].filter(Boolean);
+      if (diag.skill === id || diag.target === id) return true;
+      if (paths.some(path => diag.path === path || String(diag.path || "").startsWith(`${path}/`))) return true;
+      const evidenceSkills = diag.evidence && Array.isArray(diag.evidence.skills) ? diag.evidence.skills : [];
+      return evidenceSkills.includes(id);
+    }
+
+    function visibleDiagnostics() {
+      if (state.selected?.kind !== "node") return graph.diagnostics;
+      return graph.diagnostics.filter(diag => diagnosticMatchesNode(diag, state.selected.value));
     }
 
     function selectionKey(kind, value) {
@@ -1461,7 +1503,7 @@ HTML_TEMPLATE = r"""<!doctype html>
     function renderDiagnostics() {
       const box = document.getElementById("diagnostics");
       box.innerHTML = "";
-      for (const diag of graph.diagnostics) {
+      for (const diag of visibleDiagnostics()) {
         const item = document.createElement("div");
         item.className = `item ${state.selected?.kind === "diagnostic" && selectionKey("diagnostic", diag) === state.selected.key ? "selected" : ""}`;
         const cls = diag.severity === "error" ? "error" : diag.severity === "warning" ? "warning" : "";
@@ -1475,7 +1517,14 @@ HTML_TEMPLATE = r"""<!doctype html>
       state.selected = { kind, value, key: selectionKey(kind, value) };
       const details = document.getElementById("details");
       const title = kind === "edge" ? `${value.type}: ${value.source} -> ${value.target}` : value.id || value.type;
-      details.innerHTML = `<h2>${escapeHtml(kind)}</h2><p>${escapeHtml(title || "")}</p><pre>${escapeHtml(JSON.stringify(value, null, 2))}</pre>`;
+      details.innerHTML = `<h2>${escapeHtml(kind)}</h2><p>${escapeHtml(title || "")}</p><button id="clearSelection" type="button">Clear selection</button><pre>${escapeHtml(JSON.stringify(value, null, 2))}</pre>`;
+      document.getElementById("clearSelection").addEventListener("click", clearSelection);
+      draw();
+    }
+
+    function clearSelection() {
+      state.selected = null;
+      document.getElementById("details").innerHTML = "";
       draw();
     }
 
