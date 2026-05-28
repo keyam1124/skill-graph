@@ -1258,6 +1258,14 @@ HTML_TEMPLATE = r"""<!doctype html>
       <h1>SkillGraph Lite</h1>
       <label for="search">Skill Search</label>
       <input id="search" type="search" placeholder="id, name, path">
+      <label for="nodeKind">Node Type</label>
+      <select id="nodeKind">
+        <option value="">All nodes</option>
+        <option value="skill">SKILL.md</option>
+        <option value="file">Files / variants</option>
+      </select>
+      <label for="extension">Extension</label>
+      <select id="extension"><option value="">All extensions</option></select>
       <label for="edgeType">Edge Type</label>
       <select id="edgeType"><option value="">All non-mentions</option></select>
       <label for="confidence">Confidence</label>
@@ -1287,7 +1295,8 @@ HTML_TEMPLATE = r"""<!doctype html>
     const graph = __GRAPH_JSON__;
     const showMentionsDefault = false;
     const state = { selected: null };
-    const byId = new Map(graph.nodes.map(node => [node.id, node]));
+    const nodeKind = document.getElementById("nodeKind");
+    const extension = document.getElementById("extension");
     const edgeType = document.getElementById("edgeType");
     const confidence = document.getElementById("confidence");
     const search = document.getElementById("search");
@@ -1306,21 +1315,30 @@ HTML_TEMPLATE = r"""<!doctype html>
       option.textContent = value;
       confidence.append(option);
     }
+    for (const value of [...new Set(graph.nodes.map(nodeExtension))].sort()) {
+      const option = document.createElement("option");
+      option.value = value;
+      option.textContent = value || "No extension";
+      extension.append(option);
+    }
+
+    function nodeExtension(node) {
+      const filename = String(node.path || node.id || "").split("/").pop() || "";
+      const dotIndex = filename.lastIndexOf(".");
+      return dotIndex > 0 ? filename.slice(dotIndex).toLowerCase() : "";
+    }
 
     function visibleNodes() {
       const q = search.value.trim().toLowerCase();
       const nodes = graph.nodes.filter(node => {
+        if (nodeKind.value === "skill" && node.kind !== "skill") return false;
+        if (nodeKind.value === "file" && node.kind === "skill") return false;
+        if (extension.value && nodeExtension(node) !== extension.value) return false;
         if (!q) return true;
         return [node.id, node.label, node.path, node.description, ...(node.aliases || [])]
           .filter(Boolean)
           .some(value => String(value).toLowerCase().includes(q));
       });
-      if (state.selected?.kind === "edge") {
-        for (const id of [state.selected.value.source, state.selected.value.target]) {
-          const node = byId.get(id);
-          if (node && !nodes.some(item => item.id === id)) nodes.push(node);
-        }
-      }
       return nodes;
     }
 
@@ -1331,7 +1349,7 @@ HTML_TEMPLATE = r"""<!doctype html>
         if (edgeType.value && edge.type !== edgeType.value) return false;
         if (confidence.value && edge.confidence !== confidence.value) return false;
         if (state.selected?.kind === "edge" && edge.id === state.selected.value.id) return true;
-        return nodeIds.has(edge.source) || nodeIds.has(edge.target);
+        return nodeIds.has(edge.source) && nodeIds.has(edge.target);
       });
     }
 
@@ -1465,7 +1483,7 @@ HTML_TEMPLATE = r"""<!doctype html>
       return String(value ?? "").replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" }[char]));
     }
 
-    for (const input of [edgeType, confidence, search, showMentions]) {
+    for (const input of [nodeKind, extension, edgeType, confidence, search, showMentions]) {
       input.addEventListener("input", draw);
       input.addEventListener("change", draw);
     }
