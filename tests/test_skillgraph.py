@@ -292,6 +292,7 @@ class SkillGraphLiteWorkflowTest(unittest.TestCase):
         self.assertIn(".node.selected", html)
         self.assertIn(".edge.selected", html)
         self.assertIn(".edge-hit", html)
+        self.assertIn("topPadding", html)
 
     def _write(self, path, content):
         path.parent.mkdir(parents=True, exist_ok=True)

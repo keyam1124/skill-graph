@@ -1344,8 +1344,9 @@ HTML_TEMPLATE = r"""<!doctype html>
     function layout(nodes, width, height) {
       const positions = new Map();
       const centerX = width / 2;
-      const centerY = height / 2;
       const radius = Math.max(120, Math.min(width, height) * 0.38);
+      const topPadding = 72;
+      const centerY = Math.min(height / 2, radius + topPadding);
       nodes.forEach((node, index) => {
         const angle = (Math.PI * 2 * index) / Math.max(nodes.length, 1) - Math.PI / 2;
         positions.set(node.id, {
