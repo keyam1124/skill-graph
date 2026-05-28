@@ -315,11 +315,30 @@ class SkillGraphLiteWorkflowTest(unittest.TestCase):
         self.assertIn("wheelZoomGraph", html)
         self.assertIn("viewTransform", html)
         self.assertIn("graphPoint", html)
+        self.assertIn("nodeTypeLabel", html)
+        self.assertIn("renderNodeDetails", html)
+        self.assertIn("renderEdgeGroups", html)
+        self.assertIn("renderDiagnostics", html)
+        self.assertIn("Raw JSON", html)
+        self.assertIn("arrow-default", html)
+        self.assertIn("arrow-related", html)
+        self.assertIn("arrow-selected", html)
         self.assertIn("pointermove", html)
         self.assertIn("touch-action: none", html)
         self.assertNotIn(
             'createElementNS("http://www.w3.org/2000/svg", "line")',
             html,
+        )
+        self.assertNotIn("marker-end: url(#arrow)", html)
+        self._assert_contains_ordered(
+            html,
+            [
+                "function nodeTypeLabel(node)",
+                'if (node.kind === "skill") return "SKILL.md";',
+                'return `Reference ${nodeExtension(node) || "file"}`;',
+                "function relationLabel(type)",
+                "uses_reference: \"Uses reference\"",
+            ],
         )
         self._assert_contains_ordered(
             html,
@@ -361,12 +380,21 @@ class SkillGraphLiteWorkflowTest(unittest.TestCase):
                 'hitPath.setAttribute("d", pathData);',
                 'const path = document.createElementNS("http://www.w3.org/2000/svg", "path");',
                 'path.setAttribute("d", pathData);',
+                'path.setAttribute("marker-end", edgeMarker(isSelected, isRelated));',
                 "layer.append(path);",
             ],
         )
         self.assertIn(
-            "return `M ${source.x} ${source.y} Q ${mx} ${my} ${target.x} ${target.y}`;",
+            "return `M ${start.x} ${start.y} Q ${mx} ${my} ${end.x} ${end.y}`;",
             html,
+        )
+        self._assert_contains_ordered(
+            html,
+            [
+                "function edgePath(source, target, index = 0, sourceRadius = 18, targetRadius = 18)",
+                "const sourceOffset = Math.min(sourceRadius + 8, available / 2);",
+                "const targetOffset = Math.min(targetRadius + 16, available / 2);",
+            ],
         )
         self._assert_contains_ordered(
             html,
@@ -435,6 +463,38 @@ class SkillGraphLiteWorkflowTest(unittest.TestCase):
                 'panRight.addEventListener("click", () => panGraphBy(72, 0));',
                 'document.getElementById("graph").addEventListener("pointerdown", beginGraphPan);',
                 'document.getElementById("graph").addEventListener("wheel", wheelZoomGraph, { passive: false });',
+            ],
+        )
+        self._assert_contains_ordered(
+            html,
+            [
+                "function appendGroup(container, title, items, renderItem)",
+                "group-title",
+                "function renderNodeGroups(nodeBox, nodes)",
+                "const groups = groupBy(nodes, nodeTypeLabel);",
+                "function renderEdgeGroups(edgeBox, edges)",
+                "Outgoing from",
+                "Incoming to",
+                "function renderDiagnostics()",
+                "groupBy(diagnostics",
+            ],
+        )
+        self._assert_contains_ordered(
+            html,
+            [
+                "function renderDetails(value, kind)",
+                "if (kind === \"node\") return renderNodeDetails(value);",
+                "function renderNodeDetails(node)",
+                "<dt>Path</dt>",
+                "<dt>Outgoing</dt>",
+                "<dt>Incoming</dt>",
+                "${rawJson(node)}",
+                "function renderEdgeDetails(edge)",
+                "<dt>From</dt>",
+                "<dt>To</dt>",
+                "${rawJson(edge)}",
+                "function renderDiagnosticDetails(diag)",
+                "${rawJson(diag)}",
             ],
         )
         self._assert_contains_ordered(

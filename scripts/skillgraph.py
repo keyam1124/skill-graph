@@ -1228,7 +1228,24 @@ HTML_TEMPLATE = r"""<!doctype html>
     .item.selected { border-color: var(--accent); background: #eef5ff; box-shadow: 0 0 0 1px var(--accent); }
     .item strong { display: block; font-size: 13px; overflow-wrap: anywhere; }
     .item span { display: block; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
+    .item .item-meta { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 4px; }
+    .group { display: grid; gap: 6px; }
+    .group + .group { margin-top: 12px; }
+    .group-title { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: var(--muted); font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
     .badge { display: inline-block; font-size: 11px; padding: 2px 6px; border-radius: 999px; background: #eaf1ff; color: #174ea6; margin-right: 4px; }
+    .badge.file { background: #f1f5f9; color: #475569; }
+    .badge.edge-type { background: #fff7ed; color: #9a3412; }
+    .badge.warning { background: #fff7ed; color: var(--warn); }
+    .badge.error { background: #fef2f2; color: var(--error); }
+    .summary-card { border: 1px solid var(--line); background: #fff; border-radius: 6px; padding: 10px; }
+    .summary-card h2 { margin-top: 0; }
+    .summary-card p { margin: 8px 0; }
+    .meta-grid { display: grid; grid-template-columns: auto 1fr; gap: 6px 10px; font-size: 13px; }
+    .meta-grid dt { color: var(--muted); }
+    .meta-grid dd { margin: 0; overflow-wrap: anywhere; }
+    .description { color: var(--text); line-height: 1.45; }
+    details.raw-json { margin-top: 10px; }
+    details.raw-json summary { cursor: pointer; color: var(--muted); font-size: 13px; }
     .warning { color: var(--warn); }
     .error { color: var(--error); }
     button { min-height: 32px; border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px; background: #fff; color: var(--text); cursor: pointer; }
@@ -1247,11 +1264,11 @@ HTML_TEMPLATE = r"""<!doctype html>
     .node.related circle { fill: #fff7ed; stroke: #f97316; stroke-width: 3; }
     .node.selected circle { fill: #dbeafe; stroke: #b42318; stroke-width: 4; }
     .node text { font-size: 12px; paint-order: stroke; stroke: #fff; stroke-width: 4px; stroke-linejoin: round; fill: var(--text); pointer-events: none; }
-    .edge { fill: none; stroke: #94a3b8; stroke-width: 1.5; marker-end: url(#arrow); cursor: pointer; opacity: .82; vector-effect: non-scaling-stroke; }
+    .edge { fill: none; stroke: #64748b; stroke-width: 2.2; cursor: pointer; opacity: .9; vector-effect: non-scaling-stroke; }
     .edge.mentions { stroke-dasharray: 4 3; }
-    .edge.high { stroke-width: 2.2; }
-    .edge.related { stroke: #f97316; stroke-width: 3; }
-    .edge.selected { stroke: #b42318; stroke-width: 4; }
+    .edge.high { stroke-width: 2.8; }
+    .edge.related { stroke: #f97316; stroke-width: 4; }
+    .edge.selected { stroke: #b42318; stroke-width: 5; }
     .edge-hit { fill: none; stroke: transparent; stroke-width: 18; cursor: pointer; pointer-events: stroke; vector-effect: non-scaling-stroke; }
     pre { white-space: pre-wrap; overflow-wrap: anywhere; background: #0f172a; color: #e5e7eb; padding: 10px; border-radius: 6px; font-size: 12px; }
     @media (max-width: 980px) {
@@ -1324,6 +1341,7 @@ HTML_TEMPLATE = r"""<!doctype html>
       panning: null,
       view: { x: 0, y: 0, scale: 1 },
     };
+    const nodeIndex = new Map(graph.nodes.map(node => [node.id, node]));
     const nodeKind = document.getElementById("nodeKind");
     const extension = document.getElementById("extension");
     const edgeType = document.getElementById("edgeType");
@@ -1432,6 +1450,66 @@ HTML_TEMPLATE = r"""<!doctype html>
       if (!value) return "";
       if (kind === "node" || kind === "edge") return value.id || "";
       return [value.type, value.path, value.skill, value.target, value.message].filter(Boolean).join("|");
+    }
+
+    function nodeTypeLabel(node) {
+      if (node.kind === "skill") return "SKILL.md";
+      const filename = String(node.path || node.id || "").split("/").pop() || "";
+      if (filename.startsWith("SKILL.")) return `Skill variant ${nodeExtension(node) || ""}`.trim();
+      return `Reference ${nodeExtension(node) || "file"}`;
+    }
+
+    function nodeTypeClass(node) {
+      return node.kind === "skill" ? "" : "file";
+    }
+
+    function nodeDisplay(id) {
+      const node = nodeIndex.get(id);
+      return node?.label || id;
+    }
+
+    function nodePath(node) {
+      return node.path || node.id || "";
+    }
+
+    function nodeRadius(node) {
+      return node?.kind === "skill" ? 18 : 13;
+    }
+
+    function relationLabel(type) {
+      return {
+        invokes: "Invokes",
+        related_to: "Related skill",
+        uses_reference: "Uses reference",
+        uses_template: "Uses template",
+        mentions: "Mentions",
+        language_variant: "Language variant",
+        should_not_co_trigger: "Should not co-trigger",
+      }[type] || type.replaceAll("_", " ");
+    }
+
+    function edgeMarker(isSelected, isRelated) {
+      if (isSelected) return "url(#arrow-selected)";
+      if (isRelated) return "url(#arrow-related)";
+      return "url(#arrow-default)";
+    }
+
+    function edgeSummary(edge) {
+      return `${nodeDisplay(edge.source)} -> ${nodeDisplay(edge.target)}`;
+    }
+
+    function diagnosticLabel(type) {
+      return String(type || "diagnostic").replaceAll("_", " ");
+    }
+
+    function groupBy(values, keyFn) {
+      const groups = new Map();
+      for (const value of values) {
+        const key = keyFn(value);
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key).push(value);
+      }
+      return groups;
     }
 
     function clampZoom(scale) {
@@ -1567,14 +1645,25 @@ HTML_TEMPLATE = r"""<!doctype html>
       }
     }
 
-    function edgePath(source, target, index = 0) {
+    function edgePath(source, target, index = 0, sourceRadius = 18, targetRadius = 18) {
       const dx = target.x - source.x;
       const dy = target.y - source.y;
       const distance = Math.max(1, Math.hypot(dx, dy));
+      const available = Math.max(0, distance - 12);
+      const sourceOffset = Math.min(sourceRadius + 8, available / 2);
+      const targetOffset = Math.min(targetRadius + 16, available / 2);
+      const start = {
+        x: source.x + (dx / distance) * sourceOffset,
+        y: source.y + (dy / distance) * sourceOffset,
+      };
+      const end = {
+        x: target.x - (dx / distance) * targetOffset,
+        y: target.y - (dy / distance) * targetOffset,
+      };
       const curve = ((index % 5) - 2) * 16;
-      const mx = (source.x + target.x) / 2 - (dy / distance) * curve;
-      const my = (source.y + target.y) / 2 + (dx / distance) * curve;
-      return `M ${source.x} ${source.y} Q ${mx} ${my} ${target.x} ${target.y}`;
+      const mx = (start.x + end.x) / 2 - (dy / distance) * curve;
+      const my = (start.y + end.y) / 2 + (dx / distance) * curve;
+      return `M ${start.x} ${start.y} Q ${mx} ${my} ${end.x} ${end.y}`;
     }
 
     function draw() {
@@ -1582,7 +1671,11 @@ HTML_TEMPLATE = r"""<!doctype html>
       const width = Math.max(svg.clientWidth, 360);
       const height = Math.max(svg.clientHeight, 420);
       svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
-      svg.innerHTML = `<defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto"><path d="M0,0 L0,6 L7,3 z" fill="#98a2b3"></path></marker></defs>`;
+      svg.innerHTML = `<defs>
+        <marker id="arrow-default" markerWidth="14" markerHeight="14" refX="12" refY="6" orient="auto" markerUnits="userSpaceOnUse"><path d="M0,0 L0,12 L13,6 z" fill="#64748b"></path></marker>
+        <marker id="arrow-related" markerWidth="14" markerHeight="14" refX="12" refY="6" orient="auto" markerUnits="userSpaceOnUse"><path d="M0,0 L0,12 L13,6 z" fill="#f97316"></path></marker>
+        <marker id="arrow-selected" markerWidth="14" markerHeight="14" refX="12" refY="6" orient="auto" markerUnits="userSpaceOnUse"><path d="M0,0 L0,12 L13,6 z" fill="#b42318"></path></marker>
+      </defs>`;
       const layer = document.createElementNS("http://www.w3.org/2000/svg", "g");
       layer.setAttribute("class", "graph-layer");
       layer.setAttribute("transform", viewTransform());
@@ -1603,7 +1696,9 @@ HTML_TEMPLATE = r"""<!doctype html>
         const occurrenceKey = `${edge.source}->${edge.target}`;
         const occurrenceIndex = edgeOccurrences.get(occurrenceKey) || 0;
         edgeOccurrences.set(occurrenceKey, occurrenceIndex + 1);
-        const pathData = edgePath(source, target, occurrenceIndex);
+        const sourceNode = nodeIndex.get(edge.source);
+        const targetNode = nodeIndex.get(edge.target);
+        const pathData = edgePath(source, target, occurrenceIndex, nodeRadius(sourceNode), nodeRadius(targetNode));
         const isSelected = selected?.kind === "edge" && edge.id === selectedKey;
         const isRelated = selectedNodeId && (edge.source === selectedNodeId || edge.target === selectedNodeId);
         const edgeClass = `edge ${edge.type} ${edge.confidence}${isSelected ? " selected" : ""}${isRelated ? " related" : ""}`;
@@ -1615,6 +1710,7 @@ HTML_TEMPLATE = r"""<!doctype html>
         const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
         path.setAttribute("d", pathData);
         path.setAttribute("class", edgeClass);
+        path.setAttribute("marker-end", edgeMarker(isSelected, isRelated));
         path.addEventListener("click", () => select(edge, "edge"));
         layer.append(path);
       }
@@ -1642,48 +1738,201 @@ HTML_TEMPLATE = r"""<!doctype html>
       renderLists(nodes, edges);
     }
 
+    function nodeItemHtml(node) {
+      const description = node.description ? `<span>${escapeHtml(node.description)}</span>` : "";
+      return `
+        <div class="item-meta">
+          <span class="badge ${nodeTypeClass(node)}">${escapeHtml(nodeTypeLabel(node))}</span>
+          ${node.category ? `<span class="badge">${escapeHtml(node.category)}</span>` : ""}
+        </div>
+        <strong>${escapeHtml(node.label || node.id)}</strong>
+        <span>${escapeHtml(nodePath(node))}</span>
+        ${description}
+      `;
+    }
+
+    function edgeItemHtml(edge) {
+      const confidenceClass = edge.confidence === "high" ? "" : edge.confidence;
+      return `
+        <div class="item-meta">
+          <span class="badge edge-type">${escapeHtml(relationLabel(edge.type))}</span>
+          ${edge.confidence ? `<span class="badge ${escapeHtml(confidenceClass)}">${escapeHtml(edge.confidence)}</span>` : ""}
+        </div>
+        <strong>${escapeHtml(edgeSummary(edge))}</strong>
+        <span>${escapeHtml(edge.origin || "inferred")}</span>
+      `;
+    }
+
+    function diagnosticItemHtml(diag) {
+      const severity = diag.severity || "info";
+      const where = diag.skill || diag.path || diag.target || "";
+      return `
+        <div class="item-meta">
+          <span class="badge ${escapeHtml(severity)}">${escapeHtml(severity)}</span>
+          <span class="badge file">${escapeHtml(diagnosticLabel(diag.type))}</span>
+        </div>
+        <strong>${escapeHtml(diag.message || diag.type)}</strong>
+        ${where ? `<span>${escapeHtml(where)}</span>` : ""}
+      `;
+    }
+
+    function appendGroup(container, title, items, renderItem) {
+      const group = document.createElement("section");
+      group.className = "group";
+      group.innerHTML = `<div class="group-title"><span>${escapeHtml(title)}</span><span>${items.length}</span></div>`;
+      for (const itemValue of items) {
+        group.append(renderItem(itemValue));
+      }
+      container.append(group);
+    }
+
+    function renderNodeGroups(nodeBox, nodes) {
+      const groups = groupBy(nodes, nodeTypeLabel);
+      for (const [title, values] of groups) {
+        appendGroup(nodeBox, title, values, node => {
+          const item = document.createElement("div");
+          item.className = `item ${state.selected?.kind === "node" && node.id === state.selected.key ? "selected" : ""}`;
+          item.innerHTML = nodeItemHtml(node);
+          item.addEventListener("click", () => select(node, "node"));
+          return item;
+        });
+      }
+    }
+
+    function renderEdgeGroups(edgeBox, edges) {
+      const selectedNodeId = state.selected?.kind === "node" ? state.selected.value.id : "";
+      if (selectedNodeId) {
+        const outgoing = edges.filter(edge => edge.source === selectedNodeId);
+        const incoming = edges.filter(edge => edge.target === selectedNodeId);
+        if (outgoing.length) appendEdgeGroup(edgeBox, `Outgoing from ${nodeDisplay(selectedNodeId)}`, outgoing);
+        if (incoming.length) appendEdgeGroup(edgeBox, `Incoming to ${nodeDisplay(selectedNodeId)}`, incoming);
+        const other = edges.filter(edge => edge.source !== selectedNodeId && edge.target !== selectedNodeId);
+        if (other.length) appendEdgeGroup(edgeBox, "Other related edges", other);
+        return;
+      }
+      for (const [title, values] of groupBy(edges, edge => relationLabel(edge.type))) {
+        appendEdgeGroup(edgeBox, title, values);
+      }
+    }
+
+    function appendEdgeGroup(edgeBox, title, edges) {
+      appendGroup(edgeBox, title, edges, edge => {
+        const item = document.createElement("div");
+        item.className = `item ${state.selected?.kind === "edge" && edge.id === state.selected.key ? "selected" : ""}`;
+        item.innerHTML = edgeItemHtml(edge);
+        item.addEventListener("click", () => select(edge, "edge"));
+        return item;
+      });
+    }
+
     function renderLists(nodes, edges) {
       const nodeBox = document.getElementById("nodes");
       const edgeBox = document.getElementById("edges");
       nodeBox.innerHTML = "";
       edgeBox.innerHTML = "";
-      for (const node of nodes) {
-        const item = document.createElement("div");
-        item.className = `item ${state.selected?.kind === "node" && node.id === state.selected.key ? "selected" : ""}`;
-        item.innerHTML = `<strong>${escapeHtml(node.label || node.id)}</strong><span>${escapeHtml(node.id)}</span>`;
-        item.addEventListener("click", () => select(node, "node"));
-        nodeBox.append(item);
-      }
-      for (const edge of edges) {
-        const item = document.createElement("div");
-        item.className = `item ${state.selected?.kind === "edge" && edge.id === state.selected.key ? "selected" : ""}`;
-        item.innerHTML = `<strong>${escapeHtml(edge.type)}</strong><span>${escapeHtml(edge.source)} -> ${escapeHtml(edge.target)}</span>`;
-        item.addEventListener("click", () => select(edge, "edge"));
-        edgeBox.append(item);
-      }
+      renderNodeGroups(nodeBox, nodes);
+      renderEdgeGroups(edgeBox, edges);
       renderDiagnostics();
     }
 
     function renderDiagnostics() {
       const box = document.getElementById("diagnostics");
       box.innerHTML = "";
-      for (const diag of visibleDiagnostics()) {
-        const item = document.createElement("div");
-        item.className = `item ${state.selected?.kind === "diagnostic" && selectionKey("diagnostic", diag) === state.selected.key ? "selected" : ""}`;
-        const cls = diag.severity === "error" ? "error" : diag.severity === "warning" ? "warning" : "";
-        item.innerHTML = `<strong class="${cls}">${escapeHtml(diag.type)}</strong><span>${escapeHtml(diag.message)}</span>`;
-        item.addEventListener("click", () => select(diag, "diagnostic"));
-        box.append(item);
+      const diagnostics = visibleDiagnostics();
+      for (const [title, values] of groupBy(diagnostics, diag => `${diag.severity || "info"} / ${diagnosticLabel(diag.type)}`)) {
+        appendGroup(box, title, values, diag => {
+          const item = document.createElement("div");
+          item.className = `item ${state.selected?.kind === "diagnostic" && selectionKey("diagnostic", diag) === state.selected.key ? "selected" : ""}`;
+          item.innerHTML = diagnosticItemHtml(diag);
+          item.addEventListener("click", () => select(diag, "diagnostic"));
+          return item;
+        });
       }
     }
 
     function select(value, kind) {
       state.selected = { kind, value, key: selectionKey(kind, value) };
       const details = document.getElementById("details");
-      const title = kind === "edge" ? `${value.type}: ${value.source} -> ${value.target}` : value.id || value.type;
-      details.innerHTML = `<h2>${escapeHtml(kind)}</h2><p>${escapeHtml(title || "")}</p><button id="clearSelection" type="button">Clear selection</button><pre>${escapeHtml(JSON.stringify(value, null, 2))}</pre>`;
+      details.innerHTML = renderDetails(value, kind);
       document.getElementById("clearSelection").addEventListener("click", clearSelection);
       draw();
+    }
+
+    function renderDetails(value, kind) {
+      if (kind === "node") return renderNodeDetails(value);
+      if (kind === "edge") return renderEdgeDetails(value);
+      return renderDiagnosticDetails(value);
+    }
+
+    function renderNodeDetails(node) {
+      const outgoing = graph.edges.filter(edge => edge.source === node.id);
+      const incoming = graph.edges.filter(edge => edge.target === node.id);
+      return `
+        <section class="summary-card">
+          <h2>Node</h2>
+          <div class="item-meta">
+            <span class="badge ${nodeTypeClass(node)}">${escapeHtml(nodeTypeLabel(node))}</span>
+            ${node.category ? `<span class="badge">${escapeHtml(node.category)}</span>` : ""}
+          </div>
+          <p><strong>${escapeHtml(node.label || node.id)}</strong></p>
+          ${node.description ? `<p class="description">${escapeHtml(node.description)}</p>` : ""}
+          <dl class="meta-grid">
+            <dt>ID</dt><dd>${escapeHtml(node.id)}</dd>
+            <dt>Path</dt><dd>${escapeHtml(nodePath(node))}</dd>
+            <dt>Outgoing</dt><dd>${outgoing.length} dependencies / references</dd>
+            <dt>Incoming</dt><dd>${incoming.length} dependents / mentions</dd>
+            ${node.aliases?.length ? `<dt>Aliases</dt><dd>${node.aliases.map(escapeHtml).join(", ")}</dd>` : ""}
+          </dl>
+          <button id="clearSelection" type="button">Clear selection</button>
+          ${rawJson(node)}
+        </section>
+      `;
+    }
+
+    function renderEdgeDetails(edge) {
+      return `
+        <section class="summary-card">
+          <h2>Edge</h2>
+          <div class="item-meta">
+            <span class="badge edge-type">${escapeHtml(relationLabel(edge.type))}</span>
+            ${edge.confidence ? `<span class="badge">${escapeHtml(edge.confidence)}</span>` : ""}
+          </div>
+          <p><strong>${escapeHtml(edgeSummary(edge))}</strong></p>
+          <dl class="meta-grid">
+            <dt>From</dt><dd>${escapeHtml(nodeDisplay(edge.source))}<br>${escapeHtml(edge.source)}</dd>
+            <dt>To</dt><dd>${escapeHtml(nodeDisplay(edge.target))}<br>${escapeHtml(edge.target)}</dd>
+            <dt>Origin</dt><dd>${escapeHtml(edge.origin || "inferred")}</dd>
+            <dt>Evidence</dt><dd>${escapeHtml((edge.evidence || []).map(item => item.path || item.text).filter(Boolean).join(", ") || "N/A")}</dd>
+          </dl>
+          <button id="clearSelection" type="button">Clear selection</button>
+          ${rawJson(edge)}
+        </section>
+      `;
+    }
+
+    function renderDiagnosticDetails(diag) {
+      const severity = diag.severity || "info";
+      return `
+        <section class="summary-card">
+          <h2>Diagnostic</h2>
+          <div class="item-meta">
+            <span class="badge ${escapeHtml(severity)}">${escapeHtml(severity)}</span>
+            <span class="badge file">${escapeHtml(diagnosticLabel(diag.type))}</span>
+          </div>
+          <p class="description">${escapeHtml(diag.message || "")}</p>
+          <dl class="meta-grid">
+            ${diag.skill ? `<dt>Skill</dt><dd>${escapeHtml(diag.skill)}</dd>` : ""}
+            ${diag.path ? `<dt>Path</dt><dd>${escapeHtml(diag.path)}</dd>` : ""}
+            ${diag.target ? `<dt>Target</dt><dd>${escapeHtml(diag.target)}</dd>` : ""}
+          </dl>
+          <button id="clearSelection" type="button">Clear selection</button>
+          ${rawJson(diag)}
+        </section>
+      `;
+    }
+
+    function rawJson(value) {
+      return `<details class="raw-json"><summary>Raw JSON</summary><pre>${escapeHtml(JSON.stringify(value, null, 2))}</pre></details>`;
     }
 
     function clearSelection() {
