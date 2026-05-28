@@ -305,6 +305,74 @@ class SkillGraphLiteWorkflowTest(unittest.TestCase):
         self.assertIn("beginNodeDrag", html)
         self.assertIn("pointermove", html)
         self.assertIn("touch-action: none", html)
+        self.assertNotIn(
+            'createElementNS("http://www.w3.org/2000/svg", "line")',
+            html,
+        )
+        self._assert_contains_ordered(
+            html,
+            [
+                "function resetGraphLayout()",
+                "state.positions = {};",
+                'state.layoutKey = "";',
+                "draw();",
+                'resetLayout.addEventListener("click", resetGraphLayout);',
+            ],
+        )
+        self._assert_contains_ordered(
+            html,
+            [
+                'const hitPath = document.createElementNS("http://www.w3.org/2000/svg", "path");',
+                'hitPath.setAttribute("d", pathData);',
+                'const path = document.createElementNS("http://www.w3.org/2000/svg", "path");',
+                'path.setAttribute("d", pathData);',
+            ],
+        )
+        self.assertIn(
+            "return `M ${source.x} ${source.y} Q ${mx} ${my} ${target.x} ${target.y}`;",
+            html,
+        )
+        self._assert_contains_ordered(
+            html,
+            [
+                'group.addEventListener("pointerdown", event => beginNodeDrag(event, node));',
+                "function beginNodeDrag(event, node)",
+                "moved: false,",
+                'window.addEventListener("pointermove", dragNode);',
+                'window.addEventListener("pointerup", endNodeDrag);',
+            ],
+        )
+        self._assert_contains_ordered(
+            html,
+            [
+                "function dragNode(event)",
+                "const distance = Math.hypot",
+                "if (!state.dragging.moved && distance <= 3) return;",
+                "state.dragging.moved = true;",
+                "state.positions[state.dragging.id] = clampPosition(",
+                "draw();",
+            ],
+        )
+        self._assert_contains_ordered(
+            html,
+            [
+                "function endNodeDrag()",
+                "state.dragging = null;",
+                "if (dragging && !dragging.moved) {",
+                'select(dragging.node, "node");',
+            ],
+        )
+
+    def _assert_contains_ordered(self, text, expected_parts):
+        index = 0
+        for part in expected_parts:
+            next_index = text.find(part, index)
+            self.assertNotEqual(
+                next_index,
+                -1,
+                f"expected {part!r} after offset {index}",
+            )
+            index = next_index + len(part)
 
     def _write(self, path, content):
         path.parent.mkdir(parents=True, exist_ok=True)
