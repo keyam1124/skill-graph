@@ -1,0 +1,4 @@
+interface:
+  display_name: "日本語ドキュメント校正"
+  short_description: "日本語文書を読者・用途・根拠に合わせて自然に整える"
+  default_prompt: "Use $polishing-documents to review and refine this Japanese document for its expected readers."
