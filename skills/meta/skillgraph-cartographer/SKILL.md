@@ -28,8 +28,11 @@ conflicts.
 2. Run the local SkillGraph pipeline:
 
    ```bash
-   python scripts/skillgraph.py all --root .
+   python3 scripts/skillgraph.py all --root .
    ```
+
+   If the repository provides `python` as a Python 3 executable, that command is
+   also acceptable. Prefer `python3` when the environment is unknown.
 
 3. Read the generated files:
 
