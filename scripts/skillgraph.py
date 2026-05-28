@@ -95,8 +95,8 @@ FUTURE_CONFIG_PATHS = (
     ".cursor/rules",
 )
 PATH_RE = re.compile(
-    r"(?P<path>(?:\.\./|\.\/)?(?:skills|references|templates|scripts)/[^\s)'\"<>]+|"
-    r"(?:\.\./|\./)[^\s)'\"<>]*(?:SKILL(?:\.en)?\.md|skillgraph\.yaml|\.md))"
+    r"(?P<path>(?:\.\./|\.\/)?(?:skills|references|templates|scripts)/[^\s)`'\"<>]+|"
+    r"(?:\.\./|\./)[^\s)`'\"<>]*(?:SKILL(?:\.en)?\.md|skillgraph\.yaml|\.md))"
 )
 LINK_RE = re.compile(r"!?\[[^\]]*\]\(([^)]+)\)")
 FRONTMATTER_RE = re.compile(r"\A---\s*\n(.*?)\n---\s*(?:\n|\Z)", re.DOTALL)
@@ -506,7 +506,7 @@ def clean_target(value: str) -> str:
     value = value.strip().strip("`'\"")
     value = value.split("#", 1)[0]
     value = value.split("?", 1)[0]
-    return value.rstrip(".,;:")
+    return value.rstrip(".,;:").strip("`'\"")
 
 
 def resolve_path_reference(raw: str, source_file: Path, root: Path) -> str:
