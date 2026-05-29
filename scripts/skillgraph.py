@@ -1379,138 +1379,989 @@ HTML_TEMPLATE = r"""<!doctype html>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>SkillGraph Viewer</title>
   <style>
-    :root { color-scheme: light; --line: #d7dee8; --text: #17202a; --muted: #5f6f82; --accent: #0d6efd; --warn: #a15c00; --error: #b42318; --panel: #f6f8fb; }
+    :root {
+      color-scheme: light;
+      --bg: oklch(98% 0.005 250);
+      --surface: oklch(100% 0 0);
+      --surface-2: oklch(96% 0.006 250);
+      --surface-3: oklch(93% 0.01 250);
+      --fg: oklch(22% 0.02 240);
+      --muted: oklch(50% 0.018 240);
+      --border: oklch(88% 0.01 240);
+      --accent: oklch(58% 0.16 145);
+      --accent-strong: oklch(47% 0.15 145);
+      --accent-soft: oklch(93% 0.035 145);
+      --secondary: oklch(58% 0.16 255);
+      --secondary-soft: oklch(93% 0.04 255);
+      --relation: oklch(64% 0.17 35);
+      --warning: oklch(70% 0.16 75);
+      --warning-soft: oklch(95% 0.05 75);
+      --danger: oklch(58% 0.18 28);
+      --danger-soft: oklch(94% 0.05 28);
+      --shadow: 0 18px 50px rgba(20, 30, 50, 0.10);
+      --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", system-ui, sans-serif;
+      --font-body: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+      --font-mono: "SF Mono", "JetBrains Mono", "IBM Plex Mono", ui-monospace, Menlo, monospace;
+    }
+
     * { box-sizing: border-box; }
-    html, body { height: 100%; overflow: hidden; }
-    body { margin: 0; font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: var(--text); background: #fff; }
-    .app { display: grid; grid-template-columns: minmax(260px, 320px) minmax(360px, 1fr) minmax(280px, 360px); height: 100vh; min-height: 0; overflow: hidden; }
-    aside, main { min-width: 0; min-height: 0; }
-    aside { padding: 16px; border-right: 1px solid var(--line); background: var(--panel); overflow: auto; }
-    .details { border-right: 0; border-left: 1px solid var(--line); }
-    main { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; overflow: hidden; }
-    header { padding: 14px 16px; border-bottom: 1px solid var(--line); display: flex; gap: 16px; align-items: center; justify-content: space-between; }
-    h1 { font-size: 18px; margin: 0; }
-    h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; margin: 18px 0 8px; color: var(--muted); }
-    label { display: block; font-size: 13px; color: var(--muted); margin: 12px 0 4px; }
-    input[type="search"], select { width: 100%; min-height: 34px; border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; background: #fff; color: var(--text); }
-    .check { display: flex; align-items: center; gap: 8px; margin-top: 10px; color: var(--text); font-size: 14px; }
-    .list { display: grid; gap: 6px; }
-    .item { border: 1px solid var(--line); background: #fff; border-radius: 6px; padding: 8px; cursor: pointer; }
-    .item:hover { border-color: var(--accent); }
-    .item.selected { border-color: var(--accent); background: #eef5ff; box-shadow: 0 0 0 1px var(--accent); }
-    .item strong { display: block; font-size: 13px; overflow-wrap: anywhere; }
-    .item span { display: block; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
-    .item .item-meta { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 4px; }
-    .group { display: grid; gap: 6px; }
-    .group + .group { margin-top: 12px; }
-    .group-title { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: var(--muted); font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
-    .badge { display: inline-block; font-size: 11px; padding: 2px 6px; border-radius: 999px; background: #eaf1ff; color: #174ea6; margin-right: 4px; }
-    .badge.file { background: #f1f5f9; color: #475569; }
-    .badge.edge-type { background: #fff7ed; color: #9a3412; }
-    .badge.inferred { background: #f3e8ff; color: #6b21a8; }
-    .badge.warning { background: #fff7ed; color: var(--warn); }
-    .badge.error { background: #fef2f2; color: var(--error); }
-    .summary-card { border: 1px solid var(--line); background: #fff; border-radius: 6px; padding: 10px; }
-    .summary-card h2 { margin-top: 0; }
-    .summary-card p { margin: 8px 0; }
-    .meta-grid { display: grid; grid-template-columns: auto 1fr; gap: 6px 10px; font-size: 13px; }
-    .meta-grid dt { color: var(--muted); }
-    .meta-grid dd { margin: 0; overflow-wrap: anywhere; }
-    .description { color: var(--text); line-height: 1.45; }
-    details.raw-json { margin-top: 10px; }
-    details.raw-json summary { cursor: pointer; color: var(--muted); font-size: 13px; }
-    .warning { color: var(--warn); }
-    .error { color: var(--error); }
-    button { min-height: 32px; border: 1px solid var(--line); border-radius: 6px; padding: 6px 10px; background: #fff; color: var(--text); cursor: pointer; }
-    button:hover { border-color: var(--accent); }
-    .graph-actions { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 8px; color: var(--muted); font-size: 13px; }
-    .graph-actions .icon-button { width: 32px; padding: 6px 0; }
-    .view-state { min-width: 42px; text-align: center; }
-    #graph { width: 100%; height: 100%; min-height: 0; background-color: #fbfdff; background-image: linear-gradient(#edf2f7 1px, transparent 1px), linear-gradient(90deg, #edf2f7 1px, transparent 1px); background-size: 28px 28px; touch-action: none; }
-    .status { padding: 10px 16px; border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; }
-    .node { cursor: grab; }
-    .node:active { cursor: grabbing; }
-    .graph-layer { transform-origin: 0 0; }
-    .node circle { fill: #f8fbff; stroke: #2563eb; stroke-width: 2; filter: drop-shadow(0 6px 10px rgba(15, 23, 42, .18)); vector-effect: non-scaling-stroke; }
-    .node.asset circle { fill: #f8fafc; stroke: #64748b; }
-    .node:hover circle { fill: #eff6ff; stroke-width: 3; }
-    .node.related circle { fill: #fff7ed; stroke: #f97316; stroke-width: 3; }
-    .node.selected circle { fill: #dbeafe; stroke: #b42318; stroke-width: 4; }
-    .node text { font-size: 12px; paint-order: stroke; stroke: #fff; stroke-width: 4px; stroke-linejoin: round; fill: var(--text); pointer-events: none; }
-    .edge { fill: none; stroke: #64748b; stroke-width: 2.2; cursor: pointer; opacity: .9; vector-effect: non-scaling-stroke; }
-    .edge.mentions { stroke-dasharray: 4 3; }
-    .edge.inferred { stroke: #7c3aed; stroke-dasharray: 8 4; }
-    .edge.high { stroke-width: 2.8; }
-    .edge.related { stroke: #f97316; stroke-width: 4; }
-    .edge.selected { stroke: #b42318; stroke-width: 5; }
-    .edge-hit { fill: none; stroke: transparent; stroke-width: 18; cursor: pointer; pointer-events: stroke; vector-effect: non-scaling-stroke; }
-    pre { white-space: pre-wrap; overflow-wrap: anywhere; background: #0f172a; color: #e5e7eb; padding: 10px; border-radius: 6px; font-size: 12px; }
-    @media (max-width: 980px) {
-      html, body { height: auto; overflow: auto; }
-      .app { grid-template-columns: 1fr; height: auto; min-height: 100vh; overflow: visible; }
-      main { order: -1; min-height: 560px; }
-      aside, .details { border: 0; border-bottom: 1px solid var(--line); }
-      #graph { min-height: 420px; }
+
+    html,
+    body {
+      height: 100%;
+      overflow: hidden;
+    }
+
+    body {
+      margin: 0;
+      background:
+        linear-gradient(180deg, oklch(99% 0.004 250), var(--bg) 42%),
+        var(--bg);
+      color: var(--fg);
+      font-family: var(--font-body);
+      font-size: 14px;
+      line-height: 1.45;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    button,
+    input,
+    select {
+      font: inherit;
+    }
+
+    button {
+      cursor: pointer;
+    }
+
+    .app {
+      height: 100vh;
+      min-height: 100vh;
+      display: grid;
+      grid-template-rows: auto 1fr;
+      overflow: hidden;
+    }
+
+    .topbar {
+      min-height: 64px;
+      display: grid;
+      grid-template-columns: minmax(240px, 1fr) minmax(260px, 520px) auto;
+      align-items: center;
+      gap: 16px;
+      padding: 12px 18px;
+      border-bottom: 1px solid var(--border);
+      background: color-mix(in oklch, var(--surface) 88%, transparent);
+      backdrop-filter: blur(14px);
+      position: sticky;
+      top: 0;
+      z-index: 20;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 0;
+    }
+
+    .brand-mark {
+      width: 36px;
+      height: 36px;
+      display: grid;
+      place-items: center;
+      border: 1px solid color-mix(in oklch, var(--accent) 40%, var(--border));
+      border-radius: 8px;
+      background:
+        radial-gradient(circle at 60% 38%, var(--accent) 0 9%, transparent 10%),
+        radial-gradient(circle at 35% 62%, var(--secondary) 0 8%, transparent 9%),
+        var(--surface);
+      box-shadow: inset 0 0 0 4px color-mix(in oklch, var(--accent-soft) 55%, transparent);
+      flex: 0 0 auto;
+    }
+
+    .brand h1 {
+      margin: 0;
+      font-family: var(--font-display);
+      font-size: 18px;
+      line-height: 1.15;
+      font-weight: 760;
+    }
+
+    .brand p {
+      margin: 2px 0 0;
+      color: var(--muted);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .command {
+      height: 42px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 0 12px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--surface);
+      box-shadow: 0 1px 0 rgba(10, 20, 40, 0.03);
+    }
+
+    .command span {
+      color: var(--muted);
+      font-family: var(--font-mono);
+      font-size: 12px;
+    }
+
+    .command input {
+      width: 100%;
+      min-width: 0;
+      border: 0;
+      outline: 0;
+      background: transparent;
+      color: var(--fg);
+    }
+
+    .command:focus-within,
+    .field select:focus {
+      border-color: color-mix(in oklch, var(--accent) 68%, var(--border));
+      box-shadow: 0 0 0 3px color-mix(in oklch, var(--accent-soft) 70%, transparent);
+    }
+
+    .command kbd {
+      border: 1px solid var(--border);
+      border-bottom-color: color-mix(in oklch, var(--border) 70%, var(--fg));
+      border-radius: 6px;
+      padding: 3px 6px;
+      color: var(--muted);
+      background: var(--surface-2);
+      font: 11px/1 var(--font-mono);
+    }
+
+    .top-actions,
+    .graph-actions {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .segmented {
+      display: inline-flex;
+      gap: 2px;
+      padding: 3px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--surface-2);
+    }
+
+    .segmented button,
+    .icon-button,
+    .text-button,
+    .item,
+    .summary-card button {
+      border: 1px solid transparent;
+      border-radius: 7px;
+      min-height: 34px;
+      background: transparent;
+      color: var(--muted);
+    }
+
+    .segmented button {
+      padding: 0 11px;
+      font-weight: 650;
+    }
+
+    .segmented button[aria-pressed="true"] {
+      color: var(--fg);
+      background: var(--surface);
+      border-color: var(--border);
+      box-shadow: 0 1px 0 rgba(10, 20, 40, 0.04);
+    }
+
+    .icon-button {
+      width: 36px;
+      display: grid;
+      place-items: center;
+      padding: 0;
+      border-color: var(--border);
+      background: var(--surface);
+      color: var(--fg);
+    }
+
+    .text-button,
+    .summary-card button {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 0 12px;
+      border-color: var(--border);
+      background: var(--surface);
+      color: var(--fg);
+      font-weight: 680;
+    }
+
+    .text-button.primary {
+      background: var(--fg);
+      color: #fff;
+      border-color: var(--fg);
+    }
+
+    .workspace {
+      display: grid;
+      grid-template-columns: minmax(260px, 320px) minmax(0, 1fr) minmax(320px, 400px);
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    aside,
+    main {
+      min-width: 0;
+      min-height: 0;
+    }
+
+    .panel {
+      min-width: 0;
+      background: color-mix(in oklch, var(--surface) 92%, var(--bg));
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .details {
+      border-left: 1px solid var(--border);
+      border-right: 0;
+    }
+
+    .panel-scroll {
+      min-height: 0;
+      overflow: auto;
+      padding: 16px;
+    }
+
+    .section-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin: 0 0 10px;
+    }
+
+    .section-title h2,
+    .section-title h3 {
+      margin: 0;
+      font-size: 12px;
+      line-height: 1.1;
+      color: color-mix(in oklch, var(--fg) 76%, var(--muted));
+      text-transform: uppercase;
+      font-weight: 760;
+    }
+
+    .count,
+    .view-state {
+      color: var(--muted);
+      font: 12px/1 var(--font-mono);
+      white-space: nowrap;
+    }
+
+    .view-state {
+      min-width: 42px;
+      text-align: center;
+    }
+
+    .field {
+      position: relative;
+      margin-bottom: 12px;
+    }
+
+    .field label {
+      display: block;
+      margin: 0 0 5px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 650;
+    }
+
+    .field select {
+      width: 100%;
+      min-height: 42px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--surface);
+      color: var(--fg);
+      outline: 0;
+      padding: 0 12px;
+    }
+
+    .metric-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin: 14px 0 18px;
+    }
+
+    .metric {
+      min-width: 0;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--surface);
+      padding: 11px 12px;
+    }
+
+    .metric strong {
+      display: block;
+      font: 760 20px/1.1 var(--font-display);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .metric span {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .check {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 34px;
+      margin: 2px 0 16px;
+      color: var(--fg);
+      font-weight: 650;
+    }
+
+    .list {
+      display: grid;
+      gap: 9px;
+    }
+
+    .item {
+      width: 100%;
+      display: block;
+      text-align: left;
+      border-color: var(--border);
+      background: var(--surface);
+      padding: 10px;
+      color: var(--fg);
+      cursor: pointer;
+    }
+
+    .item:hover,
+    .icon-button:hover,
+    .text-button:hover,
+    .summary-card button:hover {
+      border-color: color-mix(in oklch, var(--secondary) 42%, var(--border));
+      box-shadow: 0 6px 18px rgba(30, 65, 110, 0.08);
+    }
+
+    .item.selected {
+      border-color: color-mix(in oklch, var(--accent) 54%, var(--border));
+      box-shadow: inset 3px 0 0 var(--accent);
+    }
+
+    .item strong {
+      display: block;
+      font-weight: 760;
+      line-height: 1.25;
+      overflow-wrap: anywhere;
+    }
+
+    .item span {
+      display: block;
+      margin-top: 4px;
+      color: var(--muted);
+      font-size: 12px;
+      overflow-wrap: anywhere;
+    }
+
+    .item .item-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 7px;
+    }
+
+    .item .item-meta span {
+      margin-top: 0;
+    }
+
+    .group {
+      display: grid;
+      gap: 9px;
+    }
+
+    .group + .group {
+      margin-top: 14px;
+    }
+
+    .group-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 760;
+      text-transform: uppercase;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      min-height: 22px;
+      padding: 0 7px;
+      border-radius: 999px;
+      background: var(--surface-2);
+      color: var(--muted);
+      font: 650 11px/1 var(--font-body);
+    }
+
+    .badge.file {
+      color: var(--muted);
+      background: var(--surface-3);
+    }
+
+    .badge.edge-type {
+      color: var(--relation);
+      background: color-mix(in oklch, var(--relation) 12%, var(--surface));
+    }
+
+    .badge.inferred,
+    .badge.info {
+      color: oklch(43% 0.15 255);
+      background: var(--secondary-soft);
+    }
+
+    .badge.warning {
+      color: oklch(45% 0.12 70);
+      background: var(--warning-soft);
+    }
+
+    .badge.error {
+      color: var(--danger);
+      background: var(--danger-soft);
+    }
+
+    .summary-card {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--surface);
+      padding: 12px;
+    }
+
+    .summary-card + .summary-card {
+      margin-top: 12px;
+    }
+
+    .summary-card h2 {
+      margin: 0 0 10px;
+      color: color-mix(in oklch, var(--fg) 76%, var(--muted));
+      font-size: 12px;
+      text-transform: uppercase;
+    }
+
+    .summary-card p {
+      margin: 8px 0;
+    }
+
+    .meta-grid {
+      display: grid;
+      grid-template-columns: 88px minmax(0, 1fr);
+      gap: 10px;
+      margin: 14px 0 18px;
+      font-size: 13px;
+    }
+
+    .meta-grid dt {
+      color: var(--muted);
+      font-weight: 650;
+    }
+
+    .meta-grid dd {
+      margin: 0;
+      overflow-wrap: anywhere;
+    }
+
+    .description {
+      color: var(--fg);
+      line-height: 1.5;
+    }
+
+    details.raw-json {
+      margin-top: 10px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    details.raw-json summary {
+      cursor: pointer;
+      padding: 10px 12px;
+      color: var(--fg);
+      font-weight: 760;
+    }
+
+    pre {
+      margin: 0;
+      padding: 12px;
+      max-height: 240px;
+      overflow: auto;
+      border-top: 1px solid var(--border);
+      background: var(--surface-2);
+      color: var(--fg);
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      font: 12px/1.55 var(--font-mono);
+    }
+
+    .graph-workspace {
+      min-width: 0;
+      min-height: 0;
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr) auto;
+      container-type: inline-size;
+      background:
+        linear-gradient(var(--border) 1px, transparent 1px),
+        linear-gradient(90deg, var(--border) 1px, transparent 1px),
+        var(--surface-2);
+      background-size: 34px 34px;
+      background-position: -1px -1px;
+      overflow: hidden;
+    }
+
+    .graph-toolbar {
+      min-width: 0;
+      min-height: 56px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border);
+      background: color-mix(in oklch, var(--surface) 92%, transparent);
+      backdrop-filter: blur(12px);
+    }
+
+    .graph-title {
+      min-width: 0;
+    }
+
+    .graph-title h2 {
+      margin: 0;
+      font-size: 18px;
+      line-height: 1.1;
+    }
+
+    .graph-title p {
+      margin: 2px 0 0;
+      color: var(--muted);
+      font: 12px/1.35 var(--font-mono);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    #graph {
+      display: block;
+      min-width: 0;
+      max-width: 100%;
+      width: 100%;
+      height: 100%;
+      min-height: 420px;
+      touch-action: none;
+      filter: drop-shadow(0 14px 32px rgba(20, 30, 60, 0.08));
+    }
+
+    .graph-layer {
+      transform-origin: 0 0;
+    }
+
+    .node {
+      cursor: grab;
+      transition: opacity 140ms ease;
+    }
+
+    .node:active {
+      cursor: grabbing;
+    }
+
+    .node circle {
+      fill: var(--surface);
+      stroke: var(--secondary);
+      stroke-width: 4;
+      vector-effect: non-scaling-stroke;
+    }
+
+    .node.asset circle {
+      stroke: var(--muted);
+    }
+
+    .node:hover circle {
+      fill: color-mix(in oklch, var(--secondary-soft) 55%, var(--surface));
+    }
+
+    .node.related circle {
+      fill: color-mix(in oklch, var(--warning-soft) 70%, var(--surface));
+      stroke: var(--relation);
+    }
+
+    .node.selected circle {
+      fill: color-mix(in oklch, var(--accent-soft) 70%, var(--surface));
+      stroke: var(--accent-strong);
+      stroke-width: 6;
+    }
+
+    .node text {
+      fill: var(--fg);
+      font: 650 13px/1 var(--font-body);
+      text-anchor: middle;
+      paint-order: stroke;
+      stroke: color-mix(in oklch, var(--surface) 88%, transparent);
+      stroke-width: 6px;
+      stroke-linejoin: round;
+      pointer-events: none;
+    }
+
+    .node .node-type {
+      fill: var(--muted);
+      font: 11px/1 var(--font-mono);
+      text-transform: uppercase;
+    }
+
+    .edge {
+      fill: none;
+      stroke: var(--relation);
+      stroke-width: 3.5;
+      stroke-linecap: round;
+      cursor: pointer;
+      opacity: .76;
+      vector-effect: non-scaling-stroke;
+    }
+
+    .edge.mentions {
+      stroke: var(--secondary);
+      stroke-dasharray: 7 9;
+      opacity: .35;
+    }
+
+    .edge.inferred {
+      stroke: var(--secondary);
+      stroke-dasharray: 8 4;
+    }
+
+    .edge.high {
+      stroke-width: 4;
+    }
+
+    .edge.related {
+      stroke: var(--accent-strong);
+      stroke-width: 5;
+    }
+
+    .edge.selected {
+      stroke: var(--danger);
+      stroke-width: 5;
+    }
+
+    .edge-hit {
+      fill: none;
+      stroke: transparent;
+      stroke-width: 18;
+      cursor: pointer;
+      pointer-events: stroke;
+      vector-effect: non-scaling-stroke;
+    }
+
+    .graph-status {
+      min-width: 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 10px 14px;
+      border-top: 1px solid var(--border);
+      background: color-mix(in oklch, var(--surface) 94%, transparent);
+      color: var(--muted);
+      font: 12px/1.35 var(--font-mono);
+      overflow: hidden;
+    }
+
+    .status-points {
+      min-width: 0;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    #status {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--accent);
+      display: inline-block;
+      margin-right: 6px;
+    }
+
+    .dot.warn {
+      background: var(--warning);
+    }
+
+    @media (max-width: 1180px) {
+      html,
+      body {
+        height: auto;
+        overflow: auto;
+      }
+
+      .topbar {
+        grid-template-columns: 1fr auto;
+      }
+
+      .command {
+        grid-column: 1 / -1;
+      }
+
+      .workspace {
+        grid-template-columns: minmax(250px, 300px) minmax(0, 1fr);
+        overflow: visible;
+      }
+
+      .details {
+        grid-column: 1 / -1;
+        border-left: 0;
+        border-top: 1px solid var(--border);
+      }
+    }
+
+    @media (max-width: 760px) {
+      body {
+        font-size: 13px;
+      }
+
+      .app {
+        height: auto;
+        overflow: visible;
+      }
+
+      .topbar {
+        position: static;
+        grid-template-columns: 1fr;
+        gap: 10px;
+        padding: 12px;
+      }
+
+      .brand p {
+        white-space: normal;
+      }
+
+      .top-actions {
+        justify-content: stretch;
+        overflow-x: auto;
+        padding-bottom: 2px;
+      }
+
+      .segmented {
+        flex: 1 0 auto;
+      }
+
+      .workspace {
+        display: block;
+      }
+
+      .panel {
+        border-right: 0;
+        border-bottom: 1px solid var(--border);
+        overflow: visible;
+      }
+
+      .panel-scroll {
+        max-height: none;
+        overflow: visible;
+        padding: 14px;
+      }
+
+      .graph-workspace {
+        min-height: 560px;
+      }
+
+      .graph-toolbar,
+      .graph-status {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .metric-grid {
+        grid-template-columns: repeat(4, minmax(110px, 1fr));
+        overflow-x: auto;
+      }
+
+      .meta-grid {
+        grid-template-columns: 74px minmax(0, 1fr);
+      }
     }
   </style>
 </head>
 <body>
-  <div class="app">
-    <aside>
-      <h1>SkillGraph Viewer</h1>
-      <label for="viewMode">View</label>
-      <select id="viewMode">
-        <option value="topology">Topology</option>
-        <option value="router">Router</option>
-        <option value="artifacts">Reference / Template</option>
-        <option value="inferred">Inferred Cluster</option>
-        <option value="diagnostics">Diagnostics</option>
-      </select>
-      <label for="search">Skill Search</label>
-      <input id="search" type="search" placeholder="id, name, path">
-      <label for="nodeKind">Node Type</label>
-      <select id="nodeKind">
-        <option value="">All nodes</option>
-        <option value="skill">SKILL.md</option>
-        <option value="file">Sources</option>
-      </select>
-      <label for="extension">Extension</label>
-      <select id="extension"><option value="">All extensions</option></select>
-      <label for="edgeType">Edge Type</label>
-      <select id="edgeType"><option value="">All non-mentions</option></select>
-      <label for="confidence">Confidence</label>
-      <select id="confidence"><option value="">All</option></select>
-      <label class="check"><input id="showMentions" type="checkbox"> Show mentions edges</label>
-      <h2>Diagnostics</h2>
-      <div id="diagnostics" class="list"></div>
-    </aside>
-    <main>
-      <header>
-        <h1>Graph</h1>
-        <div class="graph-actions">
-          <button id="zoomOut" class="icon-button" type="button" title="Zoom out">-</button>
-          <span id="viewState" class="view-state">100%</span>
-          <button id="zoomIn" class="icon-button" type="button" title="Zoom in">+</button>
-          <button id="panUp" class="icon-button" type="button" title="Pan up">&uarr;</button>
-          <button id="panLeft" class="icon-button" type="button" title="Pan left">&larr;</button>
-          <button id="panRight" class="icon-button" type="button" title="Pan right">&rarr;</button>
-          <button id="panDown" class="icon-button" type="button" title="Pan down">&darr;</button>
-          <button id="resetView" type="button">Reset view</button>
-          <button id="resetLayout" type="button">Reset layout</button>
-          <div id="summary"></div>
+  <div class="app" data-view="topology">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true"></div>
+        <div>
+          <h1>SkillGraph Lite</h1>
+          <p>Read-only skill topology viewer for local repositories</p>
         </div>
-      </header>
-      <svg id="graph" role="img" aria-label="Skill graph"></svg>
-      <div class="status" id="status"></div>
+      </div>
+
+      <label class="command" for="search">
+        <span>Search</span>
+        <input id="search" type="search" placeholder="id, name, path, diagnostics" autocomplete="off">
+        <kbd>/</kbd>
+      </label>
+
+      <div class="top-actions" aria-label="Graph view controls">
+        <select id="viewMode" aria-label="View mode" style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;">
+          <option value="topology">Topology</option>
+          <option value="router">Router</option>
+          <option value="artifacts">Reference / Template</option>
+          <option value="inferred">Inferred Cluster</option>
+          <option value="diagnostics">Diagnostics</option>
+        </select>
+        <div class="segmented" role="group" aria-label="View mode">
+          <button type="button" data-view-mode="topology" aria-pressed="true">Topology</button>
+          <button type="button" data-view-mode="router" aria-pressed="false">Router</button>
+          <button type="button" data-view-mode="artifacts" aria-pressed="false">Artifacts</button>
+          <button type="button" data-view-mode="diagnostics" aria-pressed="false">Diagnostics</button>
+        </div>
+        <span class="count" id="summary"></span>
+      </div>
+    </header>
+
+    <main class="workspace">
+      <aside class="panel" aria-label="Filters and diagnostics">
+        <div class="panel-scroll">
+          <div class="section-title">
+            <h2>Graph Scope</h2>
+            <span class="count" id="scopeCount">0 nodes</span>
+          </div>
+
+          <div class="field">
+            <label for="nodeKind">Node type</label>
+            <select id="nodeKind">
+              <option value="">All nodes</option>
+              <option value="skill">SKILL.md</option>
+              <option value="file">Sources</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="extension">Extension</label>
+            <select id="extension"><option value="">All extensions</option></select>
+          </div>
+
+          <div class="field">
+            <label for="edgeType">Edge type</label>
+            <select id="edgeType"><option value="">All non-mentions</option></select>
+          </div>
+
+          <div class="field">
+            <label for="confidence">Confidence</label>
+            <select id="confidence"><option value="">All</option></select>
+          </div>
+
+          <label class="check"><input id="showMentions" type="checkbox"> Show mentions edges</label>
+
+          <div class="metric-grid" aria-label="Graph metrics">
+            <div class="metric">
+              <strong id="metricNodes">0</strong>
+              <span>nodes</span>
+            </div>
+            <div class="metric">
+              <strong id="metricEdges">0</strong>
+              <span>edges</span>
+            </div>
+            <div class="metric">
+              <strong id="metricDiagnostics">0</strong>
+              <span>diagnostics</span>
+            </div>
+            <div class="metric">
+              <strong id="metricVisible">0</strong>
+              <span>visible</span>
+            </div>
+          </div>
+
+          <div class="section-title">
+            <h3>Diagnostics Queue</h3>
+            <span class="count" id="diagnosticCount">0</span>
+          </div>
+          <div id="diagnostics" class="list"></div>
+
+          <div class="section-title" style="margin-top: 18px;">
+            <h3>Matching Nodes</h3>
+            <span class="count" id="nodeCount">0</span>
+          </div>
+          <div id="nodes" class="list"></div>
+        </div>
+      </aside>
+
+      <section class="graph-workspace" aria-label="Skill graph">
+        <div class="graph-toolbar">
+          <div class="graph-title">
+            <h2 id="graphHeading">Skill topology</h2>
+            <p id="graphSubtitle">Generated graph</p>
+          </div>
+          <div class="graph-actions" aria-label="Canvas controls">
+            <button id="zoomOut" class="icon-button" type="button" title="Zoom out">-</button>
+            <span id="viewState" class="view-state">100%</span>
+            <button id="zoomIn" class="icon-button" type="button" title="Zoom in">+</button>
+            <button id="panUp" class="icon-button" type="button" title="Pan up">&uarr;</button>
+            <button id="panLeft" class="icon-button" type="button" title="Pan left">&larr;</button>
+            <button id="panRight" class="icon-button" type="button" title="Pan right">&rarr;</button>
+            <button id="panDown" class="icon-button" type="button" title="Pan down">&darr;</button>
+            <button id="resetView" class="text-button" type="button">Reset</button>
+            <button id="resetLayout" class="text-button" type="button">Layout</button>
+          </div>
+        </div>
+
+        <svg id="graph" role="img" aria-labelledby="graphHeading graphSubtitle"></svg>
+
+        <footer class="graph-status">
+          <div class="status-points">
+            <span><i class="dot"></i><strong id="activeSelection">No selection</strong></span>
+            <span><i class="dot warn"></i><span id="activeDiagnostics">Diagnostics are scoped by selection</span></span>
+          </div>
+          <span id="status"></span>
+        </footer>
+      </section>
+
+      <aside class="panel details" aria-label="Selected details">
+        <div class="panel-scroll">
+          <div class="section-title">
+            <h2>Details</h2>
+          </div>
+          <div id="details">
+            <section class="summary-card">
+              <h2>Selection</h2>
+              <p class="description">Select a node, edge, or diagnostic to inspect its metadata.</p>
+            </section>
+          </div>
+
+          <div class="section-title" style="margin-top: 18px;">
+            <h3>Relations</h3>
+            <span class="count" id="edgeCount">0</span>
+          </div>
+          <div id="edges" class="list"></div>
+        </div>
+      </aside>
     </main>
-    <aside class="details">
-      <h1>Details</h1>
-      <div id="details"></div>
-      <h2>Nodes</h2>
-      <div id="nodes" class="list"></div>
-      <h2>Edges</h2>
-      <div id="edges" class="list"></div>
-    </aside>
   </div>
   <script>
     let graph = __GRAPH_JSON__;
@@ -1545,7 +2396,15 @@ HTML_TEMPLATE = r"""<!doctype html>
     const panDown = document.getElementById("panDown");
     const panLeft = document.getElementById("panLeft");
     const panRight = document.getElementById("panRight");
+    const viewModeButtons = Array.from(document.querySelectorAll("[data-view-mode]"));
     showMentions.checked = showMentionsDefault;
+
+    function syncViewModeButtons() {
+      document.querySelector(".app").dataset.view = viewMode.value;
+      for (const button of viewModeButtons) {
+        button.setAttribute("aria-pressed", String(button.dataset.viewMode === viewMode.value));
+      }
+    }
 
     for (const type of [...new Set(graph.edges.map(edge => edge.type))].sort()) {
       const option = document.createElement("option");
@@ -1670,7 +2529,7 @@ HTML_TEMPLATE = r"""<!doctype html>
     }
 
     function nodeRadius(node) {
-      return node?.kind === "skill" ? 18 : 13;
+      return node?.kind === "skill" ? 26 : 20;
     }
 
     function relationLabel(type) {
@@ -1691,6 +2550,21 @@ HTML_TEMPLATE = r"""<!doctype html>
       if (isSelected) return "url(#arrow-selected)";
       if (isRelated) return "url(#arrow-related)";
       return "url(#arrow-default)";
+    }
+
+    function viewModeCopy() {
+      return {
+        topology: ["Skill topology", "Topology view: non-mention relations visible"],
+        router: ["Router flow", "Router view: routes and invokes relationships emphasized"],
+        artifacts: ["Reference and template flow", "Artifact view: references, templates, and scripts visible"],
+        inferred: ["Inferred Cluster", "Inferred view: agent-provided clusters and relations visible"],
+        diagnostics: ["Diagnostics focus", "Diagnostics view: warnings and invalid graph data prioritized"],
+      }[viewMode.value] || ["Skill topology", "Topology view"];
+    }
+
+    function setText(id, value) {
+      const element = document.getElementById(id);
+      if (element) element.textContent = value;
     }
 
     function edgeSummary(edge) {
@@ -1871,9 +2745,9 @@ HTML_TEMPLATE = r"""<!doctype html>
       const height = Math.max(svg.clientHeight, 420);
       svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
       svg.innerHTML = `<defs>
-        <marker id="arrow-default" markerWidth="14" markerHeight="14" refX="12" refY="6" orient="auto" markerUnits="userSpaceOnUse"><path d="M0,0 L0,12 L13,6 z" fill="#64748b"></path></marker>
-        <marker id="arrow-related" markerWidth="14" markerHeight="14" refX="12" refY="6" orient="auto" markerUnits="userSpaceOnUse"><path d="M0,0 L0,12 L13,6 z" fill="#f97316"></path></marker>
-        <marker id="arrow-selected" markerWidth="14" markerHeight="14" refX="12" refY="6" orient="auto" markerUnits="userSpaceOnUse"><path d="M0,0 L0,12 L13,6 z" fill="#b42318"></path></marker>
+        <marker id="arrow-default" markerWidth="14" markerHeight="14" refX="12" refY="6" orient="auto" markerUnits="userSpaceOnUse"><path d="M0,0 L0,12 L13,6 z" fill="#d87537"></path></marker>
+        <marker id="arrow-related" markerWidth="14" markerHeight="14" refX="12" refY="6" orient="auto" markerUnits="userSpaceOnUse"><path d="M0,0 L0,12 L13,6 z" fill="#2f9860"></path></marker>
+        <marker id="arrow-selected" markerWidth="14" markerHeight="14" refX="12" refY="6" orient="auto" markerUnits="userSpaceOnUse"><path d="M0,0 L0,12 L13,6 z" fill="#c63f33"></path></marker>
       </defs>`;
       const layer = document.createElementNS("http://www.w3.org/2000/svg", "g");
       layer.setAttribute("class", "graph-layer");
@@ -1923,17 +2797,41 @@ HTML_TEMPLATE = r"""<!doctype html>
         group.setAttribute("transform", `translate(${point.x}, ${point.y})`);
         group.addEventListener("pointerdown", event => beginNodeDrag(event, node));
         const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-        circle.setAttribute("r", node.kind === "skill" ? "18" : "13");
-        const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
-        text.setAttribute("text-anchor", "middle");
-        text.setAttribute("y", "34");
-        text.textContent = node.annotation?.label || node.label || node.id;
-        group.append(circle, text);
+        const radius = nodeRadius(node);
+        circle.setAttribute("r", String(radius));
+        const typeText = document.createElementNS("http://www.w3.org/2000/svg", "text");
+        typeText.setAttribute("class", "node-type");
+        typeText.setAttribute("text-anchor", "middle");
+        typeText.setAttribute("y", String(-radius - 14));
+        typeText.textContent = nodeTypeLabel(node);
+        const labelText = document.createElementNS("http://www.w3.org/2000/svg", "text");
+        labelText.setAttribute("text-anchor", "middle");
+        labelText.setAttribute("y", String(radius + 30));
+        labelText.textContent = node.annotation?.label || node.label || node.id;
+        group.append(circle, labelText, typeText);
         layer.append(group);
       }
-      document.getElementById("summary").textContent = `${nodes.length} nodes / ${edges.length} edges`;
-      document.getElementById("viewState").textContent = `${Math.round(state.view.scale * 100)}%`;
-      document.getElementById("status").textContent = `Generated ${graph.generatedAt} from ${graph.root}`;
+      const [heading, subtitle] = viewModeCopy();
+      setText("graphHeading", heading);
+      setText("graphSubtitle", `Generated ${graph.generatedAt} from ${graph.root}`);
+      setText("summary", `${nodes.length} nodes / ${edges.length} edges`);
+      setText("viewState", `${Math.round(state.view.scale * 100)}%`);
+      setText("status", subtitle);
+      setText("scopeCount", `${nodes.length} nodes`);
+      setText("metricNodes", String(graph.nodes.length));
+      setText("metricEdges", String(graph.edges.length));
+      setText("metricDiagnostics", String(graph.diagnostics.length));
+      setText("metricVisible", String(nodes.length));
+      const activeLabel = selected?.kind === "node"
+        ? nodeDisplay(selected.value.id)
+        : selected?.kind === "edge"
+          ? edgeSummary(selected.value)
+          : selected?.kind === "diagnostic"
+            ? diagnosticLabel(selected.value.type)
+            : "No selection";
+      setText("activeSelection", activeLabel);
+      const scopedDiagnostics = visibleDiagnostics();
+      setText("activeDiagnostics", scopedDiagnostics.length ? `${scopedDiagnostics.length} diagnostics in scope` : "No diagnostics in scope");
       renderLists(nodes, edges);
     }
 
@@ -2044,12 +2942,15 @@ HTML_TEMPLATE = r"""<!doctype html>
       renderNodeGroups(nodeBox, nodes);
       renderEdgeGroups(edgeBox, edges);
       renderDiagnostics();
+      setText("nodeCount", String(nodes.length));
+      setText("edgeCount", String(edges.length));
     }
 
     function renderDiagnostics() {
       const box = document.getElementById("diagnostics");
       box.innerHTML = "";
       const diagnostics = visibleDiagnostics();
+      setText("diagnosticCount", String(diagnostics.length));
       for (const [title, values] of groupBy(diagnostics, diag => `${diag.severity || "info"} / ${diagnosticLabel(diag.type)}`)) {
         appendGroup(box, title, values, diag => {
           const item = document.createElement("div");
@@ -2155,7 +3056,12 @@ HTML_TEMPLATE = r"""<!doctype html>
 
     function clearSelection() {
       state.selected = null;
-      document.getElementById("details").innerHTML = "";
+      document.getElementById("details").innerHTML = `
+        <section class="summary-card">
+          <h2>Selection</h2>
+          <p class="description">Select a node, edge, or diagnostic to inspect its metadata.</p>
+        </section>
+      `;
       draw();
     }
 
@@ -2279,10 +3185,27 @@ HTML_TEMPLATE = r"""<!doctype html>
       return String(value ?? "").replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" }[char]));
     }
 
-    for (const input of [viewMode, nodeKind, extension, edgeType, confidence, search, showMentions]) {
+    viewMode.addEventListener("change", () => {
+      syncViewModeButtons();
+      draw();
+    });
+    for (const button of viewModeButtons) {
+      button.addEventListener("click", () => {
+        viewMode.value = button.dataset.viewMode;
+        syncViewModeButtons();
+        draw();
+      });
+    }
+    for (const input of [nodeKind, extension, edgeType, confidence, search, showMentions]) {
       input.addEventListener("input", draw);
       input.addEventListener("change", draw);
     }
+    document.addEventListener("keydown", event => {
+      if (event.key === "/" && document.activeElement !== search) {
+        event.preventDefault();
+        search.focus();
+      }
+    });
     resetLayout.addEventListener("click", resetGraphLayout);
     resetView.addEventListener("click", () => {
       resetGraphViewState();
@@ -2297,6 +3220,7 @@ HTML_TEMPLATE = r"""<!doctype html>
     document.getElementById("graph").addEventListener("pointerdown", beginGraphPan);
     document.getElementById("graph").addEventListener("wheel", wheelZoomGraph, { passive: false });
     window.addEventListener("resize", draw);
+    syncViewModeButtons();
     draw();
   </script>
 </body>
