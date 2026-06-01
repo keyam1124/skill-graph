@@ -2,10 +2,10 @@
 name: skillgraph-cartographer
 description: >
   Use when inspecting, classifying, or rendering relationships among SKILL.md
-  files and adjacent agent instruction files. Run the local read-only
-  skillgraph viewer runtime, enrich the base graph with this agent's own
-  labels, categories, clusters, and inferred relationship hints, then display
-  the result without writing graph files or modifying the repository.
+  files. Run the local read-only skillgraph viewer runtime, enrich the base
+  graph with this agent's own labels, categories, clusters, and inferred
+  dependency hints, then display the result without writing graph files or
+  modifying the repository.
 ---
 # SkillGraph Cartographer
 
@@ -20,8 +20,7 @@ temporary enriched JSON to the viewer.
 ## When To Use
 
 Use this Skill when the user asks to visualize, inspect, classify, label, group,
-or explain relationships among `SKILL.md` files, related instruction/rule files,
-references, templates, scripts, path references, mentions, duplicate aliases,
+or explain dependency relationships among `SKILL.md` files, duplicate aliases,
 or orphan skills.
 
 ## Workflow
@@ -49,11 +48,12 @@ or orphan skills.
 
    - concise display labels
    - one-line summaries
-   - suggested categories
+   - semantic suggested categories derived after comparing all scanned
+     `SKILL.md` contents
    - cluster IDs
    - role tags
    - trigger phrases
-   - optional inferred relationship hints
+   - optional inferred dependency hints
    - optional view suggestions
 
 5. Keep deterministic and inferred information separate. Use `nodeAnnotations`
@@ -89,9 +89,9 @@ Add these top-level fields to the collected graph when useful:
     {
       "source": "ddd-tactical.aggregate-design",
       "target": "architecture.clean-architecture-review",
-      "type": "related_to",
+      "type": "depends_on",
       "confidence": 0.68,
-      "rationale": "Both can participate in boundary design reviews.",
+      "rationale": "Aggregate boundary design depends on architecture boundary review context.",
       "evidence": [
         {
           "path": "skills/ddd_tactical/aggregate_design/SKILL.md",
@@ -116,13 +116,16 @@ Add these top-level fields to the collected graph when useful:
 
 - Keep the workflow read-only.
 - Do not create `.skillgraph/`.
-- Do not write `skillgraph.yaml`.
-- Do not edit `SKILL.md`, instruction files, references, templates, or scripts
-  as part of this visualization workflow.
+- Do not write graph artifacts or per-skill configuration files.
+- Do not edit source files as part of this visualization workflow.
 - Do not propose write-back or approval workflows.
 - Treat inferred labels, categories, clusters, and edges as temporary viewer
   annotations, not source of truth.
-- Prefer weak inferred edges with rationale over overstating uncertain
+- Derive categories from what the skills do.
+- Nodes are SKILL nodes only. Do not create nodes for references, templates,
+  scripts, or instruction files.
+- Treat links and textual mentions as the same `depends_on` relationship.
+- Prefer weak inferred dependency edges with rationale over overstating uncertain
   relationships.
 - If an inferred edge has no evidence, include a rationale and keep confidence
   low.
@@ -131,5 +134,5 @@ Add these top-level fields to the collected graph when useful:
 
 When reporting to the user, distinguish deterministic graph facts from this
 agent's inferred annotations. Keep the summary focused on what the viewer shows:
-notable clusters, likely entry skills, reference/template coverage, ambiguous
-mentions, and diagnostics that affect understanding the current graph.
+notable clusters, likely entry skills, dependencies, and diagnostics that affect
+understanding the current graph.

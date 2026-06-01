@@ -12,7 +12,6 @@ import argparse
 import datetime as dt
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
-import posixpath
 import re
 import sys
 import webbrowser
@@ -47,50 +46,15 @@ EXCLUDED_SUFFIXES = {
     ".gz",
 }
 EXCLUDED_NAMES = {".env"}
-RELATION_TYPES = {
-    "routes_to",
-    "invokes",
-    "related_to",
-    "uses_reference",
-    "uses_template",
-    "uses_script",
-    "mentions",
-    "should_not_co_trigger",
-}
-SKILL_RELATION_TYPES = {
-    "routes_to",
-    "invokes",
-    "related_to",
-    "mentions",
-    "should_not_co_trigger",
-}
-PATH_RELATION_TYPES = {
-    "uses_reference",
-    "uses_template",
-    "uses_script",
-}
 RELATED_HEADINGS = {
     "related skills",
     "関連 skill",
     "関連スキル",
     "see also",
 }
-REFERENCE_HEADINGS = {"references", "参考"}
-TEMPLATE_HEADINGS = {"templates", "output format"}
-SCRIPT_HEADINGS = {"scripts", "tools"}
-HEADING_TO_PATH_RELATION = {
-    **{heading: "uses_reference" for heading in REFERENCE_HEADINGS},
-    **{heading: "uses_template" for heading in TEMPLATE_HEADINGS},
-    **{heading: "uses_script" for heading in SCRIPT_HEADINGS},
-}
-FUTURE_CONFIG_PATHS = (
-    "AGENTS.md",
-    ".github/copilot-instructions.md",
-    ".cursor/rules",
-)
-PATH_RE = re.compile(
-    r"(?P<path>(?:\.\./|\.\/)?(?:skills|references|templates|scripts)/[^\s)`'\"<>]+|"
-    r"(?:\.\./|\./)[^\s)`'\"<>]*(?:SKILL(?:\.en)?\.md|skillgraph\.yaml|\.md))"
+SKILL_PATH_RE = re.compile(
+    r"(?P<path>(?:\.\./|\.\/)?[^\s)`'\"<>]*SKILL(?:\.[A-Za-z0-9_-]+)?\.md|"
+    r"(?:skills|\.codex/skills|\.claude/skills|\.agents/skills)/[^\s)`'\"<>]*SKILL(?:\.[A-Za-z0-9_-]+)?\.md)"
 )
 LINK_RE = re.compile(r"!?\[[^\]]*\]\(([^)]+)\)")
 FRONTMATTER_RE = re.compile(r"\A---\s*\n(.*?)\n---\s*(?:\n|\Z)", re.DOTALL)
@@ -136,7 +100,8 @@ class SkillRecord:
     description: str
     aliases: list[str]
     name: str
-    sidecar: str | None = None
+    paths: list[str] = field(default_factory=list)
+    dirs: list[str] = field(default_factory=list)
     language_variants: list[dict[str, str]] = field(default_factory=list)
     frontmatter: dict[str, Any] = field(default_factory=dict)
 
@@ -151,9 +116,9 @@ class SkillRecord:
             "description": self.description,
             "aliases": self.aliases,
             "name": self.name,
+            "paths": self.paths or [self.path],
+            "dirs": self.dirs or [self.dir],
         }
-        if self.sidecar:
-            payload["sidecar"] = self.sidecar
         if self.language_variants:
             payload["languageVariants"] = self.language_variants
         return payload
@@ -168,13 +133,6 @@ class Edge:
     confidence: str
     evidence: list[dict[str, Any]]
 
-    def key(self) -> tuple[str, str, str, str, str]:
-        evidence_key = "|".join(
-            f"{item.get('path', '')}:{item.get('section', '')}:{item.get('text', '')}"
-            for item in self.evidence
-        )
-        return (self.source, self.target, self.type, self.origin, evidence_key)
-
 
 def utc_now() -> str:
     return dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
@@ -188,9 +146,22 @@ def normalize_id_part(value: str) -> str:
     return value.strip().lower().replace("_", "-")
 
 
+def skill_identity_parts(skill_file: Path, root: Path) -> tuple[str, ...]:
+    rel_parts = rel_path(skill_file.parent, root).split("/")
+    for index in range(len(rel_parts) - 1, -1, -1):
+        if rel_parts[index] == "skills":
+            return tuple(rel_parts[index + 1 :])
+    return tuple(rel_parts)
+
+
 def normalize_skill_id(skill_file: Path, root: Path) -> str:
-    rel = rel_path(skill_file.parent, root / "skills")
+    rel = "/".join(skill_identity_parts(skill_file, root))
     return ".".join(normalize_id_part(part) for part in Path(rel).parts)
+
+
+def skill_category(skill_file: Path, root: Path) -> str:
+    parts = skill_identity_parts(skill_file, root)[:-1]
+    return ".".join(normalize_id_part(part) for part in parts) or "Uncategorized"
 
 
 def normalize_heading(value: str) -> str:
@@ -230,7 +201,7 @@ def read_text(path: Path) -> str:
 
 
 def parse_simple_yaml(text: str) -> dict[str, Any]:
-    """Parse the small YAML subset used by SKILL frontmatter/skillgraph.yaml."""
+    """Parse the small YAML subset used by SKILL frontmatter."""
     result: dict[str, Any] = {}
     stack: list[tuple[int, Any]] = [(-1, result)]
     pending_key_by_indent: dict[int, tuple[dict[str, Any], str]] = {}
@@ -357,14 +328,6 @@ def first_meaningful_paragraph(text: str) -> str:
     return paragraphs[0] if paragraphs else ""
 
 
-def as_list(value: Any) -> list[str]:
-    if value is None:
-        return []
-    if isinstance(value, list):
-        return [str(item).strip() for item in value if str(item).strip()]
-    return [str(value).strip()] if str(value).strip() else []
-
-
 def unique(values: Iterable[str]) -> list[str]:
     seen: set[str] = set()
     result: list[str] = []
@@ -380,133 +343,40 @@ def unique(values: Iterable[str]) -> list[str]:
     return result
 
 
-def slugify(value: str) -> str:
-    value = value.strip().lower().replace("_", "-")
-    value = re.sub(r"[^a-z0-9.-]+", "-", value)
-    value = re.sub(r"-+", "-", value)
-    return value.strip("-") or "source"
-
-
-def source_node_id(kind: str, rel: str) -> str:
-    stem = rel
-    if stem.endswith((".md", ".mdc", ".txt")):
-        stem = posixpath.splitext(stem)[0]
-    if rel == "AGENTS.md":
-        return "instruction.root.agents"
-    if rel == ".github/copilot-instructions.md":
-        return "instruction.github.copilot-instructions"
-    if rel.startswith(".github/instructions/"):
-        suffix = slugify(stem.removeprefix(".github/instructions/").replace("/", "."))
-        return f"instruction.github.instructions.{suffix}"
-    if rel.startswith(".cursor/rules/"):
-        suffix = slugify(stem.removeprefix(".cursor/rules/").replace("/", "."))
-        return f"rule.cursor.{suffix}"
-    if kind in {"reference", "template", "script"}:
-        return rel
-    return f"{kind}.{slugify(stem.replace('/', '.'))}"
-
-
-def source_kind_for_path(rel: str) -> str | None:
-    if rel == "AGENTS.md" or rel == ".github/copilot-instructions.md" or rel.startswith(".github/instructions/"):
-        return "instruction"
-    if rel.startswith(".cursor/rules/"):
-        return "rule"
-    if rel.startswith("references/"):
-        return "reference"
-    if rel.startswith("templates/"):
-        return "template"
-    if rel.startswith("scripts/"):
-        return "script"
-    return None
-
-
-def source_node_for_file(root: Path, path: Path) -> dict[str, Any] | None:
-    rel = rel_path(path, root)
-    kind = source_kind_for_path(rel)
-    if not kind:
-        return None
-    title = ""
-    description = ""
-    frontmatter: dict[str, Any] = {}
-    if path.suffix.lower() in {".md", ".mdc"}:
-        text = read_text(path)
-        frontmatter, _ = parse_frontmatter(text)
-        title = str(frontmatter.get("title") or frontmatter.get("name") or first_h1(text) or "")
-        description = str(frontmatter.get("description") or first_meaningful_paragraph(text) or "")
-    label = title or path.name
-    node_id = source_node_id(kind, rel)
-    return {
-        "id": node_id,
-        "kind": kind,
-        "label": label,
-        "name": label,
-        "path": rel,
-        "dir": posixpath.dirname(rel),
-        "category": kind,
-        "description": description,
-        "aliases": unique([node_id, rel, path.name, title]),
-    }
-
-
-def sidecar_for(skill_file: Path) -> tuple[dict[str, Any], Path | None]:
-    sidecar = skill_file.parent / "skillgraph.yaml"
-    if not sidecar.exists():
-        return {}, None
-    return load_yaml_text(read_text(sidecar)), sidecar
-
-
-def detect_future_config_files(root: Path) -> list[Diagnostic]:
-    diagnostics: list[Diagnostic] = []
-    for candidate in FUTURE_CONFIG_PATHS:
-        path = root / candidate
-        exists = path.exists() if candidate.endswith(".md") else any(path.glob("**/*")) if path.exists() else False
-        if exists:
-            diagnostics.append(
-                Diagnostic(
-                    type="future_input_detected",
-                    severity="info",
-                    message=f"{candidate} exists but is not analyzed in v0.1.",
-                    path=candidate,
-                )
-            )
-    return diagnostics
-
-
 def scan_registry(root: Path) -> dict[str, Any]:
     root = root.resolve()
     diagnostics: list[Diagnostic] = []
-    skills_root = root / "skills"
-    skill_files = sorted(skills_root.glob("**/SKILL.md")) if skills_root.exists() else []
+    skill_files = sorted(root.glob("**/SKILL.md"), key=lambda path: skill_file_sort_key(path, root))
     skill_files = [path for path in skill_files if not should_skip(path, root)]
-    by_id: dict[str, list[Path]] = {}
-    records: list[SkillRecord] = []
+    records_by_id: dict[str, SkillRecord] = {}
 
     for skill_file in skill_files:
         skill_id = normalize_skill_id(skill_file, root)
-        by_id.setdefault(skill_id, []).append(skill_file)
         text = read_text(skill_file)
         frontmatter, has_frontmatter = parse_frontmatter(text)
-        sidecar, sidecar_path = sidecar_for(skill_file)
         name = str(frontmatter.get("name") or skill_file.parent.name)
         description = str(frontmatter.get("description") or "")
+        path = rel_path(skill_file, root)
+        skill_dir = rel_path(skill_file.parent, root)
         if not has_frontmatter or "name" not in frontmatter or "description" not in frontmatter:
             diagnostics.append(
                 Diagnostic(
                     type="missing_frontmatter",
                     severity="warning",
                     message="SKILL.md is missing frontmatter name and/or description.",
-                    path=rel_path(skill_file, root),
+                    path=path,
                     skill=skill_id,
                 )
             )
         h1 = first_h1(text)
-        category = str(sidecar.get("category") or ".".join(Path(rel_path(skill_file.parent, skills_root)).parts[:-1]))
+        category = skill_category(skill_file, root)
         aliases = unique(
             [
                 skill_id,
                 name,
                 skill_file.parent.name,
-                *(as_list(sidecar.get("aliases"))),
+                path,
+                skill_dir,
                 *([h1] if h1 else []),
             ]
         )
@@ -516,46 +386,67 @@ def scan_registry(root: Path) -> dict[str, Any]:
                 continue
             lang = variant.name.removeprefix("SKILL.").removesuffix(".md")
             variants.append({"lang": lang, "path": rel_path(variant, root)})
-        records.append(
-            SkillRecord(
-                id=skill_id,
-                kind="skill",
-                label=name or skill_file.parent.name,
-                path=rel_path(skill_file, root),
-                dir=rel_path(skill_file.parent, root),
-                category=category,
-                description=description,
-                aliases=aliases,
-                name=name,
-                sidecar=rel_path(sidecar_path, root) if sidecar_path else None,
-                language_variants=variants,
-                frontmatter=frontmatter,
-            )
+        record = SkillRecord(
+            id=skill_id,
+            kind="skill",
+            label=name or skill_file.parent.name,
+            path=path,
+            dir=skill_dir,
+            category=category,
+            description=description,
+            aliases=aliases,
+            name=name,
+            paths=[path],
+            dirs=[skill_dir],
+            language_variants=variants,
+            frontmatter=frontmatter,
         )
+        if skill_id in records_by_id:
+            merge_skill_record(records_by_id[skill_id], record)
+        else:
+            records_by_id[skill_id] = record
 
-    for skill_id, paths in by_id.items():
-        if len(paths) <= 1:
-            continue
-        for path in paths:
-            diagnostics.append(
-                Diagnostic(
-                    type="duplicate_skill_id",
-                    severity="error",
-                    message=f"Multiple SKILL.md files resolve to skill id {skill_id}.",
-                    path=rel_path(path, root),
-                    skill=skill_id,
-                )
-            )
-
-    diagnostics.extend(detect_future_config_files(root))
     registry = {
         "schemaVersion": SCHEMA_VERSION,
         "generatedAt": utc_now(),
         "root": str(root),
-        "skills": [record.to_json() for record in records],
+        "skills": [records_by_id[skill_id].to_json() for skill_id in sorted(records_by_id)],
         "diagnostics": [diag.to_json() for diag in diagnostics],
     }
     return registry
+
+
+def skill_file_sort_key(path: Path, root: Path) -> tuple[int, str]:
+    rel = rel_path(path, root)
+    priority = 2
+    if rel.startswith("skills/"):
+        priority = 0
+    elif "/skills/" in rel:
+        priority = 1
+    return (priority, rel)
+
+
+def merge_skill_record(existing: SkillRecord, incoming: SkillRecord) -> None:
+    existing.paths = unique([*existing.paths, *incoming.paths])
+    existing.dirs = unique([*existing.dirs, *incoming.dirs])
+    existing.aliases = unique([*existing.aliases, *incoming.aliases])
+    existing.language_variants = merge_language_variants(existing.language_variants, incoming.language_variants)
+    if not existing.description and incoming.description:
+        existing.description = incoming.description
+    if existing.category == "Uncategorized" and incoming.category != "Uncategorized":
+        existing.category = incoming.category
+
+
+def merge_language_variants(existing: list[dict[str, str]], incoming: list[dict[str, str]]) -> list[dict[str, str]]:
+    seen: set[tuple[str, str]] = set()
+    merged: list[dict[str, str]] = []
+    for variant in [*existing, *incoming]:
+        key = (variant.get("lang", ""), variant.get("path", ""))
+        if key in seen:
+            continue
+        seen.add(key)
+        merged.append(variant)
+    return merged
 
 
 def load_registry(root: Path) -> dict[str, Any]:
@@ -568,6 +459,8 @@ def skill_maps(registry: dict[str, Any]) -> tuple[dict[str, dict[str, Any]], dic
     for skill in skills.values():
         candidates = [skill["id"], skill.get("name", ""), skill.get("label", ""), skill.get("path", ""), skill.get("dir", "")]
         candidates.extend(skill.get("aliases", []))
+        candidates.extend(skill.get("paths", []))
+        candidates.extend(skill.get("dirs", []))
         for alias in candidates:
             if not alias:
                 continue
@@ -596,11 +489,13 @@ def clean_target(value: str) -> str:
     return value.rstrip(".,;:").strip("`'\"")
 
 
-def resolve_path_reference(raw: str, source_file: Path, root: Path) -> str:
+def resolve_skill_path_reference(raw: str, source_file: Path, root: Path) -> str | None:
     target = clean_target(raw)
     if re.match(r"^[a-zA-Z][a-zA-Z0-9+.-]*:", target):
-        return target
-    if target.startswith(("skills/", "references/", "templates/", "scripts/")):
+        return None
+    if "SKILL" not in target or not target.endswith(".md"):
+        return None
+    if target.startswith(("skills/", ".codex/skills/", ".claude/skills/", ".agents/skills/")):
         candidate = (root / target).resolve()
     else:
         candidate = (source_file.parent / target).resolve()
@@ -608,37 +503,20 @@ def resolve_path_reference(raw: str, source_file: Path, root: Path) -> str:
         return candidate.relative_to(root.resolve()).as_posix()
     except ValueError:
         if target.startswith("./"):
-            return target[2:]
+            return target[2:] if "SKILL" in target else None
         return target
 
 
-def path_relation_for(path: str) -> str | None:
-    normalized = path.replace("\\", "/")
-    if normalized.endswith("SKILL.md") or normalized.endswith("SKILL.en.md"):
-        return "related_to"
-    if normalized.startswith("references/") or "/references/" in normalized:
-        return "uses_reference"
-    if normalized.startswith("templates/") or "/templates/" in normalized:
-        return "uses_template"
-    if normalized.startswith("scripts/") or "/scripts/" in normalized:
-        return "uses_script"
-    return None
-
-
-def resolve_link_target(
+def resolve_skill_link_target(
     raw: str,
     source_file: Path,
     root: Path,
     path_to_skill: dict[str, str],
-) -> tuple[str | None, str | None]:
-    resolved = resolve_path_reference(raw, source_file, root)
-    relation_type = path_relation_for(resolved)
-    if relation_type == "related_to":
-        skill_id = path_to_skill.get(resolved)
-        return relation_type, skill_id or resolved
-    if relation_type:
-        return relation_type, resolved
-    return None, None
+) -> str | None:
+    resolved = resolve_skill_path_reference(raw, source_file, root)
+    if not resolved:
+        return None
+    return path_to_skill.get(resolved)
 
 
 def section_ranges(text: str) -> list[dict[str, Any]]:
@@ -717,136 +595,53 @@ def make_edge(
     )
 
 
-def sidecar_relations(
-    root: Path,
-    skill: dict[str, Any],
-    skills: dict[str, dict[str, Any]],
-    alias_map: dict[str, list[str]],
-) -> tuple[list[Edge], list[Diagnostic]]:
-    sidecar_path = skill.get("sidecar")
-    if not sidecar_path:
-        return [], []
-    path = root / sidecar_path
-    data = load_yaml_text(read_text(path))
-    diagnostics: list[Diagnostic] = []
-    edges: list[Edge] = []
-    relations = data.get("relations") or {}
-    if not isinstance(relations, dict):
-        return [], diagnostics
-    for relation_type, raw_targets in relations.items():
-        if relation_type not in RELATION_TYPES:
-            continue
-        for raw_target in as_list(raw_targets):
-            if relation_type in SKILL_RELATION_TYPES:
-                target = resolve_skill(raw_target, skills, alias_map)
-                if not target:
-                    diagnostics.append(
-                        Diagnostic(
-                            type="dangling_reference",
-                            severity="warning",
-                            message=f"Relation target {raw_target} does not resolve to a skill.",
-                            path=sidecar_path,
-                            skill=skill["id"],
-                            target=raw_target,
-                        )
-                    )
-                    target = raw_target
-            else:
-                target = clean_target(raw_target)
-                if not (root / target).exists():
-                    diagnostics.append(
-                        Diagnostic(
-                            type="dangling_reference",
-                            severity="warning",
-                            message=f"Referenced path {target} does not exist.",
-                            path=sidecar_path,
-                            skill=skill["id"],
-                            target=target,
-                        )
-                    )
-            edges.append(
-                make_edge(
-                    skill["id"],
-                    target,
-                    relation_type,
-                    "sidecar",
-                    "high",
-                    [evidence(sidecar_path, raw_target, f"relations.{relation_type}")],
-                )
-            )
-    return edges, diagnostics
-
-
 def markdown_link_edges(
     root: Path,
     skill: dict[str, Any],
     path_to_skill: dict[str, str],
 ) -> tuple[list[Edge], list[Diagnostic]]:
-    skill_file = root / skill["path"]
-    text = read_text(skill_file)
     edges: list[Edge] = []
     diagnostics: list[Diagnostic] = []
-    for match in LINK_RE.finditer(text):
-        raw = match.group(1)
-        relation_type, target = resolve_link_target(raw, skill_file, root, path_to_skill)
-        if not relation_type or not target:
-            continue
-        if relation_type == "related_to" and target not in path_to_skill.values():
-            diagnostics.append(
-                Diagnostic(
-                    type="dangling_reference",
-                    severity="warning",
-                    message=f"Markdown link target {raw} does not resolve to a skill.",
-                    path=skill["path"],
-                    skill=skill["id"],
-                    target=target,
+    for path in skill.get("paths", [skill["path"]]):
+        skill_file = root / path
+        text = read_text(skill_file)
+        for match in LINK_RE.finditer(text):
+            raw = match.group(1)
+            target = resolve_skill_link_target(raw, skill_file, root, path_to_skill)
+            if not target or target == skill["id"]:
+                continue
+            edges.append(
+                make_edge(
+                    skill["id"],
+                    target,
+                    "depends_on",
+                    "link",
+                    "high",
+                    [evidence(path, raw)],
                 )
             )
-        elif relation_type in PATH_RELATION_TYPES and not (root / target).exists():
-            diagnostics.append(
-                Diagnostic(
-                    type="dangling_reference",
-                    severity="warning",
-                    message=f"Markdown link target {target} does not exist.",
-                    path=skill["path"],
-                    skill=skill["id"],
-                    target=target,
-                )
-            )
-        edges.append(
-            make_edge(
-                skill["id"],
-                target,
-                relation_type,
-                "markdown_link",
-                "high",
-                [evidence(skill["path"], raw)],
-            )
-        )
     return edges, diagnostics
 
 
-def path_reference_edges(
+def skill_path_reference_edges(
     root: Path,
     skill: dict[str, Any],
     path_to_skill: dict[str, str],
     source_file: Path,
-    section_name: str | None = None,
     source_text: str | None = None,
 ) -> tuple[list[Edge], list[Diagnostic]]:
     text = source_text if source_text is not None else read_text(source_file)
     edges: list[Edge] = []
     diagnostics: list[Diagnostic] = []
-    for match in PATH_RE.finditer(text):
+    for match in SKILL_PATH_RE.finditer(text):
         raw = match.group("path")
-        resolved = resolve_path_reference(raw, source_file, root)
-        relation_type = path_relation_for(resolved)
-        if not relation_type:
+        resolved = resolve_skill_path_reference(raw, source_file, root)
+        if not resolved:
             continue
         target = path_to_skill.get(resolved, resolved)
-        origin = "heading_context_match" if section_name else "path_reference"
-        confidence = "medium" if origin == "heading_context_match" else "high"
-        if relation_type == "related_to" and target == resolved:
+        if target == skill["id"]:
+            continue
+        if target == resolved:
             diagnostics.append(
                 Diagnostic(
                     type="dangling_reference",
@@ -857,25 +652,15 @@ def path_reference_edges(
                     target=resolved,
                 )
             )
-        elif relation_type in PATH_RELATION_TYPES and not (root / resolved).exists():
-            diagnostics.append(
-                Diagnostic(
-                    type="dangling_reference",
-                    severity="warning",
-                    message=f"Path reference {resolved} does not exist.",
-                    path=rel_path(source_file, root),
-                    skill=skill["id"],
-                    target=resolved,
-                )
-            )
+            continue
         edges.append(
             make_edge(
                 skill["id"],
                 target,
-                relation_type,
-                origin,
-                confidence,
-                [evidence(rel_path(source_file, root), raw, section_name)],
+                "depends_on",
+                "path_reference",
+                "high",
+                [evidence(rel_path(source_file, root), raw)],
             )
         )
     return edges, diagnostics
@@ -886,17 +671,17 @@ def heading_edges(
     skill: dict[str, Any],
     skills: dict[str, dict[str, Any]],
     alias_map: dict[str, list[str]],
-    path_to_skill: dict[str, str],
 ) -> tuple[list[Edge], list[Diagnostic]]:
-    skill_file = root / skill["path"]
-    text = read_text(skill_file)
-    sections = section_ranges(text)
     edges: list[Edge] = []
     diagnostics: list[Diagnostic] = []
     has_related = False
-    for section in sections:
-        heading = section["normalized"]
-        if heading in RELATED_HEADINGS:
+    for path in skill.get("paths", [skill["path"]]):
+        text = read_text(root / path)
+        sections = section_ranges(text)
+        for section in sections:
+            heading = section["normalized"]
+            if heading not in RELATED_HEADINGS:
+                continue
             has_related = True
             for target, raw in find_section_mentions(section["text"], skills, alias_map):
                 if target == skill["id"]:
@@ -905,29 +690,12 @@ def heading_edges(
                     make_edge(
                         skill["id"],
                         target,
-                        "related_to",
-                        "related_section",
+                        "depends_on",
+                        "mention",
                         "high",
-                        [evidence(skill["path"], raw, section["heading"])],
+                        [evidence(path, raw, section["heading"])],
                     )
                 )
-        relation_type = HEADING_TO_PATH_RELATION.get(heading)
-        if relation_type:
-            section_edges, section_diags = path_reference_edges(
-                root,
-                skill,
-                path_to_skill,
-                skill_file,
-                section["heading"],
-                section["text"],
-            )
-            for edge in section_edges:
-                edge.type = relation_type if edge.type != "related_to" else edge.type
-                if edge.type == relation_type:
-                    edge.confidence = "medium"
-                    edge.origin = "heading_context_match"
-            edges.extend(section_edges)
-            diagnostics.extend(section_diags)
     if not has_related:
         diagnostics.append(
             Diagnostic(
@@ -946,15 +714,16 @@ def term_pattern(term: str) -> re.Pattern[str] | None:
     if len(term) < 3:
         return None
     if re.match(r"^[A-Za-z0-9_.\-/]+$", term):
-        return re.compile(rf"(?<![A-Za-z0-9_.\-/]){re.escape(term)}(?![A-Za-z0-9_.\-/])", re.IGNORECASE)
+        return re.compile(rf"(?<![A-Za-z0-9_\-/]){re.escape(term)}(?![A-Za-z0-9_\-/])", re.IGNORECASE)
     return re.compile(re.escape(term), re.IGNORECASE)
 
 
 def skill_search_files(root: Path, skill: dict[str, Any]) -> list[Path]:
-    skill_dir = root / skill["dir"]
     files: list[Path] = []
-    for path in iter_files(skill_dir, ["**/*.md", "**/*.yaml", "**/*.yml"]):
-        files.append(path)
+    for skill_dir in skill.get("dirs", [skill.get("dir", "")]):
+        base = root / skill_dir
+        for path in iter_files(base, ["SKILL*.md"]):
+            files.append(path)
     return sorted(set(files))
 
 
@@ -964,17 +733,9 @@ def body_mention_edges(
     skills: dict[str, dict[str, Any]],
     alias_map: dict[str, list[str]],
 ) -> tuple[list[Edge], list[Diagnostic]]:
-    sidecar_path = skill.get("sidecar")
-    sidecar_data = load_yaml_text(read_text(root / sidecar_path)) if sidecar_path else {}
-    ignore_ids = {
-        resolved
-        for item in as_list(sidecar_data.get("ignore_mentions"))
-        if (resolved := resolve_skill(item, skills, alias_map))
-    }
     edges: list[Edge] = []
     diagnostics: list[Diagnostic] = []
     seen_edges: set[tuple[str, str]] = set()
-    ignored_seen: set[str] = set()
     files = skill_search_files(root, skill)
     target_terms: list[tuple[str, str]] = []
     for target_id, target in skills.items():
@@ -995,21 +756,6 @@ def body_mention_edges(
             match = pattern.search(text)
             if not match:
                 continue
-            if target_id in ignore_ids:
-                if target_id not in ignored_seen:
-                    diagnostics.append(
-                        Diagnostic(
-                            type="ignored_mention",
-                            severity="info",
-                            message=f"Mention of {target_id} is ignored by sidecar.",
-                            path=sidecar_path,
-                            skill=skill["id"],
-                            target=target_id,
-                            evidence={"term": term},
-                        )
-                    )
-                    ignored_seen.add(target_id)
-                continue
             edge_key = (target_id, rel)
             if edge_key in seen_edges:
                 continue
@@ -1018,8 +764,8 @@ def body_mention_edges(
                 make_edge(
                     skill["id"],
                     target_id,
-                    "mentions",
-                    "body_name_match",
+                    "depends_on",
+                    "mention",
                     "low",
                     [evidence(rel, match.group(0))],
                 )
@@ -1028,7 +774,7 @@ def body_mention_edges(
                 Diagnostic(
                     type="possible_relation",
                     severity="info",
-                    message=f"{skill['id']} mentions {target_id}; confirm whether this should be an explicit relation.",
+                    message=f"{skill['id']} references {target_id}; confirm whether this dependency is intentional.",
                     path=rel,
                     skill=skill["id"],
                     target=target_id,
@@ -1057,60 +803,6 @@ def duplicate_alias_diagnostics(skills: dict[str, dict[str, Any]], alias_map: di
     return diagnostics
 
 
-def scanned_source_nodes(root: Path, existing_node_ids: set[str]) -> list[dict[str, Any]]:
-    patterns = [
-        "AGENTS.md",
-        ".github/copilot-instructions.md",
-        ".github/instructions/**/*.md",
-        ".cursor/rules/**/*.md",
-        ".cursor/rules/**/*.mdc",
-        "references/**/*",
-        "templates/**/*",
-        "scripts/**/*",
-    ]
-    nodes: list[dict[str, Any]] = []
-    seen = set(existing_node_ids)
-    for path in iter_files(root, patterns):
-        node = source_node_for_file(root, path)
-        if not node or node["id"] in seen:
-            continue
-        nodes.append(node)
-        seen.add(node["id"])
-    return sorted(nodes, key=lambda item: item["id"])
-
-
-def asset_nodes(root: Path, edges: list[Edge], existing_node_ids: set[str]) -> list[dict[str, Any]]:
-    nodes: list[dict[str, Any]] = []
-    seen: set[str] = set()
-    for edge in edges:
-        if edge.target in existing_node_ids or edge.target in seen:
-            continue
-        if edge.type not in PATH_RELATION_TYPES:
-            continue
-        path = edge.target
-        kind = "file"
-        if edge.type == "uses_reference":
-            kind = "reference"
-        elif edge.type == "uses_template":
-            kind = "template"
-        elif edge.type == "uses_script":
-            kind = "script"
-        nodes.append(
-            {
-                "id": path,
-                "kind": kind,
-                "label": posixpath.basename(path),
-                "path": path,
-                "dir": posixpath.dirname(path),
-                "category": kind,
-                "description": "",
-                "aliases": [path],
-            }
-        )
-        seen.add(path)
-    return nodes
-
-
 def assign_edge_ids(edges: list[Edge]) -> list[dict[str, Any]]:
     payload: list[dict[str, Any]] = []
     counters: dict[str, int] = {}
@@ -1132,44 +824,74 @@ def assign_edge_ids(edges: list[Edge]) -> list[dict[str, Any]]:
     return payload
 
 
+def skill_path_map(skills: dict[str, dict[str, Any]]) -> dict[str, str]:
+    path_to_skill: dict[str, str] = {}
+    for skill_id, skill in skills.items():
+        for value in [skill.get("path"), skill.get("dir"), *skill.get("paths", []), *skill.get("dirs", [])]:
+            if value:
+                path_to_skill[str(value)] = skill_id
+        for variant in skill.get("languageVariants", []):
+            path = variant.get("path")
+            if path:
+                path_to_skill[str(path)] = skill_id
+    return path_to_skill
+
+
+def confidence_rank(value: str) -> int:
+    return {"low": 0, "medium": 1, "high": 2}.get(str(value), 1)
+
+
+def merge_dependency_edges(edges: list[Edge]) -> list[Edge]:
+    merged: dict[tuple[str, str, str], Edge] = {}
+    for edge in edges:
+        if edge.source == edge.target:
+            continue
+        key = (edge.source, edge.target, edge.type)
+        current = merged.get(key)
+        if current is None:
+            merged[key] = edge
+            continue
+        current.origin = ", ".join(unique([*current.origin.split(", "), edge.origin]))
+        if confidence_rank(edge.confidence) > confidence_rank(current.confidence):
+            current.confidence = edge.confidence
+        seen_evidence = {
+            (item.get("path", ""), item.get("section", ""), item.get("text", ""))
+            for item in current.evidence
+        }
+        for item in edge.evidence:
+            evidence_key = (item.get("path", ""), item.get("section", ""), item.get("text", ""))
+            if evidence_key in seen_evidence:
+                continue
+            seen_evidence.add(evidence_key)
+            current.evidence.append(item)
+    return list(merged.values())
+
+
 def analyze_graph(root: Path) -> dict[str, Any]:
     root = root.resolve()
     registry = load_registry(root)
     skills, alias_map = skill_maps(registry)
-    path_to_skill = {skill["path"]: skill_id for skill_id, skill in skills.items()}
-    path_to_skill.update({skill["dir"]: skill_id for skill_id, skill in skills.items()})
+    path_to_skill = skill_path_map(skills)
     diagnostics = [Diagnostic(**diag) for diag in registry.get("diagnostics", [])]
     diagnostics.extend(duplicate_alias_diagnostics(skills, alias_map))
     edges: list[Edge] = []
 
     for skill in skills.values():
-        side_edges, side_diags = sidecar_relations(root, skill, skills, alias_map)
-        edges.extend(side_edges)
-        diagnostics.extend(side_diags)
         link_edges, link_diags = markdown_link_edges(root, skill, path_to_skill)
         edges.extend(link_edges)
         diagnostics.extend(link_diags)
-        path_edges, path_diags = path_reference_edges(root, skill, path_to_skill, root / skill["path"])
-        edges.extend(path_edges)
-        diagnostics.extend(path_diags)
-        section_edges, section_diags = heading_edges(root, skill, skills, alias_map, path_to_skill)
+        for path in skill.get("paths", [skill["path"]]):
+            path_edges, path_diags = skill_path_reference_edges(root, skill, path_to_skill, root / path)
+            edges.extend(path_edges)
+            diagnostics.extend(path_diags)
+        section_edges, section_diags = heading_edges(root, skill, skills, alias_map)
         edges.extend(section_edges)
         diagnostics.extend(section_diags)
         mention_edges, mention_diags = body_mention_edges(root, skill, skills, alias_map)
         edges.extend(mention_edges)
         diagnostics.extend(mention_diags)
 
-    deduped: list[Edge] = []
-    seen: set[tuple[str, str, str, str, str]] = set()
-    for edge in edges:
-        if edge.source == edge.target:
-            continue
-        key = edge.key()
-        if key in seen:
-            continue
-        seen.add(key)
-        deduped.append(edge)
-    edges = deduped
+    edges = merge_dependency_edges(edges)
 
     connected: set[str] = set()
     skill_ids = set(skills)
@@ -1190,15 +912,11 @@ def analyze_graph(root: Path) -> dict[str, Any]:
         )
 
     skill_nodes = [skills[skill_id] for skill_id in sorted(skills)]
-    node_ids = {node["id"] for node in skill_nodes}
-    source_nodes = scanned_source_nodes(root, node_ids)
-    node_ids.update(node["id"] for node in source_nodes)
-    nodes = skill_nodes + source_nodes + asset_nodes(root, edges, node_ids)
     graph = {
         "schemaVersion": SCHEMA_VERSION,
         "generatedAt": utc_now(),
         "root": str(root),
-        "nodes": nodes,
+        "nodes": skill_nodes,
         "edges": assign_edge_ids(edges),
         "diagnostics": [diag.to_json() for diag in diagnostics],
     }
@@ -1235,6 +953,13 @@ def agent_list(graph: dict[str, Any], key: str, diagnostics: list[dict[str, Any]
     return []
 
 
+def normalize_relation_type(value: Any) -> str:
+    relation_type = str(value or "depends_on")
+    if relation_type in {"related_to", "mentions"}:
+        return "depends_on"
+    return relation_type
+
+
 def enrich_graph(graph: dict[str, Any]) -> dict[str, Any]:
     graph = json.loads(json.dumps(graph))
     nodes = graph.setdefault("nodes", [])
@@ -1264,7 +989,7 @@ def enrich_graph(graph: dict[str, Any]) -> dict[str, Any]:
             continue
         source = str(edge.get("source") or "")
         target = str(edge.get("target") or "")
-        edge_type = str(edge.get("type") or "related_to")
+        edge_type = normalize_relation_type(edge.get("type"))
         if source not in node_ids or target not in node_ids:
             diagnostics.append(diagnostic_from_mapping(edge, f"Agent inferred edge {source or '<missing>'} -> {target or '<missing>'} references an unknown node."))
             continue
@@ -1547,16 +1272,6 @@ HTML_TEMPLATE = r"""<!doctype html>
       flex-wrap: wrap;
     }
 
-    .segmented {
-      display: inline-flex;
-      gap: 2px;
-      padding: 3px;
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      background: var(--surface-2);
-    }
-
-    .segmented button,
     .icon-button,
     .text-button,
     .item,
@@ -1566,18 +1281,6 @@ HTML_TEMPLATE = r"""<!doctype html>
       min-height: 34px;
       background: transparent;
       color: var(--muted);
-    }
-
-    .segmented button {
-      padding: 0 11px;
-      font-weight: 650;
-    }
-
-    .segmented button[aria-pressed="true"] {
-      color: var(--fg);
-      background: var(--surface);
-      border-color: var(--border);
-      box-shadow: 0 1px 0 rgba(10, 20, 40, 0.04);
     }
 
     .icon-button {
@@ -1606,6 +1309,10 @@ HTML_TEMPLATE = r"""<!doctype html>
       background: var(--fg);
       color: #fff;
       border-color: var(--fg);
+    }
+
+    .clear-category[hidden] {
+      display: none;
     }
 
     .workspace {
@@ -1822,11 +1529,6 @@ HTML_TEMPLATE = r"""<!doctype html>
       background: var(--surface-3);
     }
 
-    .badge.edge-type {
-      color: var(--relation);
-      background: color-mix(in oklch, var(--relation) 12%, var(--surface));
-    }
-
     .badge.inferred,
     .badge.info {
       color: oklch(43% 0.15 255);
@@ -1977,6 +1679,39 @@ HTML_TEMPLATE = r"""<!doctype html>
       transform-origin: 0 0;
     }
 
+    .category-frame rect {
+      pointer-events: none;
+      stroke-width: .8;
+      stroke-dasharray: 7 7;
+      opacity: .72;
+      vector-effect: non-scaling-stroke;
+    }
+
+    .category-frame.selected rect {
+      stroke-width: 1.6;
+      opacity: .9;
+      stroke-dasharray: none;
+    }
+
+    .category-frame text {
+      pointer-events: none;
+      font: 700 12px/1 var(--font-mono);
+      letter-spacing: 0;
+      paint-order: stroke;
+      stroke: color-mix(in oklch, var(--surface-2) 88%, transparent);
+      stroke-width: 3px;
+      stroke-linejoin: round;
+    }
+
+    .category-frame-hit {
+      cursor: pointer;
+      fill: none;
+      pointer-events: stroke;
+      stroke: transparent;
+      stroke-width: 18;
+      vector-effect: non-scaling-stroke;
+    }
+
     .node {
       cursor: grab;
       transition: opacity 140ms ease;
@@ -1989,12 +1724,8 @@ HTML_TEMPLATE = r"""<!doctype html>
     .node circle {
       fill: var(--surface);
       stroke: var(--secondary);
-      stroke-width: 4;
+      stroke-width: 1.5;
       vector-effect: non-scaling-stroke;
-    }
-
-    .node.asset circle {
-      stroke: var(--muted);
     }
 
     .node:hover circle {
@@ -2009,7 +1740,7 @@ HTML_TEMPLATE = r"""<!doctype html>
     .node.selected circle {
       fill: color-mix(in oklch, var(--accent-soft) 70%, var(--surface));
       stroke: var(--accent-strong);
-      stroke-width: 6;
+      stroke-width: 2.5;
     }
 
     .node text {
@@ -2018,31 +1749,19 @@ HTML_TEMPLATE = r"""<!doctype html>
       text-anchor: middle;
       paint-order: stroke;
       stroke: color-mix(in oklch, var(--surface) 88%, transparent);
-      stroke-width: 6px;
+      stroke-width: 3.5px;
       stroke-linejoin: round;
       pointer-events: none;
-    }
-
-    .node .node-type {
-      fill: var(--muted);
-      font: 11px/1 var(--font-mono);
-      text-transform: uppercase;
     }
 
     .edge {
       fill: none;
       stroke: var(--relation);
-      stroke-width: 3.5;
+      stroke-width: 1.15;
       stroke-linecap: round;
       cursor: pointer;
-      opacity: .76;
+      opacity: .48;
       vector-effect: non-scaling-stroke;
-    }
-
-    .edge.mentions {
-      stroke: var(--secondary);
-      stroke-dasharray: 7 9;
-      opacity: .35;
     }
 
     .edge.inferred {
@@ -2051,17 +1770,19 @@ HTML_TEMPLATE = r"""<!doctype html>
     }
 
     .edge.high {
-      stroke-width: 4;
+      stroke-width: 1.25;
     }
 
     .edge.related {
       stroke: var(--accent-strong);
-      stroke-width: 5;
+      stroke-width: 2.1;
+      opacity: .78;
     }
 
     .edge.selected {
       stroke: var(--danger);
-      stroke-width: 5;
+      stroke-width: 2.1;
+      opacity: .84;
     }
 
     .edge-hit {
@@ -2169,10 +1890,6 @@ HTML_TEMPLATE = r"""<!doctype html>
         padding-bottom: 2px;
       }
 
-      .segmented {
-        flex: 1 0 auto;
-      }
-
       .workspace {
         display: block;
       }
@@ -2211,7 +1928,7 @@ HTML_TEMPLATE = r"""<!doctype html>
   </style>
 </head>
 <body>
-  <div class="app" data-view="topology">
+  <div class="app">
     <header class="topbar">
       <div class="brand">
         <div class="brand-mark" aria-hidden="true"></div>
@@ -2227,20 +1944,7 @@ HTML_TEMPLATE = r"""<!doctype html>
         <kbd>/</kbd>
       </label>
 
-      <div class="top-actions" aria-label="Graph view controls">
-        <select id="viewMode" aria-label="View mode" style="position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;">
-          <option value="topology">Topology</option>
-          <option value="router">Router</option>
-          <option value="artifacts">Reference / Template</option>
-          <option value="inferred">Inferred Cluster</option>
-          <option value="diagnostics">Diagnostics</option>
-        </select>
-        <div class="segmented" role="group" aria-label="View mode">
-          <button type="button" data-view-mode="topology" aria-pressed="true">Topology</button>
-          <button type="button" data-view-mode="router" aria-pressed="false">Router</button>
-          <button type="button" data-view-mode="artifacts" aria-pressed="false">Artifacts</button>
-          <button type="button" data-view-mode="diagnostics" aria-pressed="false">Diagnostics</button>
-        </div>
+      <div class="top-actions" aria-label="Graph summary">
         <span class="count" id="summary"></span>
       </div>
     </header>
@@ -2254,30 +1958,11 @@ HTML_TEMPLATE = r"""<!doctype html>
           </div>
 
           <div class="field">
-            <label for="nodeKind">Node type</label>
-            <select id="nodeKind">
-              <option value="">All nodes</option>
-              <option value="skill">SKILL.md</option>
-              <option value="file">Sources</option>
-            </select>
-          </div>
-
-          <div class="field">
-            <label for="extension">Extension</label>
-            <select id="extension"><option value="">All extensions</option></select>
-          </div>
-
-          <div class="field">
-            <label for="edgeType">Edge type</label>
-            <select id="edgeType"><option value="">All non-mentions</option></select>
-          </div>
-
-          <div class="field">
             <label for="confidence">Confidence</label>
             <select id="confidence"><option value="">All</option></select>
           </div>
 
-          <label class="check"><input id="showMentions" type="checkbox"> Show mentions edges</label>
+          <label class="check"><input id="categoryFrames" type="checkbox"> Category frames</label>
 
           <div class="metric-grid" aria-label="Graph metrics">
             <div class="metric">
@@ -2336,6 +2021,7 @@ HTML_TEMPLATE = r"""<!doctype html>
         <footer class="graph-status">
           <div class="status-points">
             <span><i class="dot"></i><strong id="activeSelection">No selection</strong></span>
+            <button id="clearCategory" class="text-button clear-category" type="button" hidden>Clear category</button>
             <span><i class="dot warn"></i><span id="activeDiagnostics">Diagnostics are scoped by selection</span></span>
           </div>
           <span id="status"></span>
@@ -2353,12 +2039,6 @@ HTML_TEMPLATE = r"""<!doctype html>
               <p class="description">Select a node, edge, or diagnostic to inspect its metadata.</p>
             </section>
           </div>
-
-          <div class="section-title" style="margin-top: 18px;">
-            <h3>Relations</h3>
-            <span class="count" id="edgeCount">0</span>
-          </div>
-          <div id="edges" class="list"></div>
         </div>
       </aside>
     </main>
@@ -2371,23 +2051,26 @@ HTML_TEMPLATE = r"""<!doctype html>
       request.send(null);
       graph = JSON.parse(request.responseText);
     }
-    const showMentionsDefault = false;
+    const categoryFramesDefault = true;
     const state = {
       selected: null,
       positions: {},
       layoutKey: "",
+      layoutBounds: { width: 0, height: 0 },
+      pendingViewFit: true,
+      categoryFilter: "",
       dragging: null,
       panning: null,
       view: { x: 0, y: 0, scale: 1 },
     };
     const nodeIndex = new Map(graph.nodes.map(node => [node.id, node]));
-    const viewMode = document.getElementById("viewMode");
-    const nodeKind = document.getElementById("nodeKind");
-    const extension = document.getElementById("extension");
-    const edgeType = document.getElementById("edgeType");
+    const graphDisplayNodes = graph.nodes;
+    const graphDisplayNodeIds = new Set(graphDisplayNodes.map(node => node.id));
+    const graphDisplayEdges = graph.edges.filter(edgeConnectsDisplayNodes);
     const confidence = document.getElementById("confidence");
     const search = document.getElementById("search");
-    const showMentions = document.getElementById("showMentions");
+    const categoryFrames = document.getElementById("categoryFrames");
+    const clearCategory = document.getElementById("clearCategory");
     const resetLayout = document.getElementById("resetLayout");
     const resetView = document.getElementById("resetView");
     const zoomIn = document.getElementById("zoomIn");
@@ -2396,47 +2079,23 @@ HTML_TEMPLATE = r"""<!doctype html>
     const panDown = document.getElementById("panDown");
     const panLeft = document.getElementById("panLeft");
     const panRight = document.getElementById("panRight");
-    const viewModeButtons = Array.from(document.querySelectorAll("[data-view-mode]"));
-    showMentions.checked = showMentionsDefault;
+    categoryFrames.checked = categoryFramesDefault;
 
-    function syncViewModeButtons() {
-      document.querySelector(".app").dataset.view = viewMode.value;
-      for (const button of viewModeButtons) {
-        button.setAttribute("aria-pressed", String(button.dataset.viewMode === viewMode.value));
-      }
-    }
-
-    for (const type of [...new Set(graph.edges.map(edge => edge.type))].sort()) {
-      const option = document.createElement("option");
-      option.value = type;
-      option.textContent = type;
-      edgeType.append(option);
-    }
-    for (const value of [...new Set(graph.edges.map(edge => edge.confidence))].sort()) {
+    for (const value of [...new Set(graphDisplayEdges.map(edge => edge.confidence))].sort()) {
       const option = document.createElement("option");
       option.value = value;
       option.textContent = value;
       confidence.append(option);
     }
-    for (const value of [...new Set(graph.nodes.map(nodeExtension))].sort()) {
-      const option = document.createElement("option");
-      option.value = value;
-      option.textContent = value || "No extension";
-      extension.append(option);
-    }
 
-    function nodeExtension(node) {
-      const filename = String(node.path || node.id || "").split("/").pop() || "";
-      const dotIndex = filename.lastIndexOf(".");
-      return dotIndex > 0 ? filename.slice(dotIndex).toLowerCase() : "";
+    function edgeConnectsDisplayNodes(edge) {
+      return graphDisplayNodeIds.has(edge.source) && graphDisplayNodeIds.has(edge.target);
     }
 
     function nodePassesControls(node, keepSelected = false) {
       if (keepSelected && state.selected?.kind === "node" && node.id === state.selected.value.id) return true;
+      if (!nodePassesCategoryFilter(node)) return false;
       const q = search.value.trim().toLowerCase();
-      if (nodeKind.value === "skill" && node.kind !== "skill") return false;
-      if (nodeKind.value === "file" && node.kind === "skill") return false;
-      if (extension.value && nodeExtension(node) !== extension.value) return false;
       if (!q) return true;
       const annotation = node.annotation || {};
       return [node.id, node.label, node.path, node.description, annotation.label, annotation.summary, annotation.suggestedCategory, annotation.clusterId, ...(annotation.roleTags || []), ...(node.aliases || [])]
@@ -2445,11 +2104,7 @@ HTML_TEMPLATE = r"""<!doctype html>
     }
 
     function edgePassesControls(edge) {
-      if (!showMentions.checked && edge.type === "mentions") return false;
-      if (viewMode.value === "router" && !["routes_to", "invokes"].includes(edge.type)) return false;
-      if (viewMode.value === "artifacts" && !["uses_reference", "uses_template", "uses_script"].includes(edge.type)) return false;
-      if (viewMode.value === "inferred" && !edge.inferred) return false;
-      if (edgeType.value && edge.type !== edgeType.value) return false;
+      if (!edgeConnectsDisplayNodes(edge)) return false;
       if (confidence.value && String(edge.confidence) !== confidence.value) return false;
       return true;
     }
@@ -2465,9 +2120,9 @@ HTML_TEMPLATE = r"""<!doctype html>
             relatedIds.add(edge.target);
           }
         }
-        return graph.nodes.filter(node => relatedIds.has(node.id) && nodePassesControls(node, true));
+        return graphDisplayNodes.filter(node => relatedIds.has(node.id) && nodePassesControls(node, true));
       }
-      return graph.nodes.filter(node => nodePassesControls(node));
+      return graphDisplayNodes.filter(node => nodePassesControls(node));
     }
 
     function visibleEdges(nodes) {
@@ -2504,21 +2159,6 @@ HTML_TEMPLATE = r"""<!doctype html>
       return [value.type, value.path, value.skill, value.target, value.message].filter(Boolean).join("|");
     }
 
-    function nodeTypeLabel(node) {
-      if (node.kind === "skill") return "SKILL.md";
-      return {
-        instruction: "Instruction",
-        rule: "Rule",
-        reference: "Reference",
-        template: "Template",
-        script: "Script",
-      }[node.kind] || "Source";
-    }
-
-    function nodeTypeClass(node) {
-      return node.kind === "skill" ? "" : "file";
-    }
-
     function nodeDisplay(id) {
       const node = nodeIndex.get(id);
       return node?.annotation?.label || node?.label || id;
@@ -2529,37 +2169,216 @@ HTML_TEMPLATE = r"""<!doctype html>
     }
 
     function nodeRadius(node) {
-      return node?.kind === "skill" ? 26 : 20;
+      return 26;
     }
 
-    function relationLabel(type) {
+    function firstNonBlank(values, fallback) {
+      for (const value of values) {
+        const text = String(value || "").trim();
+        if (text) return text;
+      }
+      return fallback;
+    }
+
+    function categoryKeyForNode(node) {
+      const annotation = node.annotation || {};
+      return firstNonBlank(
+        [annotation.suggestedCategory, annotation.clusterId, node.category],
+        "Uncategorized",
+      );
+    }
+
+    function nodePassesCategoryFilter(node) {
+      return !state.categoryFilter || categoryKeyForNode(node) === state.categoryFilter;
+    }
+
+    function toggleCategoryFilter(key) {
+      state.categoryFilter = state.categoryFilter === key ? "" : key;
+      state.selected = null;
+      resetGraphViewState();
+      draw();
+    }
+
+    function categoryColor(key) {
+      let hash = 0;
+      for (const char of String(key)) {
+        hash = ((hash << 5) - hash + char.charCodeAt(0)) | 0;
+      }
+      const hue = Math.abs(hash) % 360;
       return {
-        routes_to: "Routes to",
-        invokes: "Invokes",
-        related_to: "Related skill",
-        uses_reference: "Uses reference",
-        uses_template: "Uses template",
-        uses_script: "Uses script",
-        mentions: "Mentions",
-        language_variant: "Language variant",
-        should_not_co_trigger: "Should not co-trigger",
-      }[type] || type.replaceAll("_", " ");
+        fill: `hsl(${hue} 70% 95% / 0.62)`,
+        stroke: `hsl(${hue} 54% 44% / 0.72)`,
+        text: `hsl(${hue} 44% 28%)`,
+      };
+    }
+
+    function compactCategoryLabel(key, count, frameWidth) {
+      const full = `${key} (${count})`;
+      const maxChars = Math.max(10, Math.floor((frameWidth * state.view.scale - 12) / 5));
+      if (full.length <= maxChars || state.view.scale >= .55) return full;
+      const suffix = ` (${count})`;
+      const available = Math.max(4, maxChars - suffix.length - 3);
+      return `${String(key).slice(0, available).trim()}...${suffix}`;
+    }
+
+    function categoryFrameGroups(nodes, positions) {
+      const groups = groupBy(nodes, categoryKeyForNode);
+      const frames = [];
+      for (const [key, values] of groups) {
+        let minX = Infinity;
+        let minY = Infinity;
+        let maxX = -Infinity;
+        let maxY = -Infinity;
+        let count = 0;
+        for (const node of values) {
+          const point = positions.get(node.id);
+          if (!point) continue;
+          const radius = nodeRadius(node);
+          const labelWidth = Math.min(180, Math.max(70, String(node.annotation?.label || node.label || node.id).length * 7));
+          minX = Math.min(minX, point.x - Math.max(radius + 34, labelWidth / 2));
+          maxX = Math.max(maxX, point.x + Math.max(radius + 34, labelWidth / 2));
+          minY = Math.min(minY, point.y - radius - 36);
+          maxY = Math.max(maxY, point.y + radius + 52);
+          count += 1;
+        }
+        if (!count) continue;
+        const padding = 24;
+        const minWidth = 140;
+        const minHeight = 106;
+        let x = minX - padding;
+        let y = minY - padding;
+        let width = maxX - minX + padding * 2;
+        let height = maxY - minY + padding * 2;
+        if (width < minWidth) {
+          x -= (minWidth - width) / 2;
+          width = minWidth;
+        }
+        if (height < minHeight) {
+          y -= (minHeight - height) / 2;
+          height = minHeight;
+        }
+        frames.push({ key, count, x, y, width, height });
+      }
+      return frames.sort((a, b) => (b.width * b.height) - (a.width * a.height));
+    }
+
+    function layoutGroupForNode(node) {
+      return categoryKeyForNode(node);
+    }
+
+    function sortedLayoutGroups(nodes) {
+      return [...groupBy(nodes, layoutGroupForNode).entries()]
+        .sort((a, b) => b[1].length - a[1].length || String(a[0]).localeCompare(String(b[0])));
+    }
+
+    function layoutGroupBoxes(nodes, width, height) {
+      const groups = sortedLayoutGroups(nodes);
+      const columns = Math.max(1, Math.ceil(Math.sqrt(groups.length)));
+      const rows = Math.max(1, Math.ceil(groups.length / columns));
+      const marginX = Math.min(120, Math.max(72, width * .06));
+      const marginY = Math.min(120, Math.max(82, height * .07));
+      const cellWidth = (width - marginX * 2) / columns;
+      const cellHeight = (height - marginY * 2) / rows;
+      const boxes = new Map();
+      groups.forEach(([key, values], index) => {
+        const col = index % columns;
+        const row = Math.floor(index / columns);
+        boxes.set(key, {
+          key,
+          values,
+          x: marginX + col * cellWidth,
+          y: marginY + row * cellHeight,
+          width: cellWidth,
+          height: cellHeight,
+          centerX: marginX + col * cellWidth + cellWidth / 2,
+          centerY: marginY + row * cellHeight + cellHeight / 2,
+        });
+      });
+      return boxes;
+    }
+
+    function nodeAnchorMap(nodes, width, height) {
+      const boxes = layoutGroupBoxes(nodes, width, height);
+      const anchors = new Map();
+      for (const box of boxes.values()) {
+        const values = box.values;
+        const columns = Math.max(1, Math.ceil(Math.sqrt(values.length)));
+        const rows = Math.max(1, Math.ceil(values.length / columns));
+        const innerX = Math.min(70, Math.max(40, box.width * .12));
+        const innerY = Math.min(70, Math.max(44, box.height * .14));
+        const usableWidth = Math.max(80, box.width - innerX * 2);
+        const usableHeight = Math.max(80, box.height - innerY * 2);
+        values.forEach((node, index) => {
+          const col = index % columns;
+          const row = Math.floor(index / columns);
+          anchors.set(node.id, {
+            x: box.x + innerX + ((col + 1) / (columns + 1)) * usableWidth,
+            y: box.y + innerY + ((row + 1) / (rows + 1)) * usableHeight,
+            groupX: box.centerX,
+            groupY: box.centerY,
+          });
+        });
+      }
+      return anchors;
+    }
+
+    function drawCategoryFrames(layer, nodes, positions) {
+      if (!categoryFrames.checked) return;
+      const frameLayer = document.createElementNS("http://www.w3.org/2000/svg", "g");
+      frameLayer.setAttribute("class", "category-frame-layer");
+      for (const frame of categoryFrameGroups(nodes, positions)) {
+        const colors = categoryColor(frame.key);
+        const group = document.createElementNS("http://www.w3.org/2000/svg", "g");
+        const isSelected = state.categoryFilter === frame.key;
+        group.setAttribute("class", `category-frame${isSelected ? " selected" : ""}`);
+
+        const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+        rect.setAttribute("x", String(frame.x));
+        rect.setAttribute("y", String(frame.y));
+        rect.setAttribute("width", String(frame.width));
+        rect.setAttribute("height", String(frame.height));
+        rect.setAttribute("rx", "8");
+        rect.setAttribute("fill", colors.fill);
+        rect.setAttribute("stroke", colors.stroke);
+
+        const label = document.createElementNS("http://www.w3.org/2000/svg", "text");
+        label.setAttribute("x", String(frame.x + 14));
+        label.setAttribute("y", String(frame.y + 22));
+        label.setAttribute("fill", colors.text);
+        label.style.fontSize = `${Math.min(34, Math.max(10, 10 / state.view.scale))}px`;
+        label.textContent = compactCategoryLabel(frame.key, frame.count, frame.width);
+
+        group.append(rect, label);
+        frameLayer.append(group);
+      }
+      layer.append(frameLayer);
+    }
+
+    function drawCategoryFrameHits(layer, nodes, positions) {
+      if (!categoryFrames.checked) return;
+      const hitLayer = document.createElementNS("http://www.w3.org/2000/svg", "g");
+      hitLayer.setAttribute("class", "category-frame-hit-layer");
+      for (const frame of categoryFrameGroups(nodes, positions)) {
+        const hit = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+        hit.setAttribute("class", "category-frame-hit");
+        hit.setAttribute("x", String(frame.x));
+        hit.setAttribute("y", String(frame.y));
+        hit.setAttribute("width", String(frame.width));
+        hit.setAttribute("height", String(frame.height));
+        hit.setAttribute("rx", "8");
+        hit.addEventListener("click", event => {
+          event.stopPropagation();
+          toggleCategoryFilter(frame.key);
+        });
+        hitLayer.append(hit);
+      }
+      layer.append(hitLayer);
     }
 
     function edgeMarker(isSelected, isRelated) {
       if (isSelected) return "url(#arrow-selected)";
       if (isRelated) return "url(#arrow-related)";
       return "url(#arrow-default)";
-    }
-
-    function viewModeCopy() {
-      return {
-        topology: ["Skill topology", "Topology view: non-mention relations visible"],
-        router: ["Router flow", "Router view: routes and invokes relationships emphasized"],
-        artifacts: ["Reference and template flow", "Artifact view: references, templates, and scripts visible"],
-        inferred: ["Inferred Cluster", "Inferred view: agent-provided clusters and relations visible"],
-        diagnostics: ["Diagnostics focus", "Diagnostics view: warnings and invalid graph data prioritized"],
-      }[viewMode.value] || ["Skill topology", "Topology view"];
     }
 
     function setText(id, value) {
@@ -2586,7 +2405,7 @@ HTML_TEMPLATE = r"""<!doctype html>
     }
 
     function clampZoom(scale) {
-      return Math.min(3, Math.max(.35, scale));
+      return Math.min(3, Math.max(.18, scale));
     }
 
     function viewTransform() {
@@ -2594,7 +2413,21 @@ HTML_TEMPLATE = r"""<!doctype html>
     }
 
     function resetGraphViewState() {
-      state.view = { x: 0, y: 0, scale: 1 };
+      state.pendingViewFit = true;
+    }
+
+    function fitGraphView(bounds, viewportWidth, viewportHeight) {
+      const padding = 36;
+      const scale = clampZoom(Math.min(
+        1,
+        (viewportWidth - padding * 2) / Math.max(1, bounds.width),
+        (viewportHeight - padding * 2) / Math.max(1, bounds.height),
+      ));
+      return {
+        x: (viewportWidth - bounds.width * scale) / 2,
+        y: (viewportHeight - bounds.height * scale) / 2,
+        scale,
+      };
     }
 
     function zoomGraphAt(origin, nextScale) {
@@ -2622,10 +2455,27 @@ HTML_TEMPLATE = r"""<!doctype html>
       draw();
     }
 
-    function layoutKey(nodes, edges, width, height) {
+    function layoutBoundsFor(nodes, viewportWidth, viewportHeight) {
+      const count = Math.max(1, nodes.length);
+      const groups = sortedLayoutGroups(nodes);
+      const groupCount = Math.max(1, groups.length);
+      const groupColumns = Math.max(1, Math.ceil(Math.sqrt(groupCount)));
+      const groupRows = Math.max(1, Math.ceil(groupCount / groupColumns));
+      const maxGroupSize = Math.max(1, ...groups.map(([, values]) => values.length));
+      const localColumns = Math.max(1, Math.ceil(Math.sqrt(maxGroupSize)));
+      const localRows = Math.max(1, Math.ceil(maxGroupSize / localColumns));
+      const cellWidth = Math.max(count >= 36 ? 520 : 420, localColumns * 170);
+      const cellHeight = Math.max(count >= 36 ? 420 : 330, localRows * 145);
+      return {
+        width: Math.max(viewportWidth, 180 + groupColumns * cellWidth),
+        height: Math.max(viewportHeight, 190 + groupRows * cellHeight),
+      };
+    }
+
+    function layoutKey(nodes, edges, bounds) {
       return [
-        Math.round(width),
-        Math.round(height),
+        Math.round(bounds.width),
+        Math.round(bounds.height),
         nodes.map(node => node.id).join("|"),
         edges.map(edge => edge.id).join("|"),
       ].join("::");
@@ -2649,26 +2499,35 @@ HTML_TEMPLATE = r"""<!doctype html>
       };
     }
 
-    function ensureLayout(nodes, edges, width, height) {
+    function ensureLayout(nodes, edges, viewportWidth, viewportHeight) {
+      const bounds = layoutBoundsFor(nodes, viewportWidth, viewportHeight);
+      const anchors = nodeAnchorMap(nodes, bounds.width, bounds.height);
       nodes.forEach((node, index) => {
         if (!state.positions[node.id]) {
-          state.positions[node.id] = initialPosition(index, nodes.length, width, height);
+          state.positions[node.id] = clampPosition(anchors.get(node.id) || initialPosition(index, nodes.length, bounds.width, bounds.height), bounds.width, bounds.height);
         }
       });
-      const key = layoutKey(nodes, edges, width, height);
+      const key = layoutKey(nodes, edges, bounds);
       if (state.layoutKey !== key && !state.dragging) {
-        runForceLayout(nodes, edges, width, height);
+        runForceLayout(nodes, edges, bounds.width, bounds.height);
         state.layoutKey = key;
+        state.layoutBounds = bounds;
+      }
+      if (state.pendingViewFit) {
+        state.view = fitGraphView(bounds, viewportWidth, viewportHeight);
+        state.pendingViewFit = false;
       }
       return new Map(nodes.map(node => [node.id, state.positions[node.id]]));
     }
 
     function runForceLayout(nodes, edges, width, height) {
       const ids = new Set(nodes.map(node => node.id));
+      const anchors = nodeAnchorMap(nodes, width, height);
       const centerX = width / 2;
-      const centerY = Math.min(height * .42, Math.max(140, height / 2));
+      const centerY = height / 2;
       const visibleEdges = edges.filter(edge => ids.has(edge.source) && ids.has(edge.target));
-      for (let step = 0; step < 90; step += 1) {
+      const edgeDistance = Math.min(300, 150 + Math.sqrt(Math.max(1, nodes.length)) * 18);
+      for (let step = 0; step < 120; step += 1) {
         const velocity = new Map(nodes.map(node => [node.id, { x: 0, y: 0 }]));
         for (let i = 0; i < nodes.length; i += 1) {
           for (let j = i + 1; j < nodes.length; j += 1) {
@@ -2677,7 +2536,7 @@ HTML_TEMPLATE = r"""<!doctype html>
             const dx = a.x - b.x || .01;
             const dy = a.y - b.y || .01;
             const distance = Math.max(24, Math.hypot(dx, dy));
-            const force = Math.min(90, 4200 / (distance * distance));
+            const force = Math.min(120, 9800 / (distance * distance));
             const fx = (dx / distance) * force;
             const fy = (dy / distance) * force;
             velocity.get(nodes[i].id).x += fx;
@@ -2692,8 +2551,8 @@ HTML_TEMPLATE = r"""<!doctype html>
           const dx = target.x - source.x || .01;
           const dy = target.y - source.y || .01;
           const distance = Math.max(1, Math.hypot(dx, dy));
-          const desired = edge.type === "mentions" ? 180 : 140;
-          const force = (distance - desired) * .018;
+          const desired = edgeDistance;
+          const force = (distance - desired) * .014;
           const fx = (dx / distance) * force;
           const fy = (dy / distance) * force;
           velocity.get(edge.source).x += fx;
@@ -2704,8 +2563,10 @@ HTML_TEMPLATE = r"""<!doctype html>
         for (const node of nodes) {
           const point = state.positions[node.id];
           const v = velocity.get(node.id);
-          v.x += (centerX - point.x) * .012;
-          v.y += (centerY - point.y) * .012;
+          const anchor = anchors.get(node.id) || { x: centerX, y: centerY, groupX: centerX, groupY: centerY };
+          const anchorForce = .024;
+          v.x += (anchor.x - point.x) * anchorForce + (anchor.groupX - point.x) * .004;
+          v.y += (anchor.y - point.y) * anchorForce + (anchor.groupY - point.y) * .004;
           state.positions[node.id] = clampPosition(
             {
               x: point.x + Math.max(-16, Math.min(16, v.x)),
@@ -2719,6 +2580,10 @@ HTML_TEMPLATE = r"""<!doctype html>
     }
 
     function edgePath(source, target, index = 0, sourceRadius = 18, targetRadius = 18) {
+      return edgeGeometry(source, target, index, sourceRadius, targetRadius).path;
+    }
+
+    function edgeGeometry(source, target, index = 0, sourceRadius = 18, targetRadius = 18) {
       const dx = target.x - source.x;
       const dy = target.y - source.y;
       const distance = Math.max(1, Math.hypot(dx, dy));
@@ -2736,7 +2601,9 @@ HTML_TEMPLATE = r"""<!doctype html>
       const curve = ((index % 5) - 2) * 16;
       const mx = (start.x + end.x) / 2 - (dy / distance) * curve;
       const my = (start.y + end.y) / 2 + (dx / distance) * curve;
-      return `M ${start.x} ${start.y} Q ${mx} ${my} ${end.x} ${end.y}`;
+      return {
+        path: `M ${start.x} ${start.y} Q ${mx} ${my} ${end.x} ${end.y}`,
+      };
     }
 
     function draw() {
@@ -2745,22 +2612,24 @@ HTML_TEMPLATE = r"""<!doctype html>
       const height = Math.max(svg.clientHeight, 420);
       svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
       svg.innerHTML = `<defs>
-        <marker id="arrow-default" markerWidth="14" markerHeight="14" refX="12" refY="6" orient="auto" markerUnits="userSpaceOnUse"><path d="M0,0 L0,12 L13,6 z" fill="#d87537"></path></marker>
-        <marker id="arrow-related" markerWidth="14" markerHeight="14" refX="12" refY="6" orient="auto" markerUnits="userSpaceOnUse"><path d="M0,0 L0,12 L13,6 z" fill="#2f9860"></path></marker>
-        <marker id="arrow-selected" markerWidth="14" markerHeight="14" refX="12" refY="6" orient="auto" markerUnits="userSpaceOnUse"><path d="M0,0 L0,12 L13,6 z" fill="#c63f33"></path></marker>
+        <marker id="arrow-default" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto" markerUnits="userSpaceOnUse"><path d="M0,0 L0,8 L8,4 z" fill="#d87537"></path></marker>
+        <marker id="arrow-related" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto" markerUnits="userSpaceOnUse"><path d="M0,0 L0,8 L8,4 z" fill="#2f9860"></path></marker>
+        <marker id="arrow-selected" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto" markerUnits="userSpaceOnUse"><path d="M0,0 L0,8 L8,4 z" fill="#c63f33"></path></marker>
       </defs>`;
       const layer = document.createElementNS("http://www.w3.org/2000/svg", "g");
       layer.setAttribute("class", "graph-layer");
-      layer.setAttribute("transform", viewTransform());
       svg.append(layer);
       const nodes = visibleNodes();
       const edges = visibleEdges(nodes);
       const positions = ensureLayout(nodes, edges, width, height);
+      layer.setAttribute("transform", viewTransform());
+      const showNodeText = state.view.scale >= .42 || nodes.length <= 18;
       const selected = state.selected;
       const selectedKey = selected?.key || "";
       const selectedNodeId = selected?.kind === "node" ? selected.value.id : "";
       const selectedEdge = selected?.kind === "edge" ? selected.value : null;
       const selectedEdgeNodes = selectedEdge ? new Set([selectedEdge.source, selectedEdge.target]) : new Set();
+      drawCategoryFrames(layer, nodes, positions);
       const edgeOccurrences = new Map();
       for (const edge of edges) {
         const source = positions.get(edge.source);
@@ -2771,10 +2640,11 @@ HTML_TEMPLATE = r"""<!doctype html>
         edgeOccurrences.set(occurrenceKey, occurrenceIndex + 1);
         const sourceNode = nodeIndex.get(edge.source);
         const targetNode = nodeIndex.get(edge.target);
-        const pathData = edgePath(source, target, occurrenceIndex, nodeRadius(sourceNode), nodeRadius(targetNode));
+        const geometry = edgeGeometry(source, target, occurrenceIndex, nodeRadius(sourceNode), nodeRadius(targetNode));
+        const pathData = geometry.path;
         const isSelected = selected?.kind === "edge" && edge.id === selectedKey;
         const isRelated = selectedNodeId && (edge.source === selectedNodeId || edge.target === selectedNodeId);
-        const edgeClass = `edge ${edge.type} ${edgeConfidenceClass(edge)}${edge.inferred ? " inferred" : ""}${isSelected ? " selected" : ""}${isRelated ? " related" : ""}`;
+        const edgeClass = `edge ${edgeConfidenceClass(edge)}${edge.inferred ? " inferred" : ""}${isSelected ? " selected" : ""}${isRelated ? " related" : ""}`;
         const hitPath = document.createElementNS("http://www.w3.org/2000/svg", "path");
         hitPath.setAttribute("d", pathData);
         hitPath.setAttribute("class", "edge-hit");
@@ -2787,39 +2657,37 @@ HTML_TEMPLATE = r"""<!doctype html>
         path.addEventListener("click", () => select(edge, "edge"));
         layer.append(path);
       }
+      drawCategoryFrameHits(layer, nodes, positions);
       for (const node of nodes) {
         const point = positions.get(node.id);
         if (!point) continue;
         const group = document.createElementNS("http://www.w3.org/2000/svg", "g");
         const isSelected = selected?.kind === "node" && node.id === selectedKey;
         const isRelated = selectedEdgeNodes.has(node.id);
-        group.setAttribute("class", `node ${node.kind !== "skill" ? "asset" : ""}${isSelected ? " selected" : ""}${isRelated ? " related" : ""}`);
+        group.setAttribute("class", `node${isSelected ? " selected" : ""}${isRelated ? " related" : ""}`);
         group.setAttribute("transform", `translate(${point.x}, ${point.y})`);
         group.addEventListener("pointerdown", event => beginNodeDrag(event, node));
         const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
         const radius = nodeRadius(node);
         circle.setAttribute("r", String(radius));
-        const typeText = document.createElementNS("http://www.w3.org/2000/svg", "text");
-        typeText.setAttribute("class", "node-type");
-        typeText.setAttribute("text-anchor", "middle");
-        typeText.setAttribute("y", String(-radius - 14));
-        typeText.textContent = nodeTypeLabel(node);
         const labelText = document.createElementNS("http://www.w3.org/2000/svg", "text");
         labelText.setAttribute("text-anchor", "middle");
         labelText.setAttribute("y", String(radius + 30));
         labelText.textContent = node.annotation?.label || node.label || node.id;
-        group.append(circle, labelText, typeText);
+        group.append(circle);
+        if (showNodeText || isSelected || isRelated) {
+          group.append(labelText);
+        }
         layer.append(group);
       }
-      const [heading, subtitle] = viewModeCopy();
-      setText("graphHeading", heading);
+      setText("graphHeading", "Skill graph");
       setText("graphSubtitle", `Generated ${graph.generatedAt} from ${graph.root}`);
       setText("summary", `${nodes.length} nodes / ${edges.length} edges`);
       setText("viewState", `${Math.round(state.view.scale * 100)}%`);
-      setText("status", subtitle);
+      setText("status", "Semantic skill relations and categories");
       setText("scopeCount", `${nodes.length} nodes`);
-      setText("metricNodes", String(graph.nodes.length));
-      setText("metricEdges", String(graph.edges.length));
+      setText("metricNodes", String(graphDisplayNodes.length));
+      setText("metricEdges", String(graphDisplayEdges.length));
       setText("metricDiagnostics", String(graph.diagnostics.length));
       setText("metricVisible", String(nodes.length));
       const activeLabel = selected?.kind === "node"
@@ -2828,11 +2696,14 @@ HTML_TEMPLATE = r"""<!doctype html>
           ? edgeSummary(selected.value)
           : selected?.kind === "diagnostic"
             ? diagnosticLabel(selected.value.type)
-            : "No selection";
+            : state.categoryFilter
+              ? `Category: ${state.categoryFilter}`
+              : "No selection";
       setText("activeSelection", activeLabel);
+      clearCategory.hidden = !state.categoryFilter;
       const scopedDiagnostics = visibleDiagnostics();
       setText("activeDiagnostics", scopedDiagnostics.length ? `${scopedDiagnostics.length} diagnostics in scope` : "No diagnostics in scope");
-      renderLists(nodes, edges);
+      renderLists(nodes);
     }
 
     function nodeItemHtml(node) {
@@ -2841,7 +2712,6 @@ HTML_TEMPLATE = r"""<!doctype html>
       const roleTags = Array.isArray(annotation.roleTags) ? annotation.roleTags : [];
       return `
         <div class="item-meta">
-          <span class="badge ${nodeTypeClass(node)}">${escapeHtml(nodeTypeLabel(node))}</span>
           ${annotation.suggestedCategory ? `<span class="badge inferred">${escapeHtml(annotation.suggestedCategory)}</span>` : node.category ? `<span class="badge">${escapeHtml(node.category)}</span>` : ""}
           ${annotation.clusterId ? `<span class="badge inferred">${escapeHtml(annotation.clusterId)}</span>` : ""}
         </div>
@@ -2854,20 +2724,6 @@ HTML_TEMPLATE = r"""<!doctype html>
 
     function edgeConfidenceClass(edge) {
       return String(edge.confidence || "").replace(/[^A-Za-z0-9_-]+/g, "-");
-    }
-
-    function edgeItemHtml(edge) {
-      const confidenceClass = edge.confidence === "high" ? "" : edgeConfidenceClass(edge);
-      return `
-        <div class="item-meta">
-          <span class="badge edge-type">${escapeHtml(relationLabel(edge.type))}</span>
-          ${edge.inferred ? `<span class="badge inferred">inferred</span>` : ""}
-          ${edge.confidence ? `<span class="badge ${escapeHtml(confidenceClass)}">${escapeHtml(edge.confidence)}</span>` : ""}
-        </div>
-        <strong>${escapeHtml(edgeSummary(edge))}</strong>
-        <span>${escapeHtml(edge.origin || "inferred")}</span>
-        ${edge.rationale ? `<span>${escapeHtml(edge.rationale)}</span>` : ""}
-      `;
     }
 
     function diagnosticItemHtml(diag) {
@@ -2894,9 +2750,7 @@ HTML_TEMPLATE = r"""<!doctype html>
     }
 
     function renderNodeGroups(nodeBox, nodes) {
-      const groups = groupBy(nodes, node => viewMode.value === "inferred"
-        ? (node.annotation?.clusterId || node.annotation?.suggestedCategory || "Unclustered")
-        : nodeTypeLabel(node));
+      const groups = groupBy(nodes, categoryKeyForNode);
       for (const [title, values] of groups) {
         appendGroup(nodeBox, title, values, node => {
           const item = document.createElement("div");
@@ -2908,42 +2762,12 @@ HTML_TEMPLATE = r"""<!doctype html>
       }
     }
 
-    function renderEdgeGroups(edgeBox, edges) {
-      const selectedNodeId = state.selected?.kind === "node" ? state.selected.value.id : "";
-      if (selectedNodeId) {
-        const outgoing = edges.filter(edge => edge.source === selectedNodeId);
-        const incoming = edges.filter(edge => edge.target === selectedNodeId);
-        if (outgoing.length) appendEdgeGroup(edgeBox, `Outgoing from ${nodeDisplay(selectedNodeId)}`, outgoing);
-        if (incoming.length) appendEdgeGroup(edgeBox, `Incoming to ${nodeDisplay(selectedNodeId)}`, incoming);
-        const other = edges.filter(edge => edge.source !== selectedNodeId && edge.target !== selectedNodeId);
-        if (other.length) appendEdgeGroup(edgeBox, "Other related edges", other);
-        return;
-      }
-      for (const [title, values] of groupBy(edges, edge => relationLabel(edge.type))) {
-        appendEdgeGroup(edgeBox, title, values);
-      }
-    }
-
-    function appendEdgeGroup(edgeBox, title, edges) {
-      appendGroup(edgeBox, title, edges, edge => {
-        const item = document.createElement("div");
-        item.className = `item ${state.selected?.kind === "edge" && edge.id === state.selected.key ? "selected" : ""}`;
-        item.innerHTML = edgeItemHtml(edge);
-        item.addEventListener("click", () => select(edge, "edge"));
-        return item;
-      });
-    }
-
-    function renderLists(nodes, edges) {
+    function renderLists(nodes) {
       const nodeBox = document.getElementById("nodes");
-      const edgeBox = document.getElementById("edges");
       nodeBox.innerHTML = "";
-      edgeBox.innerHTML = "";
       renderNodeGroups(nodeBox, nodes);
-      renderEdgeGroups(edgeBox, edges);
       renderDiagnostics();
       setText("nodeCount", String(nodes.length));
-      setText("edgeCount", String(edges.length));
     }
 
     function renderDiagnostics() {
@@ -2986,7 +2810,6 @@ HTML_TEMPLATE = r"""<!doctype html>
         <section class="summary-card">
           <h2>Node</h2>
           <div class="item-meta">
-            <span class="badge ${nodeTypeClass(node)}">${escapeHtml(nodeTypeLabel(node))}</span>
             ${annotation.suggestedCategory ? `<span class="badge inferred">${escapeHtml(annotation.suggestedCategory)}</span>` : node.category ? `<span class="badge">${escapeHtml(node.category)}</span>` : ""}
             ${annotation.clusterId ? `<span class="badge inferred">${escapeHtml(annotation.clusterId)}</span>` : ""}
           </div>
@@ -2995,8 +2818,8 @@ HTML_TEMPLATE = r"""<!doctype html>
           <dl class="meta-grid">
             <dt>ID</dt><dd>${escapeHtml(node.id)}</dd>
             <dt>Path</dt><dd>${escapeHtml(nodePath(node))}</dd>
-            <dt>Outgoing</dt><dd>${outgoing.length} dependencies / references</dd>
-            <dt>Incoming</dt><dd>${incoming.length} dependents / mentions</dd>
+            <dt>Outgoing</dt><dd>${outgoing.length} dependencies</dd>
+            <dt>Incoming</dt><dd>${incoming.length} dependents</dd>
             ${roleTags.length ? `<dt>Role tags</dt><dd>${roleTags.map(escapeHtml).join(", ")}</dd>` : ""}
             ${triggers.length ? `<dt>Trigger phrases</dt><dd>${triggers.map(escapeHtml).join(", ")}</dd>` : ""}
             ${node.aliases?.length ? `<dt>Aliases</dt><dd>${node.aliases.map(escapeHtml).join(", ")}</dd>` : ""}
@@ -3007,12 +2830,16 @@ HTML_TEMPLATE = r"""<!doctype html>
       `;
     }
 
+    function edgeDetailsJson(edge) {
+      const { id, type, ...payload } = edge;
+      return rawJson(payload);
+    }
+
     function renderEdgeDetails(edge) {
       return `
         <section class="summary-card">
           <h2>Edge</h2>
           <div class="item-meta">
-            <span class="badge edge-type">${escapeHtml(relationLabel(edge.type))}</span>
             ${edge.confidence ? `<span class="badge">${escapeHtml(edge.confidence)}</span>` : ""}
           </div>
           <p><strong>${escapeHtml(edgeSummary(edge))}</strong></p>
@@ -3024,7 +2851,7 @@ HTML_TEMPLATE = r"""<!doctype html>
             <dt>Evidence</dt><dd>${escapeHtml((edge.evidence || []).map(item => item.path || item.text).filter(Boolean).join(", ") || "N/A")}</dd>
           </dl>
           <button id="clearSelection" type="button">Clear selection</button>
-          ${rawJson(edge)}
+          ${edgeDetailsJson(edge)}
         </section>
       `;
     }
@@ -3153,8 +2980,9 @@ HTML_TEMPLATE = r"""<!doctype html>
     function dragNode(event) {
       if (!state.dragging) return;
       const svg = document.getElementById("graph");
-      const width = Math.max(svg.clientWidth, 360);
-      const height = Math.max(svg.clientHeight, 420);
+      const bounds = state.layoutBounds.width && state.layoutBounds.height
+        ? state.layoutBounds
+        : { width: Math.max(svg.clientWidth, 360), height: Math.max(svg.clientHeight, 420) };
       const point = graphPoint(svg, event);
       const distance = Math.hypot(point.x - state.dragging.startX, point.y - state.dragging.startY);
       if (!state.dragging.moved && distance <= 3) return;
@@ -3164,8 +2992,8 @@ HTML_TEMPLATE = r"""<!doctype html>
           x: point.x + state.dragging.offsetX,
           y: point.y + state.dragging.offsetY,
         },
-        width,
-        height,
+        bounds.width,
+        bounds.height,
       );
       draw();
     }
@@ -3185,21 +3013,22 @@ HTML_TEMPLATE = r"""<!doctype html>
       return String(value ?? "").replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" }[char]));
     }
 
-    viewMode.addEventListener("change", () => {
-      syncViewModeButtons();
-      draw();
-    });
-    for (const button of viewModeButtons) {
-      button.addEventListener("click", () => {
-        viewMode.value = button.dataset.viewMode;
-        syncViewModeButtons();
-        draw();
-      });
-    }
-    for (const input of [nodeKind, extension, edgeType, confidence, search, showMentions]) {
+    for (const input of [confidence, search]) {
       input.addEventListener("input", draw);
       input.addEventListener("change", draw);
     }
+    categoryFrames.addEventListener("change", () => {
+      if (!categoryFrames.checked) {
+        state.categoryFilter = "";
+        resetGraphViewState();
+      }
+      draw();
+    });
+    clearCategory.addEventListener("click", () => {
+      state.categoryFilter = "";
+      resetGraphViewState();
+      draw();
+    });
     document.addEventListener("keydown", event => {
       if (event.key === "/" && document.activeElement !== search) {
         event.preventDefault();
@@ -3220,7 +3049,6 @@ HTML_TEMPLATE = r"""<!doctype html>
     document.getElementById("graph").addEventListener("pointerdown", beginGraphPan);
     document.getElementById("graph").addEventListener("wheel", wheelZoomGraph, { passive: false });
     window.addEventListener("resize", draw);
-    syncViewModeButtons();
     draw();
   </script>
 </body>

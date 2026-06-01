@@ -104,7 +104,7 @@ class SkillGraphViewerWorkflowTest(unittest.TestCase):
             enriched["edges"],
             "skill.alpha",
             "skill.beta",
-            "related_to",
+            "depends_on",
             "agent_inferred",
         )
         diagnostic_types = {item["type"] for item in enriched["diagnostics"]}
@@ -112,9 +112,65 @@ class SkillGraphViewerWorkflowTest(unittest.TestCase):
 
         html = skillgraph.html_for_graph(enriched)
         self.assertIn("SkillGraph Viewer", html)
-        self.assertIn("Inferred Cluster", html)
+        self.assertNotIn("Inferred Cluster", html)
+        self.assertNotIn("data-view-mode", html)
+        self.assertNotIn('id="viewMode"', html)
+        self.assertNotIn('class="segmented"', html)
+        self.assertNotIn("syncViewModeButtons", html)
+        self.assertNotIn('data-view-mode="artifacts"', html)
         self.assertIn("badge inferred", html)
-        self.assertIn("showMentionsDefault = false", html)
+        self.assertNotIn("showMentionsDefault", html)
+        self.assertNotIn("Show mentions edges", html)
+        self.assertIn("categoryFramesDefault = true", html)
+        self.assertIn("Category frames", html)
+        self.assertIn("category-frame", html)
+        self.assertIn("category-frame-hit", html)
+        self.assertIn("graphDisplayNodes = graph.nodes", html)
+        self.assertNotIn('graph.nodes.filter(node => node.kind === "skill")', html)
+        self.assertIn("edgeConnectsDisplayNodes", html)
+        self.assertIn("categoryKeyForNode", html)
+        self.assertIn("state.categoryFilter", html)
+        self.assertIn("toggleCategoryFilter", html)
+        self.assertIn("nodePassesCategoryFilter", html)
+        self.assertIn("groupBy(nodes, categoryKeyForNode)", html)
+        self.assertIn("Clear category", html)
+        self.assertIn("clearCategory.hidden = !state.categoryFilter", html)
+        self.assertIn('class", `category-frame${isSelected ? " selected" : ""}`', html)
+        self.assertIn("annotation.suggestedCategory, annotation.clusterId, node.category", html)
+        self.assertNotIn('nodes.filter(node => node.kind === "skill")', html)
+        self.assertIn("layoutBoundsFor", html)
+        self.assertIn("nodeAnchorMap", html)
+        self.assertIn("pendingViewFit", html)
+        self.assertIn("showNodeText", html)
+        self.assertIn("edgeGeometry", html)
+        self.assertNotIn("showEdgeText", html)
+        self.assertNotIn("edge-label", html)
+        self.assertNotIn("edgeType", html)
+        self.assertNotIn("Edge type", html)
+        self.assertNotIn("relationLabel", html)
+        self.assertNotIn("Depends on", html)
+        self.assertNotIn("badge edge-type", html)
+        self.assertNotIn('id="edges"', html)
+        self.assertNotIn('id="edgeCount"', html)
+        self.assertNotIn("<h3>Relations</h3>", html)
+        self.assertNotIn("Dependencies", html)
+        self.assertNotIn("edgeItemHtml", html)
+        self.assertNotIn("renderEdgeGroups", html)
+        self.assertNotIn("appendEdgeGroup", html)
+        self.assertIn("edgeDetailsJson", html)
+        self.assertIn("const { id, type, ...payload } = edge", html)
+        self.assertNotIn("node .node-type", html)
+        self.assertNotIn('class", "node-type"', html)
+        self.assertNotIn("nodeTypeLabel", html)
+        self.assertNotIn("Uses reference", html)
+        self.assertNotIn("Uses template", html)
+        self.assertNotIn("Mentions", html)
+        self.assertIn("compactCategoryLabel", html)
+        self.assertIn("drawCategoryFrames", html)
+        self.assertIn("drawCategoryFrameHits", html)
+        self.assertIn("stroke-width: 1.15", html)
+        self.assertIn("stroke-width: .8", html)
+        self.assertIn('markerWidth="8"', html)
         self.assertIn("renderNodeDetails", html)
         self.assertIn("renderEdgeDetails", html)
 
@@ -132,6 +188,7 @@ class SkillGraphViewerWorkflowTest(unittest.TestCase):
             have architecture-level consequences.
 
             See [repository-design](../repository_design/SKILL.md).
+            See [missing skill](../missing_skill/SKILL.md).
             Also read references/ddd/aggregate-rules.md and
             templates/ddd/aggregate-canvas.md.
 
@@ -149,6 +206,16 @@ class SkillGraphViewerWorkflowTest(unittest.TestCase):
             """,
         )
         self._write(
+            root / ".codex" / "skills" / "ddd_tactical" / "aggregate_design" / "SKILL.md",
+            """\
+            ---
+            name: aggregate-design
+            description: Codex copy of the same aggregate design skill.
+            ---
+            # Aggregate Design
+            """,
+        )
+        self._write(
             root / "skills" / "ddd_tactical" / "aggregate_design" / "SKILL.en.md",
             """\
             ---
@@ -156,26 +223,6 @@ class SkillGraphViewerWorkflowTest(unittest.TestCase):
             description: English variant for aggregate design.
             ---
             # Aggregate Design
-            """,
-        )
-        self._write(
-            root / "skills" / "ddd_tactical" / "aggregate_design" / "skillgraph.yaml",
-            """\
-            aliases:
-              - Aggregate Design
-              - Shared Alias
-            category: ddd-tactical
-            relations:
-              invokes:
-                - ddd-tactical.repository-design
-              related_to:
-                - architecture.clean-architecture-review
-              uses_template:
-                - templates/ddd/aggregate-canvas.md
-              uses_reference:
-                - references/ddd/aggregate-rules.md
-              should_not_co_trigger:
-                - ddd-tactical.missing-skill
             """,
         )
         self._write(
@@ -188,14 +235,6 @@ class SkillGraphViewerWorkflowTest(unittest.TestCase):
             # Repository Design
 
             Repository guidance that supports aggregate-design.
-            """,
-        )
-        self._write(
-            root / "skills" / "ddd_tactical" / "repository_design" / "skillgraph.yaml",
-            """\
-            aliases:
-              - Shared Alias
-            category: ddd-tactical
             """,
         )
         self._write(
@@ -240,29 +279,23 @@ class SkillGraphViewerWorkflowTest(unittest.TestCase):
         aggregate = self._node(nodes, "ddd-tactical.aggregate-design")
         self.assertEqual(aggregate.get("path"), "skills/ddd_tactical/aggregate_design/SKILL.md")
         self.assertIn("SKILL.en.md", json.dumps(aggregate, ensure_ascii=False))
-        self.assertIn("Shared Alias", aggregate.get("aliases", []))
+        self.assertIn(".codex/skills/ddd_tactical/aggregate_design/SKILL.md", aggregate.get("paths", []))
 
         kinds = {node.get("kind") for node in nodes}
-        self.assertTrue({"instruction", "rule", "reference", "template", "script"} <= kinds)
-        self._node(nodes, "instruction.root.agents")
-        self._node(nodes, "instruction.github.copilot-instructions")
-        self._node(nodes, "rule.cursor.backend")
-        self._node(nodes, "references/ddd/aggregate-rules.md")
-        self._node(nodes, "templates/ddd/aggregate-canvas.md")
-        self._node(nodes, "scripts/helper.sh")
+        self.assertEqual(kinds, {"skill"})
+        self.assertNotIn("references/ddd/aggregate-rules.md", {node.get("id") for node in nodes})
+        self.assertNotIn("templates/ddd/aggregate-canvas.md", {node.get("id") for node in nodes})
+        self.assertNotIn("scripts/helper.sh", {node.get("id") for node in nodes})
 
         edges = self._edges(graph)
-        self._assert_edge(edges, "ddd-tactical.aggregate-design", "ddd-tactical.repository-design", "invokes", "sidecar")
-        self._assert_edge(edges, "ddd-tactical.aggregate-design", "architecture.clean-architecture-review", "related_to", "sidecar")
-        self._assert_edge(edges, "ddd-tactical.aggregate-design", "ddd-tactical.repository-design", "related_to", "related_section")
-        self._assert_edge(edges, "ddd-tactical.aggregate-design", "ddd-tactical.repository-design", "related_to", "markdown_link")
-        self._assert_edge(edges, "ddd-tactical.aggregate-design", "references/ddd/aggregate-rules.md", "uses_reference", None)
-        self._assert_edge(edges, "ddd-tactical.aggregate-design", "templates/ddd/aggregate-canvas.md", "uses_template", None)
-        self._assert_edge(edges, "ddd-tactical.aggregate-design", "architecture.clean-architecture-review", "mentions", None)
+        self._assert_edge(edges, "ddd-tactical.aggregate-design", "ddd-tactical.repository-design", "depends_on", None)
+        self._assert_edge(edges, "ddd-tactical.aggregate-design", "architecture.clean-architecture-review", "depends_on", None)
+        self._assert_edge(edges, "ddd-tactical.repository-design", "ddd-tactical.aggregate-design", "depends_on", None)
+        self.assertFalse(any(edge.get("target", "").startswith(("references/", "templates/", "scripts/")) for edge in edges))
+        self.assertFalse(any(edge.get("type") in {"mentions", "related_to", "uses_reference", "uses_template", "uses_script"} for edge in edges))
 
     def _assert_diagnostics(self, graph):
         diagnostic_types = {item.get("type") for item in self._diagnostics(graph)}
-        self.assertIn("duplicate_alias", diagnostic_types)
         self.assertIn("dangling_reference", diagnostic_types)
         self.assertIn("orphan_skill", diagnostic_types)
 
