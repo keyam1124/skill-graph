@@ -2058,7 +2058,7 @@ HTML_TEMPLATE = r"""<!doctype html>
       layoutKey: "",
       layoutBounds: { width: 0, height: 0 },
       pendingViewFit: true,
-      categoryFilter: "",
+      selectedCategory: "",
       dragging: null,
       panning: null,
       view: { x: 0, y: 0, scale: 1 },
@@ -2094,7 +2094,6 @@ HTML_TEMPLATE = r"""<!doctype html>
 
     function nodePassesControls(node, keepSelected = false) {
       if (keepSelected && state.selected?.kind === "node" && node.id === state.selected.value.id) return true;
-      if (!nodePassesCategoryFilter(node)) return false;
       const q = search.value.trim().toLowerCase();
       if (!q) return true;
       const annotation = node.annotation || {};
@@ -2188,15 +2187,17 @@ HTML_TEMPLATE = r"""<!doctype html>
       );
     }
 
-    function nodePassesCategoryFilter(node) {
-      return !state.categoryFilter || categoryKeyForNode(node) === state.categoryFilter;
+    function toggleCategorySelection(key) {
+      state.selectedCategory = state.selectedCategory === key ? "" : key;
+      state.selected = null;
+      draw();
     }
 
-    function toggleCategoryFilter(key) {
-      state.categoryFilter = state.categoryFilter === key ? "" : key;
-      state.selected = null;
-      resetGraphViewState();
+    function clearCategorySelection() {
+      if (!state.selectedCategory) return false;
+      state.selectedCategory = "";
       draw();
+      return true;
     }
 
     function categoryColor(key) {
@@ -2329,7 +2330,7 @@ HTML_TEMPLATE = r"""<!doctype html>
       for (const frame of categoryFrameGroups(nodes, positions)) {
         const colors = categoryColor(frame.key);
         const group = document.createElementNS("http://www.w3.org/2000/svg", "g");
-        const isSelected = state.categoryFilter === frame.key;
+        const isSelected = state.selectedCategory === frame.key;
         group.setAttribute("class", `category-frame${isSelected ? " selected" : ""}`);
 
         const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
@@ -2368,7 +2369,7 @@ HTML_TEMPLATE = r"""<!doctype html>
         hit.setAttribute("rx", "8");
         hit.addEventListener("click", event => {
           event.stopPropagation();
-          toggleCategoryFilter(frame.key);
+          toggleCategorySelection(frame.key);
         });
         hitLayer.append(hit);
       }
@@ -2696,11 +2697,11 @@ HTML_TEMPLATE = r"""<!doctype html>
           ? edgeSummary(selected.value)
           : selected?.kind === "diagnostic"
             ? diagnosticLabel(selected.value.type)
-            : state.categoryFilter
-              ? `Category: ${state.categoryFilter}`
+            : state.selectedCategory
+              ? `Category: ${state.selectedCategory}`
               : "No selection";
       setText("activeSelection", activeLabel);
-      clearCategory.hidden = !state.categoryFilter;
+      clearCategory.hidden = !state.selectedCategory;
       const scopedDiagnostics = visibleDiagnostics();
       setText("activeDiagnostics", scopedDiagnostics.length ? `${scopedDiagnostics.length} diagnostics in scope` : "No diagnostics in scope");
       renderLists(nodes);
@@ -2924,6 +2925,7 @@ HTML_TEMPLATE = r"""<!doctype html>
         startY: point.y,
         viewX: state.view.x,
         viewY: state.view.y,
+        moved: false,
       };
       window.addEventListener("pointermove", panGraph);
       window.addEventListener("pointerup", endGraphPan);
@@ -2939,14 +2941,21 @@ HTML_TEMPLATE = r"""<!doctype html>
         x: state.panning.viewX + point.x - state.panning.startX,
         y: state.panning.viewY + point.y - state.panning.startY,
       };
+      if (Math.hypot(point.x - state.panning.startX, point.y - state.panning.startY) > 3) {
+        state.panning.moved = true;
+      }
       draw();
     }
 
     function endGraphPan() {
+      const panning = state.panning;
       window.removeEventListener("pointermove", panGraph);
       window.removeEventListener("pointerup", endGraphPan);
       window.removeEventListener("pointercancel", endGraphPan);
       state.panning = null;
+      if (panning && !panning.moved) {
+        clearCategorySelection();
+      }
     }
 
     function wheelZoomGraph(event) {
@@ -3019,16 +3028,11 @@ HTML_TEMPLATE = r"""<!doctype html>
     }
     categoryFrames.addEventListener("change", () => {
       if (!categoryFrames.checked) {
-        state.categoryFilter = "";
-        resetGraphViewState();
+        state.selectedCategory = "";
       }
       draw();
     });
-    clearCategory.addEventListener("click", () => {
-      state.categoryFilter = "";
-      resetGraphViewState();
-      draw();
-    });
+    clearCategory.addEventListener("click", clearCategorySelection);
     document.addEventListener("keydown", event => {
       if (event.key === "/" && document.activeElement !== search) {
         event.preventDefault();
