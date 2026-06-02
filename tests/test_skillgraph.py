@@ -300,6 +300,7 @@ class SkillGraphViewerWorkflowTest(unittest.TestCase):
         diagnostic_types = {item.get("type") for item in self._diagnostics(graph)}
         self.assertIn("dangling_reference", diagnostic_types)
         self.assertIn("orphan_skill", diagnostic_types)
+        self.assertNotIn("possible_relation", diagnostic_types)
 
     def _write(self, path, content):
         path.parent.mkdir(parents=True, exist_ok=True)

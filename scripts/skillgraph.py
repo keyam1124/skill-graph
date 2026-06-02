@@ -770,17 +770,6 @@ def body_mention_edges(
                     [evidence(rel, match.group(0))],
                 )
             )
-            diagnostics.append(
-                Diagnostic(
-                    type="possible_relation",
-                    severity="info",
-                    message=f"{skill['id']} references {target_id}; confirm whether this dependency is intentional.",
-                    path=rel,
-                    skill=skill["id"],
-                    target=target_id,
-                    evidence={"term": match.group(0)},
-                )
-            )
     return edges, diagnostics
 
 
