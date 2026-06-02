@@ -2,16 +2,18 @@
 name: skillgraph-cartographer
 description: >
   Use when inspecting, classifying, or rendering relationships among SKILL.md
-  files. Run the local read-only skillgraph viewer runtime, enrich the base
-  graph with this agent's own labels, categories, clusters, and inferred
-  dependency hints, then display the result without writing graph files or
-  modifying the repository.
+  files in a target repository. Always use this skill when the user asks to
+  visualize a SkillGraph, inspect duplicate aliases, find orphan skills, or
+  explain skill dependencies. Run the bundled read-only CLI from this Skill's
+  scripts directory against the target repository, optionally enrich the graph
+  in memory, then display it without writing graph files or modifying the repo.
 ---
 # SkillGraph Cartographer
 
-Explore a repository's current SkillGraph as a read-only map. The local
-`scripts/skillgraph.py` tool scans files and opens the viewer; this Skill
-defines the analysis flow that Codex or Claude Code performs around that tool.
+Explore a target repository's current SkillGraph as a read-only map. This
+AgentSkill includes its own CLI under `scripts/skillgraph.py`; call that bundled
+CLI even when the target repository is somewhere else and does not contain the
+tool.
 
 The tool must not call Codex, Claude Code, external LLM APIs, or write graph
 artifacts. The agent using this Skill performs any inference itself and passes
@@ -25,18 +27,20 @@ or orphan skills.
 
 ## Workflow
 
-1. Confirm the repository root. Unless the user provides another root, use the
-   current working directory.
-2. Collect the deterministic base graph:
+1. Confirm the target repository root. Unless the user provides another root,
+   use the current working directory.
+2. Resolve `SKILL_DIR` to the directory that contains this `SKILL.md`. Do not
+   assume the target repository has `scripts/skillgraph.py`.
+3. Collect the deterministic base graph:
 
    ```bash
-   python3 scripts/skillgraph.py collect .
+   python3 "$SKILL_DIR/scripts/skillgraph.py" collect "$TARGET_REPO"
    ```
 
    Capture stdout as JSON. Do not expect `.skillgraph/` or HTML files to be
    created.
 
-3. Read the base graph:
+4. Read the base graph:
 
    - `nodes`
    - `edges`
@@ -44,7 +48,7 @@ or orphan skills.
    - `languageVariants`
    - relation `origin`, `confidence`, and `evidence`
 
-4. Enrich the graph in memory with agent-inferred annotations:
+5. Enrich the graph in memory with agent-inferred annotations when useful:
 
    - concise display labels
    - one-line summaries
@@ -56,17 +60,23 @@ or orphan skills.
    - optional inferred dependency hints
    - optional view suggestions
 
-5. Keep deterministic and inferred information separate. Use `nodeAnnotations`
+6. Keep deterministic and inferred information separate. Use `nodeAnnotations`
    for inferred node metadata and `inferredEdges` for inferred relationship
    hints. Do not rewrite existing deterministic nodes or edges.
 
-6. Display the enriched graph:
+7. Display the base or enriched graph:
 
    ```bash
-   python3 scripts/skillgraph.py view --stdin
+   python3 "$SKILL_DIR/scripts/skillgraph.py" view --stdin
    ```
 
    Pipe the enriched JSON to stdin. The command prints the local viewer URL.
+
+For a direct viewer run without custom enrichment, use the bundled wrapper:
+
+```bash
+SKILLGRAPH_REPO_ROOT="$TARGET_REPO" "$SKILL_DIR/scripts/view-skillgraph.sh" --no-open
+```
 
 ## Enrichment JSON Shape
 
@@ -119,12 +129,17 @@ Add these top-level fields to the collected graph when useful:
 - Do not write graph artifacts or per-skill configuration files.
 - Do not edit source files as part of this visualization workflow.
 - Do not propose write-back or approval workflows.
+- Always call the bundled CLI from this Skill directory; do not rely on the
+  target repository having a copy of the tool.
 - Treat inferred labels, categories, clusters, and edges as temporary viewer
   annotations, not source of truth.
 - Derive categories from what the skills do.
 - Nodes are SKILL nodes only. Do not create nodes for references, templates,
   scripts, or instruction files.
-- Treat links and textual mentions as the same `depends_on` relationship.
+- Treat `SKILL.md` as free-form Markdown. Do not attach special meaning to
+  fixed section names.
+- Deterministic relations come from direct `SKILL.md` links, raw `SKILL.md` path
+  references, and generic body mentions.
 - Prefer weak inferred dependency edges with rationale over overstating uncertain
   relationships.
 - If an inferred edge has no evidence, include a rationale and keep confidence

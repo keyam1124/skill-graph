@@ -9,12 +9,13 @@ from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+SKILLGRAPH_CLI = REPO_ROOT / "skills" / "meta" / "skillgraph-cartographer" / "scripts" / "skillgraph.py"
 
 
 def load_skillgraph_module():
     spec = importlib.util.spec_from_file_location(
         "skillgraph",
-        REPO_ROOT / "scripts" / "skillgraph.py",
+        SKILLGRAPH_CLI,
     )
     module = importlib.util.module_from_spec(spec)
     assert spec.loader is not None
@@ -34,7 +35,7 @@ class SkillGraphViewerWorkflowTest(unittest.TestCase):
             result = subprocess.run(
                 [
                     sys.executable,
-                    "scripts/skillgraph.py",
+                    str(SKILLGRAPH_CLI),
                     "collect",
                     str(root),
                 ],
@@ -77,7 +78,6 @@ class SkillGraphViewerWorkflowTest(unittest.TestCase):
         self._node(graph["nodes"], "free-form")
         diagnostic_types = {item.get("type") for item in self._diagnostics(graph)}
         self.assertNotIn("missing_frontmatter", diagnostic_types)
-        self.assertNotIn("missing_related_section", diagnostic_types)
 
     def test_enriched_graph_annotations_and_viewer_html(self):
         skillgraph = load_skillgraph_module()
@@ -215,10 +215,6 @@ class SkillGraphViewerWorkflowTest(unittest.TestCase):
             Also read references/ddd/aggregate-rules.md and
             templates/ddd/aggregate-canvas.md.
 
-            ## Related Skills
-
-            - repository-design
-
             ## References
 
             - [Aggregate rules](../../../references/ddd/aggregate-rules.md)
@@ -323,7 +319,6 @@ class SkillGraphViewerWorkflowTest(unittest.TestCase):
         self.assertIn("orphan_skill", diagnostic_types)
         self.assertNotIn("possible_relation", diagnostic_types)
         self.assertNotIn("missing_frontmatter", diagnostic_types)
-        self.assertNotIn("missing_related_section", diagnostic_types)
 
     def _write(self, path, content):
         path.parent.mkdir(parents=True, exist_ok=True)
