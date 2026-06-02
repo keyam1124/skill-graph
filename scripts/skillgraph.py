@@ -353,21 +353,11 @@ def scan_registry(root: Path) -> dict[str, Any]:
     for skill_file in skill_files:
         skill_id = normalize_skill_id(skill_file, root)
         text = read_text(skill_file)
-        frontmatter, has_frontmatter = parse_frontmatter(text)
+        frontmatter, _ = parse_frontmatter(text)
         name = str(frontmatter.get("name") or skill_file.parent.name)
         description = str(frontmatter.get("description") or "")
         path = rel_path(skill_file, root)
         skill_dir = rel_path(skill_file.parent, root)
-        if not has_frontmatter or "name" not in frontmatter or "description" not in frontmatter:
-            diagnostics.append(
-                Diagnostic(
-                    type="missing_frontmatter",
-                    severity="warning",
-                    message="SKILL.md is missing frontmatter name and/or description.",
-                    path=path,
-                    skill=skill_id,
-                )
-            )
         h1 = first_h1(text)
         category = skill_category(skill_file, root)
         aliases = unique(
@@ -674,7 +664,6 @@ def heading_edges(
 ) -> tuple[list[Edge], list[Diagnostic]]:
     edges: list[Edge] = []
     diagnostics: list[Diagnostic] = []
-    has_related = False
     for path in skill.get("paths", [skill["path"]]):
         text = read_text(root / path)
         sections = section_ranges(text)
@@ -682,7 +671,6 @@ def heading_edges(
             heading = section["normalized"]
             if heading not in RELATED_HEADINGS:
                 continue
-            has_related = True
             for target, raw in find_section_mentions(section["text"], skills, alias_map):
                 if target == skill["id"]:
                     continue
@@ -696,16 +684,6 @@ def heading_edges(
                         [evidence(path, raw, section["heading"])],
                     )
                 )
-    if not has_related:
-        diagnostics.append(
-            Diagnostic(
-                type="missing_related_section",
-                severity="info",
-                message="Related Skills section is not present.",
-                path=skill["path"],
-                skill=skill["id"],
-            )
-        )
     return edges, diagnostics
 
 

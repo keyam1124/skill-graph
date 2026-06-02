@@ -58,6 +58,27 @@ class SkillGraphViewerWorkflowTest(unittest.TestCase):
             self._assert_graph(graph)
             self._assert_diagnostics(graph)
 
+    def test_collect_allows_free_form_skill_markdown_without_structure_diagnostics(self):
+        skillgraph = load_skillgraph_module()
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._write(
+                root / "skills" / "free_form" / "SKILL.md",
+                """\
+                # Free Form
+
+                This skill intentionally has no frontmatter and no prescribed
+                relationship section.
+                """,
+            )
+
+            graph = skillgraph.analyze_graph(root)
+
+        self._node(graph["nodes"], "free-form")
+        diagnostic_types = {item.get("type") for item in self._diagnostics(graph)}
+        self.assertNotIn("missing_frontmatter", diagnostic_types)
+        self.assertNotIn("missing_related_section", diagnostic_types)
+
     def test_enriched_graph_annotations_and_viewer_html(self):
         skillgraph = load_skillgraph_module()
         graph = {
@@ -301,6 +322,8 @@ class SkillGraphViewerWorkflowTest(unittest.TestCase):
         self.assertIn("dangling_reference", diagnostic_types)
         self.assertIn("orphan_skill", diagnostic_types)
         self.assertNotIn("possible_relation", diagnostic_types)
+        self.assertNotIn("missing_frontmatter", diagnostic_types)
+        self.assertNotIn("missing_related_section", diagnostic_types)
 
     def _write(self, path, content):
         path.parent.mkdir(parents=True, exist_ok=True)
