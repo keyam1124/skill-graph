@@ -1792,6 +1792,7 @@
       const selectedEdge = selected?.kind === "edge" ? selected.value : null;
       const selectedEdgeNodes = selectedEdge ? new Set([selectedEdge.source, selectedEdge.target]) : new Set();
       drawCategoryFrames(layer, nodes, state.layoutBounds.width || width, state.layoutBounds.height || height);
+      drawCategoryFrameHits(layer, nodes, state.layoutBounds.width || width, state.layoutBounds.height || height);
       const edgeOccurrences = new Map();
       for (const edge of edges) {
         const source = positions.get(edge.source);
@@ -1810,16 +1811,21 @@
         const hitPath = document.createElementNS("http://www.w3.org/2000/svg", "path");
         hitPath.setAttribute("d", pathData);
         hitPath.setAttribute("class", "edge-hit");
-        hitPath.addEventListener("click", () => select(edge, "edge"));
+        hitPath.addEventListener("click", event => {
+          event.stopPropagation();
+          select(edge, "edge");
+        });
         layer.append(hitPath);
         const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
         path.setAttribute("d", pathData);
         path.setAttribute("class", edgeClass);
         path.setAttribute("marker-end", edgeMarker(isSelected, isRelated));
-        path.addEventListener("click", () => select(edge, "edge"));
+        path.addEventListener("click", event => {
+          event.stopPropagation();
+          select(edge, "edge");
+        });
         layer.append(path);
       }
-      drawCategoryFrameHits(layer, nodes, state.layoutBounds.width || width, state.layoutBounds.height || height);
       for (const node of nodes) {
         const point = positions.get(node.id);
         if (!point) continue;
@@ -2067,6 +2073,14 @@
       draw();
     }
 
+    function clearGraphSelection() {
+      if (!state.selected && !state.selectedCategory) return false;
+      state.selected = null;
+      state.selectedCategory = "";
+      draw();
+      return true;
+    }
+
     function resetGraphLayout() {
       state.positions = {};
       state.layoutKey = "";
@@ -2128,7 +2142,7 @@
       window.removeEventListener("pointercancel", endGraphPan);
       state.panning = null;
       if (panning && !panning.moved) {
-        clearCategorySelection();
+        clearGraphSelection();
       }
     }
 

@@ -200,6 +200,12 @@ class SkillGraphViewerWorkflowTest(unittest.TestCase):
         self.assertIn("Clear category", html)
         self.assertIn("clearCategory.hidden = !state.selectedCategory", html)
         self.assertIn("panning && !panning.moved", html)
+        self.assertIn("clearGraphSelection", html)
+        self.assertIn("event.stopPropagation();\n          select(edge, \"edge\");", html)
+        self.assertLess(
+            html.index("drawCategoryFrameHits(layer, nodes"),
+            html.index("const edgeOccurrences = new Map();"),
+        )
         self.assertIn('class", `category-frame${isSelected ? " selected" : ""}`', html)
         self.assertIn("annotation.suggestedCategory, annotation.clusterId, node.category", html)
         self.assertNotIn('nodes.filter(node => node.kind === "skill")', html)
