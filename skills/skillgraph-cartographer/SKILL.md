@@ -3,8 +3,8 @@ name: skillgraph-cartographer
 description: >
   Use when inspecting, classifying, or rendering relationships among SKILL.md
   files in a target repository. Always use this skill when the user asks for a
-  SkillGraph, skill map, skill dependency diagram, duplicate aliases, orphan
-  skills, semantic clusters, or Codex/Claude Code-inferred skill relationships.
+  SkillGraph, skill map, skill dependency diagram, duplicate aliases, semantic
+  clusters, or Codex/Claude Code-inferred skill relationships.
   Run the bundled read-only CLI, enrich the graph with host-agent reasoning,
   and display the result without modifying the target repository.
 compatibility: Requires Python 3 and a local shell. No network access or external LLM API is required.
@@ -25,8 +25,8 @@ spawn nested Codex/Claude commands or call external LLM APIs for enrichment.
 
 Use this Skill when the user asks to visualize, inspect, classify, label, group,
 or explain relationships among `SKILL.md` files. Also use it for duplicate
-aliases, orphan skills, semantic clusters, likely entry skills, dependency
-diagrams, and inferred skill relationships.
+aliases, semantic clusters, likely entry skills, dependency diagrams, and
+inferred skill relationships.
 
 ## Workflow
 
@@ -57,6 +57,9 @@ diagrams, and inferred skill relationships.
      or relationship inference is requested.
    - Compare names, descriptions, triggers, workflow steps, referenced files,
      and shared concepts across all scanned skills.
+   - Add an inferred relation only when the source and target have a meaningful
+     workflow, dependency, sequencing, overlap, alternative, or support
+     relationship. A Skill with no meaningful relation is valid.
    - Keep excerpts short and cite the relevant `SKILL.md` path in evidence.
    - Treat the host agent's reasoning as advisory annotation, not source truth.
 
@@ -69,7 +72,7 @@ diagrams, and inferred skill relationships.
    - cluster IDs
    - role tags
    - trigger phrases
-   - optional inferred dependency hints
+   - inferred relationship hints
    - optional view suggestions
 
 7. Keep deterministic and inferred information separate. Use `nodeAnnotations`
@@ -153,8 +156,9 @@ Add these top-level fields to the collected graph when useful:
 - Treat `SKILL.md` as free-form Markdown. Do not attach special meaning to
   fixed section names.
 - Deterministic relations come from direct `SKILL.md` links, raw `SKILL.md` path
-  references, and generic body mentions.
-- Prefer weak inferred dependency edges with rationale over overstating uncertain
+  references.
+- Do not diagnose or report orphan skills. No relation is a normal outcome.
+- Prefer weak inferred edges with rationale over overstating uncertain
   relationships.
 - If an inferred edge has no evidence, include a rationale and keep confidence
   low.
