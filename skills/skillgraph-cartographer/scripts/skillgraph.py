@@ -175,21 +175,6 @@ def should_skip(path: Path, root: Path) -> bool:
     return any(path.name.lower().endswith(suffix) for suffix in EXCLUDED_SUFFIXES)
 
 
-def iter_files(root: Path, patterns: Iterable[str] | None = None) -> Iterable[Path]:
-    if not root.exists():
-        return
-    if patterns is None:
-        candidates = root.rglob("*")
-    else:
-        pattern_candidates: list[Path] = []
-        for pattern in patterns:
-            pattern_candidates.extend(root.glob(pattern))
-        candidates = iter(pattern_candidates)
-    for path in candidates:
-        if path.is_file() and not should_skip(path, root):
-            yield path
-
-
 def read_text(path: Path) -> str:
     return path.read_text(encoding="utf-8", errors="replace")
 
@@ -603,70 +588,6 @@ def skill_path_reference_edges(
     return edges, diagnostics
 
 
-def term_pattern(term: str) -> re.Pattern[str] | None:
-    term = term.strip()
-    if len(term) < 3:
-        return None
-    if re.match(r"^[A-Za-z0-9_.\-/]+$", term):
-        return re.compile(rf"(?<![A-Za-z0-9_\-/]){re.escape(term)}(?![A-Za-z0-9_\-/])", re.IGNORECASE)
-    return re.compile(re.escape(term), re.IGNORECASE)
-
-
-def skill_search_files(root: Path, skill: dict[str, Any]) -> list[Path]:
-    files: list[Path] = []
-    for skill_dir in skill.get("dirs", [skill.get("dir", "")]):
-        base = root / skill_dir
-        for path in iter_files(base, ["SKILL*.md"]):
-            files.append(path)
-    return sorted(set(files))
-
-
-def body_mention_edges(
-    root: Path,
-    skill: dict[str, Any],
-    skills: dict[str, dict[str, Any]],
-    alias_map: dict[str, list[str]],
-) -> tuple[list[Edge], list[Diagnostic]]:
-    edges: list[Edge] = []
-    diagnostics: list[Diagnostic] = []
-    seen_edges: set[tuple[str, str]] = set()
-    files = skill_search_files(root, skill)
-    target_terms: list[tuple[str, str]] = []
-    for target_id, target in skills.items():
-        if target_id == skill["id"]:
-            continue
-        values = [target_id, target.get("name", ""), target.get("label", ""), target.get("path", ""), target.get("dir", "")]
-        values.extend(target.get("aliases", []))
-        for value in unique(str(v) for v in values if v):
-            target_terms.append((target_id, value))
-
-    for file_path in files:
-        text = strip_code_blocks(read_text(file_path))
-        rel = rel_path(file_path, root)
-        for target_id, term in target_terms:
-            pattern = term_pattern(term)
-            if not pattern:
-                continue
-            match = pattern.search(text)
-            if not match:
-                continue
-            edge_key = (target_id, rel)
-            if edge_key in seen_edges:
-                continue
-            seen_edges.add(edge_key)
-            edges.append(
-                make_edge(
-                    skill["id"],
-                    target_id,
-                    "depends_on",
-                    "mention",
-                    "low",
-                    [evidence(rel, match.group(0))],
-                )
-            )
-    return edges, diagnostics
-
-
 def duplicate_alias_diagnostics(skills: dict[str, dict[str, Any]], alias_map: dict[str, list[str]]) -> list[Diagnostic]:
     diagnostics: list[Diagnostic] = []
     for alias, skill_ids in sorted(alias_map.items()):
@@ -767,29 +688,8 @@ def analyze_graph(root: Path) -> dict[str, Any]:
             path_edges, path_diags = skill_path_reference_edges(root, skill, path_to_skill, root / path)
             edges.extend(path_edges)
             diagnostics.extend(path_diags)
-        mention_edges, mention_diags = body_mention_edges(root, skill, skills, alias_map)
-        edges.extend(mention_edges)
-        diagnostics.extend(mention_diags)
 
     edges = merge_dependency_edges(edges)
-
-    connected: set[str] = set()
-    skill_ids = set(skills)
-    for edge in edges:
-        if edge.source in skill_ids:
-            connected.add(edge.source)
-        if edge.target in skill_ids:
-            connected.add(edge.target)
-    for skill_id in sorted(skill_ids - connected):
-        diagnostics.append(
-            Diagnostic(
-                type="orphan_skill",
-                severity="info",
-                message="Skill has no incoming or outgoing relationship edges.",
-                path=skills[skill_id]["path"],
-                skill=skill_id,
-            )
-        )
 
     skill_nodes = [skills[skill_id] for skill_id in sorted(skills)]
     graph = {
@@ -834,10 +734,9 @@ def agent_list(graph: dict[str, Any], key: str, diagnostics: list[dict[str, Any]
 
 
 def normalize_relation_type(value: Any) -> str:
-    relation_type = str(value or "depends_on")
-    if relation_type in {"related_to", "mentions"}:
-        return "depends_on"
-    return relation_type
+    relation_type = str(value or "related_to").strip().lower()
+    relation_type = re.sub(r"[^\w.-]+", "_", relation_type, flags=re.UNICODE).strip("_.-")
+    return relation_type or "related_to"
 
 
 def enrich_graph(graph: dict[str, Any]) -> dict[str, Any]:
@@ -1503,6 +1402,56 @@ HTML_TEMPLATE = r"""<!doctype html>
       line-height: 1.5;
     }
 
+    .relation-section {
+      margin: 14px 0;
+    }
+
+    .relation-section h3 {
+      margin: 0 0 7px;
+      color: color-mix(in oklch, var(--fg) 76%, var(--muted));
+      font-size: 12px;
+      text-transform: uppercase;
+    }
+
+    .relation-list {
+      border-top: 1px solid color-mix(in oklch, var(--border) 70%, transparent);
+    }
+
+    .relation-row {
+      width: 100%;
+      display: grid;
+      gap: 6px;
+      min-height: 0;
+      padding: 9px 0;
+      border: 0;
+      border-bottom: 1px solid color-mix(in oklch, var(--border) 70%, transparent);
+      border-radius: 0;
+      background: transparent;
+      color: var(--fg);
+      text-align: left;
+    }
+
+    .relation-row:hover {
+      color: var(--fg);
+      box-shadow: none;
+    }
+
+    .relation-row strong,
+    .relation-row span {
+      overflow-wrap: anywhere;
+    }
+
+    .relation-row strong {
+      font-weight: 740;
+      line-height: 1.25;
+    }
+
+    .relation-row .description {
+      margin: 0;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
     details.raw-json {
       margin-top: 10px;
       border: 1px solid var(--border);
@@ -1932,7 +1881,7 @@ HTML_TEMPLATE = r"""<!doctype html>
 
       <label class="command" for="search">
         <span>Search</span>
-        <input id="search" type="search" placeholder="id, name, path, diagnostics" autocomplete="off">
+        <input id="search" type="search" placeholder="id, name, path, relation, diagnostics" autocomplete="off">
         <kbd>/</kbd>
       </label>
 
@@ -2051,6 +2000,7 @@ HTML_TEMPLATE = r"""<!doctype html>
       view: { x: 0, y: 0, scale: 1 },
     };
     const nodeIndex = new Map(graph.nodes.map(node => [node.id, node]));
+    const edgeIndex = new Map(graph.edges.map(edge => [edge.id, edge]));
     const graphDisplayNodes = graph.nodes;
     const graphDisplayNodeIds = new Set(graphDisplayNodes.map(node => node.id));
     const graphDisplayEdges = graph.edges.filter(edgeConnectsDisplayNodes);
@@ -2080,12 +2030,22 @@ HTML_TEMPLATE = r"""<!doctype html>
       return graphDisplayNodeIds.has(edge.source) && graphDisplayNodeIds.has(edge.target);
     }
 
+    function nodeRelationSearchValues(node) {
+      const values = [];
+      for (const edge of graph.edges) {
+        if (edge.source !== node.id && edge.target !== node.id) continue;
+        values.push(edge.type, edge.origin, edge.confidence, edge.rationale);
+        values.push(nodeDisplay(edge.source), nodeDisplay(edge.target));
+      }
+      return values;
+    }
+
     function nodePassesControls(node, keepSelected = false) {
       if (keepSelected && state.selected?.kind === "node" && node.id === state.selected.value.id) return true;
       const q = search.value.trim().toLowerCase();
       if (!q) return true;
       const annotation = node.annotation || {};
-      return [node.id, node.label, node.path, node.description, annotation.label, annotation.summary, annotation.suggestedCategory, annotation.clusterId, ...(annotation.roleTags || []), ...(node.aliases || [])]
+      return [node.id, node.label, node.path, node.description, annotation.label, annotation.summary, annotation.suggestedCategory, annotation.clusterId, ...(annotation.roleTags || []), ...(node.aliases || []), ...nodeRelationSearchValues(node)]
         .filter(Boolean)
         .some(value => String(value).toLowerCase().includes(q));
     }
@@ -2377,6 +2337,68 @@ HTML_TEMPLATE = r"""<!doctype html>
 
     function edgeSummary(edge) {
       return `${nodeDisplay(edge.source)} -> ${nodeDisplay(edge.target)}`;
+    }
+
+    function relationTypeLabel(edge) {
+      return String(edge.type || "related_to").replaceAll("_", " ");
+    }
+
+    function relationOriginLabel(edge) {
+      if (edge.inferred || edge.origin === "agent_inferred") return "interpreted";
+      return edge.origin || "direct";
+    }
+
+    function relationEvidenceText(edge) {
+      const evidence = Array.isArray(edge.evidence) ? edge.evidence : [];
+      return evidence
+        .map(item => item.path || item.section || item.text)
+        .filter(Boolean)
+        .join(", ");
+    }
+
+    function sortedRelations(edges) {
+      return [...edges].sort((a, b) => {
+        const aLabel = `${relationTypeLabel(a)} ${nodeDisplay(a.source)} ${nodeDisplay(a.target)}`;
+        const bLabel = `${relationTypeLabel(b)} ${nodeDisplay(b.source)} ${nodeDisplay(b.target)}`;
+        return aLabel.localeCompare(bLabel);
+      });
+    }
+
+    function relationRowHtml(edge, direction) {
+      const otherId = direction === "outgoing" ? edge.target : edge.source;
+      const prefix = direction === "outgoing" ? "To" : "From";
+      const rationale = edge.rationale || relationEvidenceText(edge) || "";
+      return `
+        <button class="relation-row" type="button" data-edge-id="${escapeHtml(edge.id)}">
+          <span class="item-meta">
+            <span class="badge ${edge.inferred ? "inferred" : ""}">${escapeHtml(relationOriginLabel(edge))}</span>
+            <span class="badge file">${escapeHtml(relationTypeLabel(edge))}</span>
+            ${edge.confidence ? `<span class="badge">${escapeHtml(edge.confidence)}</span>` : ""}
+          </span>
+          <strong>${escapeHtml(prefix)} ${escapeHtml(nodeDisplay(otherId))}</strong>
+          ${rationale ? `<span class="description">${escapeHtml(rationale)}</span>` : ""}
+        </button>
+      `;
+    }
+
+    function renderRelationGroup(title, edges, direction) {
+      const values = sortedRelations(edges);
+      if (!values.length) {
+        return `
+          <section class="relation-section">
+            <h3>${escapeHtml(title)}</h3>
+            <p class="description">No relation in this direction.</p>
+          </section>
+        `;
+      }
+      return `
+        <section class="relation-section">
+          <h3>${escapeHtml(title)}</h3>
+          <div class="relation-list">
+            ${values.map(edge => relationRowHtml(edge, direction)).join("")}
+          </div>
+        </section>
+      `;
     }
 
     function diagnosticLabel(type) {
@@ -2820,8 +2842,19 @@ HTML_TEMPLATE = r"""<!doctype html>
       const details = document.getElementById("details");
       inspectorPanel.classList.remove("is-overview");
       details.innerHTML = renderDetails(value, kind);
-      document.getElementById("clearSelection").addEventListener("click", clearSelection);
+      bindDetailActions();
       draw();
+    }
+
+    function bindDetailActions() {
+      const clearButton = document.getElementById("clearSelection");
+      if (clearButton) clearButton.addEventListener("click", clearSelection);
+      for (const row of document.querySelectorAll("#details .relation-row[data-edge-id]")) {
+        row.addEventListener("click", () => {
+          const edge = edgeIndex.get(row.dataset.edgeId || "");
+          if (edge) select(edge, "edge");
+        });
+      }
     }
 
     function renderDetails(value, kind) {
@@ -2848,12 +2881,14 @@ HTML_TEMPLATE = r"""<!doctype html>
           <dl class="meta-grid">
             <dt>ID</dt><dd>${escapeHtml(node.id)}</dd>
             <dt>Path</dt><dd>${escapeHtml(nodePath(node))}</dd>
-            <dt>Outgoing</dt><dd>${outgoing.length} dependencies</dd>
-            <dt>Incoming</dt><dd>${incoming.length} dependents</dd>
+            <dt>Outgoing</dt><dd>${outgoing.length} relations</dd>
+            <dt>Incoming</dt><dd>${incoming.length} relations</dd>
             ${roleTags.length ? `<dt>Role tags</dt><dd>${roleTags.map(escapeHtml).join(", ")}</dd>` : ""}
             ${triggers.length ? `<dt>Trigger phrases</dt><dd>${triggers.map(escapeHtml).join(", ")}</dd>` : ""}
             ${node.aliases?.length ? `<dt>Aliases</dt><dd>${node.aliases.map(escapeHtml).join(", ")}</dd>` : ""}
           </dl>
+          ${renderRelationGroup("Outgoing relations", outgoing, "outgoing")}
+          ${renderRelationGroup("Incoming relations", incoming, "incoming")}
           <button id="clearSelection" type="button">Clear selection</button>
           ${rawJson(node)}
         </section>
@@ -2876,7 +2911,8 @@ HTML_TEMPLATE = r"""<!doctype html>
           <dl class="meta-grid">
             <dt>From</dt><dd>${escapeHtml(nodeDisplay(edge.source))}<br>${escapeHtml(edge.source)}</dd>
             <dt>To</dt><dd>${escapeHtml(nodeDisplay(edge.target))}<br>${escapeHtml(edge.target)}</dd>
-            <dt>Origin</dt><dd>${escapeHtml(edge.origin || "inferred")}</dd>
+            <dt>Relation</dt><dd>${escapeHtml(relationTypeLabel(edge))}</dd>
+            <dt>Origin</dt><dd>${escapeHtml(relationOriginLabel(edge))}</dd>
             ${edge.rationale ? `<dt>Rationale</dt><dd>${escapeHtml(edge.rationale)}</dd>` : ""}
             <dt>Evidence</dt><dd>${escapeHtml((edge.evidence || []).map(item => item.path || item.text).filter(Boolean).join(", ") || "N/A")}</dd>
           </dl>

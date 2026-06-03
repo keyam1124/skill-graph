@@ -167,7 +167,7 @@ class SkillGraphViewerWorkflowTest(unittest.TestCase):
             enriched["edges"],
             "skill.alpha",
             "skill.beta",
-            "depends_on",
+            "related_to",
             "agent_inferred",
         )
         diagnostic_types = {item["type"] for item in enriched["diagnostics"]}
@@ -224,6 +224,13 @@ class SkillGraphViewerWorkflowTest(unittest.TestCase):
         self.assertNotIn("appendEdgeGroup", html)
         self.assertIn("edgeDetailsJson", html)
         self.assertIn("const { id, type, ...payload } = edge", html)
+        self.assertIn("edgeIndex", html)
+        self.assertIn("relationTypeLabel", html)
+        self.assertIn("renderRelationGroup", html)
+        self.assertIn("relation-row", html)
+        self.assertIn("Outgoing relations", html)
+        self.assertIn("Incoming relations", html)
+        self.assertIn("interpreted", html)
         self.assertNotIn("node .node-type", html)
         self.assertNotIn('class", "node-type"', html)
         self.assertNotIn("nodeTypeLabel", html)
@@ -313,7 +320,7 @@ class SkillGraphViewerWorkflowTest(unittest.TestCase):
             """\
             ---
             name: unused-skill
-            description: Use when testing orphan diagnostics.
+            description: Use when testing unrelated skill handling.
             ---
             # Unused Skill
             """,
@@ -350,15 +357,29 @@ class SkillGraphViewerWorkflowTest(unittest.TestCase):
 
         edges = self._edges(graph)
         self._assert_edge(edges, "ddd-tactical.aggregate-design", "ddd-tactical.repository-design", "depends_on", None)
-        self._assert_edge(edges, "ddd-tactical.aggregate-design", "architecture.clean-architecture-review", "depends_on", None)
-        self._assert_edge(edges, "ddd-tactical.repository-design", "ddd-tactical.aggregate-design", "depends_on", None)
+        self.assertFalse(
+            any(
+                edge.get("source") == "ddd-tactical.aggregate-design"
+                and edge.get("target") == "architecture.clean-architecture-review"
+                for edge in edges
+            ),
+            "collect should not turn body text matches into deterministic edges",
+        )
+        self.assertFalse(
+            any(
+                edge.get("source") == "ddd-tactical.repository-design"
+                and edge.get("target") == "ddd-tactical.aggregate-design"
+                for edge in edges
+            ),
+            "collect should leave semantic skill relationships to host-agent inference",
+        )
         self.assertFalse(any(edge.get("target", "").startswith(("references/", "templates/", "scripts/")) for edge in edges))
         self.assertFalse(any(edge.get("type") in {"mentions", "related_to", "uses_reference", "uses_template", "uses_script"} for edge in edges))
 
     def _assert_diagnostics(self, graph):
         diagnostic_types = {item.get("type") for item in self._diagnostics(graph)}
         self.assertIn("dangling_reference", diagnostic_types)
-        self.assertIn("orphan_skill", diagnostic_types)
+        self.assertNotIn("orphan_skill", diagnostic_types)
         self.assertNotIn("possible_relation", diagnostic_types)
         self.assertNotIn("missing_frontmatter", diagnostic_types)
 
