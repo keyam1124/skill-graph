@@ -2170,47 +2170,6 @@ HTML_TEMPLATE = r"""<!doctype html>
       return `${String(key).slice(0, available).trim()}...${suffix}`;
     }
 
-    function categoryFrameGroups(nodes, positions) {
-      const groups = groupBy(nodes, categoryKeyForNode);
-      const frames = [];
-      for (const [key, values] of groups) {
-        let minX = Infinity;
-        let minY = Infinity;
-        let maxX = -Infinity;
-        let maxY = -Infinity;
-        let count = 0;
-        for (const node of values) {
-          const point = positions.get(node.id);
-          if (!point) continue;
-          const radius = nodeRadius(node);
-          const labelWidth = Math.min(180, Math.max(70, String(node.annotation?.label || node.label || node.id).length * 7));
-          minX = Math.min(minX, point.x - Math.max(radius + 34, labelWidth / 2));
-          maxX = Math.max(maxX, point.x + Math.max(radius + 34, labelWidth / 2));
-          minY = Math.min(minY, point.y - radius - 36);
-          maxY = Math.max(maxY, point.y + radius + 52);
-          count += 1;
-        }
-        if (!count) continue;
-        const padding = 24;
-        const minWidth = 140;
-        const minHeight = 106;
-        let x = minX - padding;
-        let y = minY - padding;
-        let width = maxX - minX + padding * 2;
-        let height = maxY - minY + padding * 2;
-        if (width < minWidth) {
-          x -= (minWidth - width) / 2;
-          width = minWidth;
-        }
-        if (height < minHeight) {
-          y -= (minHeight - height) / 2;
-          height = minHeight;
-        }
-        frames.push({ key, count, x, y, width, height });
-      }
-      return frames.sort((a, b) => (b.width * b.height) - (a.width * a.height));
-    }
-
     function layoutGroupForNode(node) {
       return categoryKeyForNode(node);
     }
@@ -2226,8 +2185,9 @@ HTML_TEMPLATE = r"""<!doctype html>
       const rows = Math.max(1, Math.ceil(groups.length / columns));
       const marginX = Math.min(120, Math.max(72, width * .06));
       const marginY = Math.min(120, Math.max(82, height * .07));
-      const cellWidth = (width - marginX * 2) / columns;
-      const cellHeight = (height - marginY * 2) / rows;
+      const gap = Math.min(72, Math.max(40, Math.min(width, height) * .04));
+      const cellWidth = (width - marginX * 2 - gap * Math.max(0, columns - 1)) / columns;
+      const cellHeight = (height - marginY * 2 - gap * Math.max(0, rows - 1)) / rows;
       const boxes = new Map();
       groups.forEach(([key, values], index) => {
         const col = index % columns;
@@ -2235,15 +2195,34 @@ HTML_TEMPLATE = r"""<!doctype html>
         boxes.set(key, {
           key,
           values,
-          x: marginX + col * cellWidth,
-          y: marginY + row * cellHeight,
+          x: marginX + col * (cellWidth + gap),
+          y: marginY + row * (cellHeight + gap),
           width: cellWidth,
           height: cellHeight,
-          centerX: marginX + col * cellWidth + cellWidth / 2,
-          centerY: marginY + row * cellHeight + cellHeight / 2,
+          centerX: marginX + col * (cellWidth + gap) + cellWidth / 2,
+          centerY: marginY + row * (cellHeight + gap) + cellHeight / 2,
         });
       });
       return boxes;
+    }
+
+    function layoutBoxFrame(box) {
+      const insetX = Math.min(30, Math.max(18, box.width * .04));
+      const insetY = Math.min(32, Math.max(20, box.height * .05));
+      return {
+        key: box.key,
+        count: box.values.length,
+        x: box.x + insetX,
+        y: box.y + insetY,
+        width: Math.max(140, box.width - insetX * 2),
+        height: Math.max(106, box.height - insetY * 2),
+      };
+    }
+
+    function categoryFrameGroups(nodes, width, height) {
+      return [...layoutGroupBoxes(nodes, width, height).values()]
+        .map(layoutBoxFrame)
+        .sort((a, b) => (b.width * b.height) - (a.width * a.height));
     }
 
     function nodeAnchorMap(nodes, width, height) {
@@ -2253,29 +2232,34 @@ HTML_TEMPLATE = r"""<!doctype html>
         const values = box.values;
         const columns = Math.max(1, Math.ceil(Math.sqrt(values.length)));
         const rows = Math.max(1, Math.ceil(values.length / columns));
-        const innerX = Math.min(70, Math.max(40, box.width * .12));
-        const innerY = Math.min(70, Math.max(44, box.height * .14));
+        const innerX = Math.min(94, Math.max(62, box.width * .15));
+        const innerTop = Math.min(116, Math.max(78, box.height * .22));
+        const innerBottom = Math.min(84, Math.max(58, box.height * .16));
         const usableWidth = Math.max(80, box.width - innerX * 2);
-        const usableHeight = Math.max(80, box.height - innerY * 2);
+        const usableHeight = Math.max(80, box.height - innerTop - innerBottom);
         values.forEach((node, index) => {
           const col = index % columns;
           const row = Math.floor(index / columns);
           anchors.set(node.id, {
             x: box.x + innerX + ((col + 1) / (columns + 1)) * usableWidth,
-            y: box.y + innerY + ((row + 1) / (rows + 1)) * usableHeight,
+            y: box.y + innerTop + ((row + 1) / (rows + 1)) * usableHeight,
             groupX: box.centerX,
             groupY: box.centerY,
+            minX: box.x + innerX * .72,
+            maxX: box.x + box.width - innerX * .72,
+            minY: box.y + innerTop * .72,
+            maxY: box.y + box.height - innerBottom * .72,
           });
         });
       }
       return anchors;
     }
 
-    function drawCategoryFrames(layer, nodes, positions) {
+    function drawCategoryFrames(layer, nodes, width, height) {
       if (!categoryFrames.checked) return;
       const frameLayer = document.createElementNS("http://www.w3.org/2000/svg", "g");
       frameLayer.setAttribute("class", "category-frame-layer");
-      for (const frame of categoryFrameGroups(nodes, positions)) {
+      for (const frame of categoryFrameGroups(nodes, width, height)) {
         const colors = categoryColor(frame.key);
         const group = document.createElementNS("http://www.w3.org/2000/svg", "g");
         const isSelected = state.selectedCategory === frame.key;
@@ -2303,11 +2287,11 @@ HTML_TEMPLATE = r"""<!doctype html>
       layer.append(frameLayer);
     }
 
-    function drawCategoryFrameHits(layer, nodes, positions) {
+    function drawCategoryFrameHits(layer, nodes, width, height) {
       if (!categoryFrames.checked) return;
       const hitLayer = document.createElementNS("http://www.w3.org/2000/svg", "g");
       hitLayer.setAttribute("class", "category-frame-hit-layer");
-      for (const frame of categoryFrameGroups(nodes, positions)) {
+      for (const frame of categoryFrameGroups(nodes, width, height)) {
         const hit = document.createElementNS("http://www.w3.org/2000/svg", "rect");
         hit.setAttribute("class", "category-frame-hit");
         hit.setAttribute("x", String(frame.x));
@@ -2538,11 +2522,15 @@ HTML_TEMPLATE = r"""<!doctype html>
       return clampPosition({ x, y }, width, height);
     }
 
-    function clampPosition(point, width, height) {
+    function clampPosition(point, width, height, bounds = null) {
       const padding = 42;
+      const minX = bounds ? Math.max(padding, bounds.minX) : padding;
+      const maxX = bounds ? Math.min(width - padding, bounds.maxX) : width - padding;
+      const minY = bounds ? Math.max(padding, bounds.minY) : padding;
+      const maxY = bounds ? Math.min(height - padding, bounds.maxY) : height - padding;
       return {
-        x: Math.min(width - padding, Math.max(padding, point.x)),
-        y: Math.min(height - padding, Math.max(padding, point.y)),
+        x: Math.min(maxX, Math.max(minX, point.x)),
+        y: Math.min(maxY, Math.max(minY, point.y)),
       };
     }
 
@@ -2551,7 +2539,8 @@ HTML_TEMPLATE = r"""<!doctype html>
       const anchors = nodeAnchorMap(nodes, bounds.width, bounds.height);
       nodes.forEach((node, index) => {
         if (!state.positions[node.id]) {
-          state.positions[node.id] = clampPosition(anchors.get(node.id) || initialPosition(index, nodes.length, bounds.width, bounds.height), bounds.width, bounds.height);
+          const anchor = anchors.get(node.id);
+          state.positions[node.id] = clampPosition(anchor || initialPosition(index, nodes.length, bounds.width, bounds.height), bounds.width, bounds.height, anchor);
         }
       });
       const key = layoutKey(nodes, edges, bounds);
@@ -2574,7 +2563,7 @@ HTML_TEMPLATE = r"""<!doctype html>
       const centerY = height / 2;
       const visibleEdges = edges.filter(edge => ids.has(edge.source) && ids.has(edge.target));
       const edgeDistance = Math.min(300, 150 + Math.sqrt(Math.max(1, nodes.length)) * 18);
-      for (let step = 0; step < 120; step += 1) {
+      for (let step = 0; step < 150; step += 1) {
         const velocity = new Map(nodes.map(node => [node.id, { x: 0, y: 0 }]));
         for (let i = 0; i < nodes.length; i += 1) {
           for (let j = i + 1; j < nodes.length; j += 1) {
@@ -2583,7 +2572,7 @@ HTML_TEMPLATE = r"""<!doctype html>
             const dx = a.x - b.x || .01;
             const dy = a.y - b.y || .01;
             const distance = Math.max(24, Math.hypot(dx, dy));
-            const force = Math.min(120, 9800 / (distance * distance));
+            const force = Math.min(150, 13600 / (distance * distance));
             const fx = (dx / distance) * force;
             const fy = (dy / distance) * force;
             velocity.get(nodes[i].id).x += fx;
@@ -2598,8 +2587,11 @@ HTML_TEMPLATE = r"""<!doctype html>
           const dx = target.x - source.x || .01;
           const dy = target.y - source.y || .01;
           const distance = Math.max(1, Math.hypot(dx, dy));
-          const desired = edgeDistance;
-          const force = (distance - desired) * .014;
+          const sourceNode = nodeIndex.get(edge.source);
+          const targetNode = nodeIndex.get(edge.target);
+          const sameGroup = sourceNode && targetNode && layoutGroupForNode(sourceNode) === layoutGroupForNode(targetNode);
+          const desired = sameGroup ? Math.max(120, edgeDistance * .78) : Math.max(280, edgeDistance * 1.32);
+          const force = (distance - desired) * (sameGroup ? .012 : .004);
           const fx = (dx / distance) * force;
           const fy = (dy / distance) * force;
           velocity.get(edge.source).x += fx;
@@ -2611,9 +2603,9 @@ HTML_TEMPLATE = r"""<!doctype html>
           const point = state.positions[node.id];
           const v = velocity.get(node.id);
           const anchor = anchors.get(node.id) || { x: centerX, y: centerY, groupX: centerX, groupY: centerY };
-          const anchorForce = .024;
-          v.x += (anchor.x - point.x) * anchorForce + (anchor.groupX - point.x) * .004;
-          v.y += (anchor.y - point.y) * anchorForce + (anchor.groupY - point.y) * .004;
+          const anchorForce = .052;
+          v.x += (anchor.x - point.x) * anchorForce + (anchor.groupX - point.x) * .001;
+          v.y += (anchor.y - point.y) * anchorForce + (anchor.groupY - point.y) * .001;
           state.positions[node.id] = clampPosition(
             {
               x: point.x + Math.max(-16, Math.min(16, v.x)),
@@ -2621,6 +2613,7 @@ HTML_TEMPLATE = r"""<!doctype html>
             },
             width,
             height,
+            anchor,
           );
         }
       }
@@ -2676,7 +2669,7 @@ HTML_TEMPLATE = r"""<!doctype html>
       const selectedNodeId = selected?.kind === "node" ? selected.value.id : "";
       const selectedEdge = selected?.kind === "edge" ? selected.value : null;
       const selectedEdgeNodes = selectedEdge ? new Set([selectedEdge.source, selectedEdge.target]) : new Set();
-      drawCategoryFrames(layer, nodes, positions);
+      drawCategoryFrames(layer, nodes, state.layoutBounds.width || width, state.layoutBounds.height || height);
       const edgeOccurrences = new Map();
       for (const edge of edges) {
         const source = positions.get(edge.source);
@@ -2704,7 +2697,7 @@ HTML_TEMPLATE = r"""<!doctype html>
         path.addEventListener("click", () => select(edge, "edge"));
         layer.append(path);
       }
-      drawCategoryFrameHits(layer, nodes, positions);
+      drawCategoryFrameHits(layer, nodes, state.layoutBounds.width || width, state.layoutBounds.height || height);
       for (const node of nodes) {
         const point = positions.get(node.id);
         if (!point) continue;
@@ -3051,6 +3044,7 @@ HTML_TEMPLATE = r"""<!doctype html>
       const bounds = state.layoutBounds.width && state.layoutBounds.height
         ? state.layoutBounds
         : { width: Math.max(svg.clientWidth, 360), height: Math.max(svg.clientHeight, 420) };
+      const anchor = nodeAnchorMap(visibleNodes(), bounds.width, bounds.height).get(state.dragging.id);
       const point = graphPoint(svg, event);
       const distance = Math.hypot(point.x - state.dragging.startX, point.y - state.dragging.startY);
       if (!state.dragging.moved && distance <= 3) return;
@@ -3062,6 +3056,7 @@ HTML_TEMPLATE = r"""<!doctype html>
         },
         bounds.width,
         bounds.height,
+        anchor,
       );
       draw();
     }
