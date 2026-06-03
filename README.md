@@ -102,6 +102,14 @@ CLI は外部 LLM API を呼びません。Codex / Claude Code など、この S
 │   └── skillgraph-cartographer/
 │       ├── SKILL.md
 │       └── scripts/
+│           ├── skillgraph_core/
+│           │   ├── analysis.py
+│           │   ├── cli.py
+│           │   ├── enrichment.py
+│           │   ├── registry.py
+│           │   ├── shared.py
+│           │   ├── viewer.html
+│           │   └── viewer.py
 │           ├── skillgraph.py
 │           └── view-skillgraph.sh
 └── tests/
