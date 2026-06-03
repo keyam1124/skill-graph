@@ -60,21 +60,21 @@ Skill が有効になると、agent は次の流れで動きます。
 直接 CLI を試す場合:
 
 ```bash
-python3 scripts/skillgraph.py collect . \
-  | python3 scripts/skillgraph.py view --stdin --no-open
+python3 skills/skillgraph-cartographer/scripts/skillgraph.py collect . \
+  | python3 skills/skillgraph-cartographer/scripts/skillgraph.py view --stdin --no-open
 ```
 
 JSON だけを確認する場合:
 
 ```bash
-python3 scripts/skillgraph.py collect .
+python3 skills/skillgraph-cartographer/scripts/skillgraph.py collect .
 ```
 
 任意のリポジトリを調べる場合:
 
 ```bash
-python3 scripts/skillgraph.py collect /path/to/repo \
-  | python3 scripts/skillgraph.py view --stdin --no-open
+python3 skills/skillgraph-cartographer/scripts/skillgraph.py collect /path/to/repo \
+  | python3 skills/skillgraph-cartographer/scripts/skillgraph.py view --stdin --no-open
 ```
 
 ビューアは URL を標準出力へ出します。終了するには、実行中のプロセスを `Ctrl-C` で止めます。
@@ -101,14 +101,11 @@ CLI は外部 LLM API を呼びません。Codex / Claude Code など、この S
 │       └── scripts/
 │           ├── skillgraph.py
 │           └── view-skillgraph.sh
-├── scripts/
-│   ├── skillgraph.py
-│   └── view-skillgraph.sh
 └── tests/
     └── test_skillgraph.py
 ```
 
-`skills/skillgraph-cartographer/` が `gh skill` でインストールされる配布単位です。トップレベルの `scripts/` は、このリポジトリ自身を開発・検証するときの互換エントリポイントです。
+`skills/skillgraph-cartographer/` が `gh skill` でインストールされる配布単位です。CLI とビューア起動用スクリプトも、この配布単位の中に置いています。
 
 ## 開発とテスト
 
