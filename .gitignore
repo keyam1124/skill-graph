@@ -1,3 +1,4 @@
 .skillgraph/
+.agents/skills/
 __pycache__/
 *.py[cod]

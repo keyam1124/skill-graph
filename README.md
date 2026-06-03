@@ -1,123 +1,141 @@
 # SkillGraph Cartographer
 
-`SkillGraph Cartographer` は、リポジトリ内の `SKILL.md` を読み取り、スキル同士の参照関係をローカルビューアで確認するためのツールです。
+`SkillGraph Cartographer` は、別リポジトリに `gh skill` でインストールして使う Agent Skill です。対象リポジトリ内の `SKILL.md` を読み取り、決定論的な参照関係と、Codex / Claude Code などの host agent が推論したカテゴリ・クラスタ・補助的な関係を重ねた SkillGraph をローカルビューアで表示します。
 
-現在の実装は、ファイルパス、Markdown リンク、本文中のスキル名参照などをもとにした決定論的な解析が中心です。Codex や Claude Code による `SKILL.md` の意味分析は、この実装にはまだ含まれていません。
+配布対象は `skills/skillgraph-cartographer/` です。`gh skill` は `skills/*/SKILL.md` を検出するため、このリポジトリを skills repository として扱えます。
 
-## 現在できること
+## できること
 
 - リポジトリ内の `SKILL.md` を収集する
-- Markdown リンクや本文中の参照から、スキル同士の関係を抽出する
-- 解決できない参照や、どこからも参照されていないスキルを検出する
-- 収集した関係をローカルビューアで表示する
-- エージェントが推論した一時的な注釈を、ビューア表示用に重ねる
+- Markdown リンク、`SKILL.md` パス参照、本文中のスキル名参照から関係を抽出する
+- 解決できない参照、重複 alias、孤立スキルを診断する
+- host agent の推論で、表示用のラベル、要約、カテゴリ、クラスタ、補助的な推論エッジを追加する
+- 決定論的な関係と推論由来の注釈を区別してローカルビューアに表示する
 
 収集と表示は読み取り専用です。対象リポジトリ内のスキル定義や設定ファイルは変更しません。
 
-## クイックスタート
+## インストール
 
-このリポジトリ自身を対象に、関係図をローカルビューアで開きます。
+`gh skill` は GitHub CLI 2.90.0 以降の public preview 機能です。2026-06-03 時点では、Codex など複数の agent の project scope は `.agents/skills` を共有します。
+
+リモートリポジトリから Codex 用に project scope へ入れる場合:
+
+```bash
+gh skill install keyam1124/skill-graph skillgraph-cartographer --agent codex --scope project
+```
+
+Claude Code 用に user scope へ入れる場合:
+
+```bash
+gh skill install keyam1124/skill-graph skillgraph-cartographer --agent claude-code --scope user
+```
+
+ローカル checkout から動作確認する場合:
+
+```bash
+gh skill install . skillgraph-cartographer --from-local --dir /tmp/skillgraph-cartographer-install
+```
+
+インストール前に確認する場合は、対象リポジトリを指定して preview します。
+
+```bash
+gh skill preview keyam1124/skill-graph skillgraph-cartographer
+```
+
+## 使い方
+
+Skill をインストールした agent に、対象リポジトリで次のように依頼します。
+
+```text
+このリポジトリの SkillGraph を表示して。カテゴリと推論エッジも付けて。
+```
+
+Skill が有効になると、agent は次の流れで動きます。
+
+1. インストール済み Skill ディレクトリの `scripts/skillgraph.py` を使う
+2. `collect` で対象リポジトリの決定論的な SkillGraph JSON を作る
+3. 必要に応じて `SKILL.md` の本文を読み、host agent の推論で `nodeAnnotations` と `inferredEdges` を追加する
+4. `view --stdin` に JSON を渡し、ローカルビューア URL を出力する
+
+直接 CLI を試す場合:
 
 ```bash
 python3 scripts/skillgraph.py collect . \
   | python3 scripts/skillgraph.py view --stdin --no-open
 ```
 
-コマンドはビューアの URL を出力します。ブラウザでその URL を開くと、収集したスキルと参照関係を確認できます。
-
-JSON だけを確認する場合は、`collect` を単体で実行します。
+JSON だけを確認する場合:
 
 ```bash
 python3 scripts/skillgraph.py collect .
 ```
 
-## 使い方
-
-別のリポジトリを調べる場合は、`collect` に対象リポジトリのパスを渡します。
+任意のリポジトリを調べる場合:
 
 ```bash
 python3 scripts/skillgraph.py collect /path/to/repo \
   | python3 scripts/skillgraph.py view --stdin --no-open
 ```
 
-Skill 内に同梱されている wrapper からも実行できます。
+ビューアは URL を標準出力へ出します。終了するには、実行中のプロセスを `Ctrl-C` で止めます。
 
-```bash
-SKILLGRAPH_REPO_ROOT=/path/to/repo \
-  skills/meta/skillgraph-cartographer/scripts/view-skillgraph.sh --no-open
-```
+## 推論付きグラフの扱い
 
-`view` では、必要に応じてホストやポートを指定できます。
+CLI は外部 LLM API を呼びません。Codex / Claude Code など、この Skill を読み込んだ host agent が、ローカルに読める `SKILL.md` をもとに推論します。
 
-```bash
-python3 scripts/skillgraph.py view --stdin --host 127.0.0.1 --port 0 --no-open
-```
+推論結果は次のフィールドに分けて追加します。
 
-## ビューアで確認できること
+- `nodeAnnotations`: 表示用ラベル、要約、カテゴリ、クラスタ、ロール、トリガー語
+- `inferredEdges`: host agent が補助的に推論した関係
+- `viewSuggestions`: ビューア上で注目しやすいクラスタやフィルタ候補
 
-ビューアでは、次の情報を確認できます。
-
-- 収集されたスキル
-- スキル同士の参照関係
-- 参照関係の根拠になったファイルやテキスト
-- 解決できない参照
-- どこからも参照されていないスキル
-- エージェントが一時的に追加したラベル、カテゴリ、関係の補足
-
-決定論的な解析結果と、エージェントが推論した補足情報は区別して扱います。推論による補足は表示用の注釈であり、`SKILL.md` の正本ではありません。
-
-## AgentSkill として使う場合
-
-`skills/meta/skillgraph-cartographer/SKILL.md` は、Codex などのエージェントが SkillGraph を調べるための AgentSkill です。
-
-この Skill を使うエージェントは、対象リポジトリに同じスクリプトがあると仮定せず、Skill ディレクトリに同梱された CLI を使います。
-
-基本の流れは次のとおりです。
-
-1. 対象リポジトリを決める
-2. 同梱 CLI の `collect` で決定論的な解析結果を取得する
-3. 必要に応じて、スキルの役割やカテゴリなどを一時的に推論する
-4. 推論結果を表示用の注釈として追加する
-5. `view --stdin` でローカルビューアに表示する
+決定論的な `nodes` と `edges` は正本として扱い、推論結果では上書きしません。
 
 ## リポジトリ構成
 
 ```text
 .
+├── skills/
+│   └── skillgraph-cartographer/
+│       ├── SKILL.md
+│       └── scripts/
+│           ├── skillgraph.py
+│           └── view-skillgraph.sh
 ├── scripts/
 │   ├── skillgraph.py
 │   └── view-skillgraph.sh
-├── skills/
-│   └── meta/
-│       └── skillgraph-cartographer/
-│           ├── SKILL.md
-│           └── scripts/
-│               ├── skillgraph.py
-│               └── view-skillgraph.sh
 └── tests/
     └── test_skillgraph.py
 ```
 
-トップレベルの `scripts/skillgraph.py` は、同梱 CLI への互換エントリポイントです。
+`skills/skillgraph-cartographer/` が `gh skill` でインストールされる配布単位です。トップレベルの `scripts/` は、このリポジトリ自身を開発・検証するときの互換エントリポイントです。
 
 ## 開発とテスト
 
-ユニットテストは次のコマンドで実行します。
+ユニットテスト:
 
 ```bash
-python3 -m unittest tests/test_skillgraph.py
+python3 -m unittest discover -s tests
 ```
 
-テストでは、主に次の挙動を確認しています。
+`gh skill` 互換のローカル検証:
 
-- `collect` がグラフ情報を標準出力へ出すこと
-- 収集処理が対象リポジトリを書き換えないこと
-- free-form な `SKILL.md` を扱えること
-- エージェントによる一時注釈をビューア用データに反映できること
-- 孤立スキルや解決できない参照を診断できること
+```bash
+gh skill publish --dry-run
+gh skill install . skillgraph-cartographer --from-local --dir /tmp/skillgraph-cartographer-install --force
+```
+
+主な検証対象:
+
+- `collect` が graph JSON を標準出力へ出す
+- `collect` が対象リポジトリを書き換えない
+- free-form な `SKILL.md` を扱える
+- 推論注釈をビューア用データへ安全に反映できる
+- 孤立スキル、重複 alias、解決できない参照を診断できる
 
 ## 制約
 
 - 主な対象は `SKILL.md` です。
-- references、templates、scripts は関係理解の補助情報として扱いますが、ビューア上の主対象にはしません。
-- 現時点では、Codex や Claude Code による意味分析は実装範囲に含まれていません。
+- references、templates、scripts は関係理解の補助情報として扱いますが、ビューア上の主ノードにはしません。
+- 推論結果は表示用の注釈であり、対象リポジトリの source of truth ではありません。
+- `gh skill` は public preview のため、CLI のオプションや対応 agent は変更される可能性があります。

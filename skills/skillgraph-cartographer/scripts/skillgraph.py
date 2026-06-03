@@ -541,7 +541,7 @@ def markdown_link_edges(
     diagnostics: list[Diagnostic] = []
     for path in skill.get("paths", [skill["path"]]):
         skill_file = root / path
-        text = read_text(skill_file)
+        text = strip_code_blocks(read_text(skill_file))
         for match in LINK_RE.finditer(text):
             raw = match.group(1)
             target = resolve_skill_link_target(raw, skill_file, root, path_to_skill)
@@ -567,7 +567,7 @@ def skill_path_reference_edges(
     source_file: Path,
     source_text: str | None = None,
 ) -> tuple[list[Edge], list[Diagnostic]]:
-    text = source_text if source_text is not None else read_text(source_file)
+    text = strip_code_blocks(source_text if source_text is not None else read_text(source_file))
     edges: list[Edge] = []
     diagnostics: list[Diagnostic] = []
     for match in SKILL_PATH_RE.finditer(text):
@@ -1004,6 +1004,8 @@ HTML_TEMPLATE = r"""<!doctype html>
       --danger: oklch(58% 0.18 28);
       --danger-soft: oklch(94% 0.05 28);
       --shadow: 0 18px 50px rgba(20, 30, 50, 0.10);
+      --navigator-width: 284px;
+      --inspector-width: 312px;
       --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", system-ui, sans-serif;
       --font-body: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
       --font-mono: "SF Mono", "JetBrains Mono", "IBM Plex Mono", ui-monospace, Menlo, monospace;
@@ -1048,12 +1050,12 @@ HTML_TEMPLATE = r"""<!doctype html>
     }
 
     .topbar {
-      min-height: 64px;
+      min-height: 52px;
       display: grid;
-      grid-template-columns: minmax(240px, 1fr) minmax(260px, 520px) auto;
+      grid-template-columns: minmax(180px, 300px) minmax(300px, 1fr) auto;
       align-items: center;
-      gap: 16px;
-      padding: 12px 18px;
+      gap: 12px;
+      padding: 8px 14px;
       border-bottom: 1px solid var(--border);
       background: color-mix(in oklch, var(--surface) 88%, transparent);
       backdrop-filter: blur(14px);
@@ -1070,8 +1072,8 @@ HTML_TEMPLATE = r"""<!doctype html>
     }
 
     .brand-mark {
-      width: 36px;
-      height: 36px;
+      width: 32px;
+      height: 32px;
       display: grid;
       place-items: center;
       border: 1px solid color-mix(in oklch, var(--accent) 40%, var(--border));
@@ -1087,7 +1089,7 @@ HTML_TEMPLATE = r"""<!doctype html>
     .brand h1 {
       margin: 0;
       font-family: var(--font-display);
-      font-size: 18px;
+      font-size: 16px;
       line-height: 1.15;
       font-weight: 760;
     }
@@ -1095,13 +1097,14 @@ HTML_TEMPLATE = r"""<!doctype html>
     .brand p {
       margin: 2px 0 0;
       color: var(--muted);
+      font-size: 12px;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
     }
 
     .command {
-      height: 42px;
+      height: 38px;
       display: flex;
       align-items: center;
       gap: 10px;
@@ -1196,8 +1199,9 @@ HTML_TEMPLATE = r"""<!doctype html>
     }
 
     .workspace {
+      position: relative;
       display: grid;
-      grid-template-columns: minmax(260px, 320px) minmax(0, 1fr) minmax(320px, 400px);
+      grid-template-columns: minmax(240px, var(--navigator-width)) minmax(0, 1fr);
       min-height: 0;
       overflow: hidden;
     }
@@ -1218,14 +1222,27 @@ HTML_TEMPLATE = r"""<!doctype html>
     }
 
     .details {
-      border-left: 1px solid var(--border);
-      border-right: 0;
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      bottom: 12px;
+      z-index: 8;
+      width: min(var(--inspector-width), calc(100% - var(--navigator-width) - 44px));
+      min-width: 280px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: color-mix(in oklch, var(--surface) 95%, transparent);
+      box-shadow: var(--shadow);
+    }
+
+    .details.is-overview {
+      bottom: auto;
     }
 
     .panel-scroll {
       min-height: 0;
       overflow: auto;
-      padding: 16px;
+      padding: 14px;
     }
 
     .section-title {
@@ -1284,26 +1301,42 @@ HTML_TEMPLATE = r"""<!doctype html>
 
     .metric-grid {
       display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 8px;
-      margin: 14px 0 18px;
+      grid-template-columns: 1fr;
+      gap: 0;
+      margin: 10px 0 16px;
+      border: 1px solid color-mix(in oklch, var(--border) 72%, transparent);
+      border-radius: 8px;
+      background: color-mix(in oklch, var(--surface-2) 58%, transparent);
+      overflow: hidden;
     }
 
     .metric {
       min-width: 0;
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      background: var(--surface);
-      padding: 11px 12px;
+      min-height: 30px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      border-bottom: 1px solid color-mix(in oklch, var(--border) 64%, transparent);
+      padding: 6px 10px;
+    }
+
+    .metric:last-child {
+      border-bottom: 0;
     }
 
     .metric strong {
-      display: block;
-      font: 760 20px/1.1 var(--font-display);
+      order: 2;
+      color: color-mix(in oklch, var(--fg) 78%, var(--muted));
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-weight: 720;
+      line-height: 1;
       font-variant-numeric: tabular-nums;
     }
 
     .metric span {
+      order: 1;
       color: var(--muted);
       font-size: 12px;
     }
@@ -1428,8 +1461,8 @@ HTML_TEMPLATE = r"""<!doctype html>
     .summary-card {
       border: 1px solid var(--border);
       border-radius: 8px;
-      background: var(--surface);
-      padding: 12px;
+      background: color-mix(in oklch, var(--surface) 96%, var(--bg));
+      padding: 11px;
     }
 
     .summary-card + .summary-card {
@@ -1449,9 +1482,9 @@ HTML_TEMPLATE = r"""<!doctype html>
 
     .meta-grid {
       display: grid;
-      grid-template-columns: 88px minmax(0, 1fr);
-      gap: 10px;
-      margin: 14px 0 18px;
+      grid-template-columns: 78px minmax(0, 1fr);
+      gap: 9px;
+      margin: 12px 0 16px;
       font-size: 13px;
     }
 
@@ -1498,10 +1531,10 @@ HTML_TEMPLATE = r"""<!doctype html>
     }
 
     .graph-workspace {
+      position: relative;
       min-width: 0;
       min-height: 0;
-      display: grid;
-      grid-template-rows: auto minmax(0, 1fr) auto;
+      height: 100%;
       container-type: inline-size;
       background:
         linear-gradient(var(--border) 1px, transparent 1px),
@@ -1513,25 +1546,33 @@ HTML_TEMPLATE = r"""<!doctype html>
     }
 
     .graph-toolbar {
+      position: absolute;
+      top: 12px;
+      left: 12px;
+      right: calc(var(--inspector-width) + 24px);
+      z-index: 7;
       min-width: 0;
-      min-height: 56px;
+      min-height: 44px;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 12px;
-      padding: 10px 14px;
-      border-bottom: 1px solid var(--border);
-      background: color-mix(in oklch, var(--surface) 92%, transparent);
+      gap: 10px;
+      padding: 8px 10px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: color-mix(in oklch, var(--surface) 90%, transparent);
+      box-shadow: 0 8px 28px rgba(20, 30, 50, 0.08);
       backdrop-filter: blur(12px);
     }
 
     .graph-title {
       min-width: 0;
+      flex: 1 1 160px;
     }
 
     .graph-title h2 {
       margin: 0;
-      font-size: 18px;
+      font-size: 15px;
       line-height: 1.1;
     }
 
@@ -1544,13 +1585,18 @@ HTML_TEMPLATE = r"""<!doctype html>
       white-space: nowrap;
     }
 
+    .graph-actions {
+      flex: 0 0 auto;
+      flex-wrap: nowrap;
+    }
+
     #graph {
       display: block;
       min-width: 0;
       max-width: 100%;
       width: 100%;
       height: 100%;
-      min-height: 420px;
+      min-height: 0;
       touch-action: none;
       filter: drop-shadow(0 14px 32px rgba(20, 30, 60, 0.08));
     }
@@ -1675,17 +1721,25 @@ HTML_TEMPLATE = r"""<!doctype html>
     }
 
     .graph-status {
+      position: absolute;
+      left: 12px;
+      right: calc(var(--inspector-width) + 24px);
+      bottom: 12px;
+      z-index: 7;
       min-width: 0;
       display: flex;
       align-items: center;
       justify-content: space-between;
       gap: 12px;
-      padding: 10px 14px;
-      border-top: 1px solid var(--border);
-      background: color-mix(in oklch, var(--surface) 94%, transparent);
+      padding: 8px 10px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: color-mix(in oklch, var(--surface) 90%, transparent);
       color: var(--muted);
       font: 12px/1.35 var(--font-mono);
       overflow: hidden;
+      box-shadow: 0 8px 28px rgba(20, 30, 50, 0.08);
+      backdrop-filter: blur(12px);
     }
 
     .status-points {
@@ -1694,6 +1748,25 @@ HTML_TEMPLATE = r"""<!doctype html>
       align-items: center;
       gap: 12px;
       flex-wrap: wrap;
+    }
+
+    .status-chip {
+      min-height: 28px;
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      padding: 0 9px;
+      border: 1px solid color-mix(in oklch, var(--border) 68%, transparent);
+      border-radius: 999px;
+      background: color-mix(in oklch, var(--surface) 86%, transparent);
+    }
+
+    .status-label {
+      color: var(--muted);
+      font-family: var(--font-body);
+      font-weight: 720;
+      letter-spacing: 0;
+      text-transform: uppercase;
     }
 
     #status {
@@ -1732,14 +1805,30 @@ HTML_TEMPLATE = r"""<!doctype html>
       }
 
       .workspace {
-        grid-template-columns: minmax(250px, 300px) minmax(0, 1fr);
+        grid-template-columns: minmax(236px, var(--navigator-width)) minmax(0, 1fr);
         overflow: visible;
       }
 
       .details {
+        position: static;
+        width: auto;
+        min-width: 0;
         grid-column: 1 / -1;
+        border-right: 0;
+        border-radius: 0;
         border-left: 0;
         border-top: 1px solid var(--border);
+        box-shadow: none;
+      }
+
+      .graph-workspace {
+        height: 640px;
+        min-height: 640px;
+      }
+
+      .graph-toolbar,
+      .graph-status {
+        right: 12px;
       }
     }
 
@@ -1787,18 +1876,41 @@ HTML_TEMPLATE = r"""<!doctype html>
       }
 
       .graph-workspace {
-        min-height: 560px;
+        height: 620px;
+        min-height: 620px;
       }
 
-      .graph-toolbar,
+      .graph-toolbar {
+        left: 10px;
+        right: 10px;
+      }
+
       .graph-status {
         align-items: flex-start;
         flex-direction: column;
+        left: 10px;
+        right: 10px;
+      }
+
+      .graph-actions {
+        flex-wrap: wrap;
+        justify-content: flex-start;
       }
 
       .metric-grid {
-        grid-template-columns: repeat(4, minmax(110px, 1fr));
-        overflow-x: auto;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .metric {
+        border-right: 1px solid color-mix(in oklch, var(--border) 64%, transparent);
+      }
+
+      .metric:nth-child(2n) {
+        border-right: 0;
+      }
+
+      .metric:nth-last-child(-n + 2) {
+        border-bottom: 0;
       }
 
       .meta-grid {
@@ -1830,10 +1942,10 @@ HTML_TEMPLATE = r"""<!doctype html>
     </header>
 
     <main class="workspace">
-      <aside class="panel" aria-label="Filters and diagnostics">
+      <aside class="panel navigator" aria-label="Graph navigator">
         <div class="panel-scroll">
           <div class="section-title">
-            <h2>Graph Scope</h2>
+            <h2>Navigator</h2>
             <span class="count" id="scopeCount">0 nodes</span>
           </div>
 
@@ -1864,13 +1976,13 @@ HTML_TEMPLATE = r"""<!doctype html>
           </div>
 
           <div class="section-title">
-            <h3>Diagnostics Queue</h3>
+            <h3>Diagnostics</h3>
             <span class="count" id="diagnosticCount">0</span>
           </div>
           <div id="diagnostics" class="list"></div>
 
           <div class="section-title" style="margin-top: 18px;">
-            <h3>Matching Nodes</h3>
+            <h3>Nodes</h3>
             <span class="count" id="nodeCount">0</span>
           </div>
           <div id="nodes" class="list"></div>
@@ -1891,7 +2003,7 @@ HTML_TEMPLATE = r"""<!doctype html>
             <button id="panLeft" class="icon-button" type="button" title="Pan left">&larr;</button>
             <button id="panRight" class="icon-button" type="button" title="Pan right">&rarr;</button>
             <button id="panDown" class="icon-button" type="button" title="Pan down">&darr;</button>
-            <button id="resetView" class="text-button" type="button">Reset</button>
+            <button id="resetView" class="text-button" type="button" title="Fit graph">Fit</button>
             <button id="resetLayout" class="text-button" type="button">Layout</button>
           </div>
         </div>
@@ -1900,25 +2012,20 @@ HTML_TEMPLATE = r"""<!doctype html>
 
         <footer class="graph-status">
           <div class="status-points">
-            <span><i class="dot"></i><strong id="activeSelection">No selection</strong></span>
+            <span class="status-chip"><span class="status-label">Selection</span><strong id="activeSelection">None</strong></span>
             <button id="clearCategory" class="text-button clear-category" type="button" hidden>Clear category</button>
-            <span><i class="dot warn"></i><span id="activeDiagnostics">Diagnostics are scoped by selection</span></span>
+            <span class="status-chip"><span class="status-label">Diagnostics</span><span id="activeDiagnostics">0 in scope</span></span>
           </div>
           <span id="status"></span>
         </footer>
       </section>
 
-      <aside class="panel details" aria-label="Selected details">
+      <aside id="inspectorPanel" class="panel details is-overview" aria-label="Selection inspector">
         <div class="panel-scroll">
           <div class="section-title">
-            <h2>Details</h2>
+            <h2>Inspector</h2>
           </div>
-          <div id="details">
-            <section class="summary-card">
-              <h2>Selection</h2>
-              <p class="description">Select a node, edge, or diagnostic to inspect its metadata.</p>
-            </section>
-          </div>
+          <div id="details"></div>
         </div>
       </aside>
     </main>
@@ -1959,6 +2066,7 @@ HTML_TEMPLATE = r"""<!doctype html>
     const panDown = document.getElementById("panDown");
     const panLeft = document.getElementById("panLeft");
     const panRight = document.getElementById("panRight");
+    const inspectorPanel = document.getElementById("inspectorPanel");
     categoryFrames.checked = categoryFramesDefault;
 
     for (const value of [...new Set(graphDisplayEdges.map(edge => edge.confidence))].sort()) {
@@ -2275,6 +2383,42 @@ HTML_TEMPLATE = r"""<!doctype html>
       return String(type || "diagnostic").replaceAll("_", " ");
     }
 
+    function activeScopeLabel() {
+      const parts = [];
+      const q = search.value.trim();
+      if (q) parts.push(`Search "${q}"`);
+      if (confidence.value) parts.push(`Confidence ${confidence.value}`);
+      if (state.selectedCategory) parts.push(`Category ${state.selectedCategory}`);
+      return parts.length ? parts.join(" / ") : "All graph";
+    }
+
+    function scopeStatus(nodes, edges) {
+      const parts = [
+        `${nodes.length}/${graphDisplayNodes.length} nodes`,
+        `${edges.length}/${graphDisplayEdges.length} edges`,
+      ];
+      const q = search.value.trim();
+      if (q) parts.push(`search: ${q}`);
+      if (confidence.value) parts.push(`confidence: ${confidence.value}`);
+      return parts.join(" / ");
+    }
+
+    function renderOverviewDetails(nodes, edges, diagnostics) {
+      return `
+        <section class="summary-card">
+          <h2>Overview</h2>
+          <dl class="meta-grid">
+            <dt>Visible</dt><dd>${nodes.length} nodes / ${edges.length} edges</dd>
+            <dt>Total</dt><dd>${graphDisplayNodes.length} nodes / ${graphDisplayEdges.length} edges</dd>
+            <dt>Diagnostics</dt><dd>${diagnostics.length} in scope / ${graph.diagnostics.length} total</dd>
+            <dt>Focus</dt><dd>${escapeHtml(activeScopeLabel())}</dd>
+            <dt>Generated</dt><dd>${escapeHtml(graph.generatedAt || "N/A")}</dd>
+            <dt>Root</dt><dd>${escapeHtml(graph.root || "N/A")}</dd>
+          </dl>
+        </section>
+      `;
+    }
+
     function groupBy(values, keyFn) {
       const groups = new Map();
       for (const value of values) {
@@ -2563,9 +2707,9 @@ HTML_TEMPLATE = r"""<!doctype html>
       }
       setText("graphHeading", "Skill graph");
       setText("graphSubtitle", `Generated ${graph.generatedAt} from ${graph.root}`);
-      setText("summary", `${nodes.length} nodes / ${edges.length} edges`);
+      setText("summary", `Scope ${nodes.length} nodes / ${edges.length} edges`);
       setText("viewState", `${Math.round(state.view.scale * 100)}%`);
-      setText("status", "Semantic skill relations and categories");
+      setText("status", scopeStatus(nodes, edges));
       setText("scopeCount", `${nodes.length} nodes`);
       setText("metricNodes", String(graphDisplayNodes.length));
       setText("metricEdges", String(graphDisplayEdges.length));
@@ -2579,12 +2723,16 @@ HTML_TEMPLATE = r"""<!doctype html>
             ? diagnosticLabel(selected.value.type)
             : state.selectedCategory
               ? `Category: ${state.selectedCategory}`
-              : "No selection";
+              : "None";
       setText("activeSelection", activeLabel);
       clearCategory.hidden = !state.selectedCategory;
       const scopedDiagnostics = visibleDiagnostics();
-      setText("activeDiagnostics", scopedDiagnostics.length ? `${scopedDiagnostics.length} diagnostics in scope` : "No diagnostics in scope");
+      setText("activeDiagnostics", `${scopedDiagnostics.length} in scope`);
       renderLists(nodes);
+      if (!selected) {
+        inspectorPanel.classList.add("is-overview");
+        document.getElementById("details").innerHTML = renderOverviewDetails(nodes, edges, scopedDiagnostics);
+      }
     }
 
     function nodeItemHtml(node) {
@@ -2670,6 +2818,7 @@ HTML_TEMPLATE = r"""<!doctype html>
     function select(value, kind) {
       state.selected = { kind, value, key: selectionKey(kind, value) };
       const details = document.getElementById("details");
+      inspectorPanel.classList.remove("is-overview");
       details.innerHTML = renderDetails(value, kind);
       document.getElementById("clearSelection").addEventListener("click", clearSelection);
       draw();
@@ -2764,12 +2913,6 @@ HTML_TEMPLATE = r"""<!doctype html>
 
     function clearSelection() {
       state.selected = null;
-      document.getElementById("details").innerHTML = `
-        <section class="summary-card">
-          <h2>Selection</h2>
-          <p class="description">Select a node, edge, or diagnostic to inspect its metadata.</p>
-        </section>
-      `;
       draw();
     }
 

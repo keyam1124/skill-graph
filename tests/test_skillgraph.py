@@ -8,8 +8,10 @@ import unittest
 from pathlib import Path
 
 
+sys.dont_write_bytecode = True
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
-SKILLGRAPH_CLI = REPO_ROOT / "skills" / "meta" / "skillgraph-cartographer" / "scripts" / "skillgraph.py"
+SKILLGRAPH_CLI = REPO_ROOT / "skills" / "skillgraph-cartographer" / "scripts" / "skillgraph.py"
 
 
 def load_skillgraph_module():
@@ -78,6 +80,46 @@ class SkillGraphViewerWorkflowTest(unittest.TestCase):
         self._node(graph["nodes"], "free-form")
         diagnostic_types = {item.get("type") for item in self._diagnostics(graph)}
         self.assertNotIn("missing_frontmatter", diagnostic_types)
+
+    def test_collect_ignores_skill_paths_inside_code_fences(self):
+        skillgraph = load_skillgraph_module()
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._write(
+                root / "skills" / "alpha" / "SKILL.md",
+                """\
+                ---
+                name: alpha
+                description: Use when testing fenced examples.
+                ---
+                # Alpha
+
+                This skill only contains example JSON.
+
+                ```json
+                {
+                  "path": "skills/beta/SKILL.md",
+                  "link": "[beta](../beta/SKILL.md)"
+                }
+                ```
+                """,
+            )
+            self._write(
+                root / "skills" / "beta" / "SKILL.md",
+                """\
+                ---
+                name: beta
+                description: Use when testing fenced examples.
+                ---
+                # Beta
+                """,
+            )
+
+            graph = skillgraph.analyze_graph(root)
+
+        self.assertFalse(self._edges(graph))
+        diagnostic_types = {item.get("type") for item in self._diagnostics(graph)}
+        self.assertNotIn("dangling_reference", diagnostic_types)
 
     def test_enriched_graph_annotations_and_viewer_html(self):
         skillgraph = load_skillgraph_module()

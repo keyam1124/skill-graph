@@ -11,7 +11,6 @@ import sys
 BUNDLED_CLI = (
     Path(__file__).resolve().parents[1]
     / "skills"
-    / "meta"
     / "skillgraph-cartographer"
     / "scripts"
     / "skillgraph.py"

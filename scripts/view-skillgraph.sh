@@ -4,7 +4,7 @@ set -eu
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 REPO_DIR=$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)
 PYTHON_BIN=${PYTHON_BIN:-python3}
-BUNDLED_SCRIPT_DIR=$REPO_DIR/skills/meta/skillgraph-cartographer/scripts
+BUNDLED_SCRIPT_DIR=$REPO_DIR/skills/skillgraph-cartographer/scripts
 
 if [ -n "${SKILLGRAPH_REPO_ROOT:-}" ]; then
   REPO_ROOT=$SKILLGRAPH_REPO_ROOT
