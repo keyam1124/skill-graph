@@ -61,6 +61,29 @@ class SkillGraphViewerWorkflowTest(unittest.TestCase):
             self._assert_graph(graph)
             self._assert_diagnostics(graph)
 
+    def test_cli_help_lists_only_supported_workflow_commands(self):
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(SKILLGRAPH_CLI),
+                "--help",
+            ],
+            cwd=REPO_ROOT,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+
+        self.assertEqual(
+            result.returncode,
+            0,
+            msg=f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}",
+        )
+        self.assertIn("{collect,view,enrichment-template,merge}", result.stdout)
+        self.assertNotIn("export", result.stdout)
+        self.assertNotIn("render", result.stdout)
+        self.assertNotIn("summary", result.stdout)
+
     def test_collect_allows_free_form_skill_markdown_without_structure_diagnostics(self):
         skillgraph = load_skillgraph_module()
         with tempfile.TemporaryDirectory() as tmp:
@@ -272,6 +295,13 @@ class SkillGraphViewerWorkflowTest(unittest.TestCase):
         self.assertIn("showDirectEdges", html)
         self.assertIn("showInferredEdges", html)
         self.assertIn("coverageBadge", html)
+        self.assertNotIn("schemaBadge", html)
+        self.assertNotIn("JSON Schema", html)
+        self.assertNotIn("schema checked", html)
+        self.assertIn("Diagnostics", html)
+        self.assertNotIn('data-purpose-query="export mermaid dot json"', html)
+        self.assertNotIn("Mermaid / DOT / JSON", html)
+        self.assertNotIn("エクスポート", html)
         self.assertIn("relationFocus", html)
         self.assertIn("Evidence ledger", html)
         self.assertNotIn("Inferred Cluster", html)
