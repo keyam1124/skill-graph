@@ -226,8 +226,8 @@
     .workspace {
       position: relative;
       display: grid;
-      grid-template-columns: minmax(286px, 320px) minmax(0, 1fr) minmax(356px, 430px);
-      gap: 18px;
+      grid-template-columns: minmax(248px, 292px) minmax(0, 1fr);
+      gap: 14px;
       min-height: 0;
       overflow: hidden;
     }
@@ -250,10 +250,13 @@
     }
 
     .details {
-      position: static;
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      bottom: 12px;
       z-index: 8;
-      width: auto;
-      min-width: 0;
+      width: min(390px, calc(100% - 34px));
+      min-width: 300px;
       background: color-mix(in oklch, var(--surface) 96%, transparent);
     }
 
@@ -863,7 +866,7 @@
       left: 20px;
       right: 20px;
       top: 118px;
-      bottom: 220px;
+      bottom: 70px;
       z-index: 5;
       border: 1px solid color-mix(in oklch, var(--border) 76%, transparent);
       border-radius: 14px;
@@ -926,6 +929,10 @@
       background: color-mix(in oklch, var(--surface) 94%, transparent);
       box-shadow: 0 8px 28px rgba(20, 30, 50, 0.07);
       overflow: auto;
+    }
+
+    .relation-focus[hidden] {
+      display: none;
     }
 
     .relation-focus h3 {
@@ -1456,7 +1463,7 @@
           <svg id="graph" role="img" aria-labelledby="graphHeading graphSubtitle"></svg>
         </div>
 
-        <section id="relationFocus" class="relation-focus" aria-label="Selected relation evidence"></section>
+        <section id="relationFocus" class="relation-focus" aria-label="Selected relation evidence" hidden></section>
 
         <footer class="graph-status">
           <div class="status-points">
@@ -1470,7 +1477,7 @@
         </footer>
       </section>
 
-      <aside id="inspectorPanel" class="panel details" aria-label="Selection inspector">
+      <aside id="inspectorPanel" class="panel details" aria-label="Selection inspector" hidden>
         <div class="panel-scroll">
           <div class="section-title">
             <h2>Inspector</h2>
@@ -2410,10 +2417,10 @@
       const selectedNodeId = selected?.kind === "node" ? selected.value.id : "";
       const selectedEdge = selected?.kind === "edge" ? selected.value : null;
       const selectedEdgeNodes = selectedEdge ? new Set([selectedEdge.source, selectedEdge.target]) : new Set();
-      inspectorPanel.hidden = false;
-      graphWorkspace.classList.remove("inspector-hidden");
+      inspectorPanel.hidden = !selected;
+      graphWorkspace.classList.toggle("inspector-hidden", !selected);
       if (!selected) {
-        document.getElementById("details").innerHTML = renderOverviewDetails(nodes, edges);
+        document.getElementById("details").innerHTML = "";
       }
       drawCategoryFrames(layer, nodes, state.layoutBounds.width || width, state.layoutBounds.height || height);
       drawCategoryFrameHits(layer, nodes, state.layoutBounds.width || width, state.layoutBounds.height || height);
@@ -2509,7 +2516,7 @@
       setText("confidenceDescription", confidence.value ? `現在: ${confidence.value} の関係だけ表示` : "現在: すべて表示");
       const scopedDiagnostics = visibleDiagnostics();
       setText("activeDiagnostics", `${scopedDiagnostics.length} in scope`);
-      document.getElementById("relationFocus").innerHTML = renderRelationFocus(selected, edges);
+      renderRelationFocusPanel(selected, edges);
       renderLists(nodes, edges);
     }
 
@@ -2742,6 +2749,17 @@
           </div>
         </section>
       `;
+    }
+
+    function renderRelationFocusPanel(selected, edges) {
+      const panel = document.getElementById("relationFocus");
+      if (selected?.kind !== "edge") {
+        panel.hidden = true;
+        panel.innerHTML = "";
+        return;
+      }
+      panel.hidden = false;
+      panel.innerHTML = renderRelationFocus(selected, edges);
     }
 
     function renderRelationFocus(selected, edges) {
