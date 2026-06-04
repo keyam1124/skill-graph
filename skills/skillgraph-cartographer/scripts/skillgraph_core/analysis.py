@@ -9,15 +9,19 @@ from typing import Any
 from .registry import load_registry, skill_maps
 from .shared import (
     SCHEMA_VERSION,
-    SKILL_PATH_RE,
-    LINK_RE,
     Diagnostic,
     Edge,
     clean_target,
     evidence,
+    first_h1,
+    first_meaningful_paragraph,
+    iter_markdown_skill_links,
+    iter_skill_path_references,
+    markdown_headings,
+    normalize_confidence,
+    parse_frontmatter,
     read_text,
     rel_path,
-    strip_code_blocks,
     unique,
     utc_now,
 )
@@ -72,14 +76,17 @@ def make_edge(
     origin: str,
     confidence: str,
     evidence_items: list[dict[str, Any]],
+    legacy_type: str | None = None,
 ) -> Edge:
+    confidence_label, _ = normalize_confidence(confidence, "high")
     return Edge(
         source=source,
         target=target,
         type=relation_type,
         origin=origin,
-        confidence=confidence,
+        confidence=confidence_label,
         evidence=evidence_items,
+        legacy_type=legacy_type,
     )
 
 
@@ -92,9 +99,10 @@ def markdown_link_edges(
     diagnostics: list[Diagnostic] = []
     for path in skill.get("paths", [skill["path"]]):
         skill_file = root / path
-        text = strip_code_blocks(read_text(skill_file))
-        for match in LINK_RE.finditer(text):
-            raw = match.group(1)
+        text = read_text(skill_file)
+        for link in iter_markdown_skill_links(text):
+            raw = link.raw
+            resolved = resolve_skill_path_reference(raw, skill_file, root)
             target = resolve_skill_link_target(raw, skill_file, root, path_to_skill)
             if not target or target == skill["id"]:
                 continue
@@ -102,10 +110,20 @@ def markdown_link_edges(
                 make_edge(
                     skill["id"],
                     target,
-                    "depends_on",
+                    "direct_reference",
                     "link",
                     "high",
-                    [evidence(path, raw)],
+                    [
+                        evidence(
+                            path,
+                            link.text,
+                            start_line=link.line,
+                            match_kind=link.match_kind,
+                            raw=raw,
+                            normalized_target=resolved,
+                        )
+                    ],
+                    legacy_type="depends_on",
                 )
             )
     return edges, diagnostics
@@ -118,11 +136,11 @@ def skill_path_reference_edges(
     source_file: Path,
     source_text: str | None = None,
 ) -> tuple[list[Edge], list[Diagnostic]]:
-    text = strip_code_blocks(source_text if source_text is not None else read_text(source_file))
+    text = source_text if source_text is not None else read_text(source_file)
     edges: list[Edge] = []
     diagnostics: list[Diagnostic] = []
-    for match in SKILL_PATH_RE.finditer(text):
-        raw = match.group("path")
+    for reference in iter_skill_path_references(text):
+        raw = reference.raw
         resolved = resolve_skill_path_reference(raw, source_file, root)
         if not resolved:
             continue
@@ -138,6 +156,14 @@ def skill_path_reference_edges(
                     path=rel_path(source_file, root),
                     skill=skill["id"],
                     target=resolved,
+                    evidence=evidence(
+                        rel_path(source_file, root),
+                        reference.text,
+                        start_line=reference.line,
+                        match_kind=reference.match_kind,
+                        raw=raw,
+                        normalized_target=resolved,
+                    ),
                 )
             )
             continue
@@ -145,13 +171,46 @@ def skill_path_reference_edges(
             make_edge(
                 skill["id"],
                 target,
-                "depends_on",
+                "direct_reference",
                 "path_reference",
                 "high",
-                [evidence(rel_path(source_file, root), raw)],
+                [
+                    evidence(
+                        rel_path(source_file, root),
+                        reference.text,
+                        start_line=reference.line,
+                        match_kind=reference.match_kind,
+                        raw=raw,
+                        normalized_target=resolved,
+                    )
+                ],
+                legacy_type="depends_on",
             )
         )
     return edges, diagnostics
+
+
+def alias_source_evidence(alias: str, skills: dict[str, dict[str, Any]], skill_ids: list[str]) -> list[dict[str, str]]:
+    values: list[dict[str, str]] = []
+    for skill_id in skill_ids:
+        skill = skills[skill_id]
+        candidates = [
+            ("id", skill.get("id", "")),
+            ("frontmatter.name", skill.get("name", "")),
+            ("label", skill.get("label", "")),
+            ("path", skill.get("path", "")),
+            ("dir", skill.get("dir", "")),
+        ]
+        candidates.extend(("alias", value) for value in skill.get("aliases", []))
+        candidates.extend(("path", value) for value in skill.get("paths", []))
+        candidates.extend(("dir", value) for value in skill.get("dirs", []))
+        source = "alias"
+        for source_name, value in candidates:
+            if str(value).casefold() == alias:
+                source = source_name
+                break
+        values.append({"skill": skill_id, "source": source, "path": str(skill.get("path", ""))})
+    return values
 
 
 def duplicate_alias_diagnostics(skills: dict[str, dict[str, Any]], alias_map: dict[str, list[str]]) -> list[Diagnostic]:
@@ -167,7 +226,7 @@ def duplicate_alias_diagnostics(skills: dict[str, dict[str, Any]], alias_map: di
                 severity="warning",
                 message=f"Alias {alias} resolves to multiple skills: {', '.join(skill_ids)}.",
                 target=alias,
-                evidence={"skills": skill_ids},
+                evidence={"skills": skill_ids, "aliases": alias_source_evidence(alias, skills, skill_ids)},
             )
         )
     return diagnostics
@@ -186,6 +245,7 @@ def assign_edge_ids(edges: list[Edge]) -> list[dict[str, Any]]:
                 "source": edge.source,
                 "target": edge.target,
                 "type": edge.type,
+                **({"legacyType": edge.legacy_type} if edge.legacy_type else {}),
                 "origin": edge.origin,
                 "confidence": edge.confidence,
                 "evidence": edge.evidence,
@@ -208,15 +268,16 @@ def skill_path_map(skills: dict[str, dict[str, Any]]) -> dict[str, str]:
 
 
 def confidence_rank(value: str) -> int:
-    return {"low": 0, "medium": 1, "high": 2}.get(str(value), 1)
+    label, _ = normalize_confidence(value)
+    return {"low": 0, "medium": 1, "high": 2}.get(label, 1)
 
 
 def merge_dependency_edges(edges: list[Edge]) -> list[Edge]:
-    merged: dict[tuple[str, str, str], Edge] = {}
+    merged: dict[tuple[str, str, str, str], Edge] = {}
     for edge in edges:
         if edge.source == edge.target:
             continue
-        key = (edge.source, edge.target, edge.type)
+        key = (edge.source, edge.target, edge.type, edge.legacy_type or "")
         current = merged.get(key)
         if current is None:
             merged[key] = edge
@@ -225,11 +286,11 @@ def merge_dependency_edges(edges: list[Edge]) -> list[Edge]:
         if confidence_rank(edge.confidence) > confidence_rank(current.confidence):
             current.confidence = edge.confidence
         seen_evidence = {
-            (item.get("path", ""), item.get("section", ""), item.get("text", ""))
+            (item.get("path", ""), item.get("section", ""), item.get("startLine", ""), item.get("text", ""))
             for item in current.evidence
         }
         for item in edge.evidence:
-            evidence_key = (item.get("path", ""), item.get("section", ""), item.get("text", ""))
+            evidence_key = (item.get("path", ""), item.get("section", ""), item.get("startLine", ""), item.get("text", ""))
             if evidence_key in seen_evidence:
                 continue
             seen_evidence.add(evidence_key)
@@ -237,9 +298,48 @@ def merge_dependency_edges(edges: list[Edge]) -> list[Edge]:
     return list(merged.values())
 
 
-def analyze_graph(root: Path) -> dict[str, Any]:
+def agent_context_for_skills(root: Path, skills: list[dict[str, Any]], max_chars_per_skill: int) -> list[dict[str, Any]]:
+    context: list[dict[str, Any]] = []
+    for node in skills:
+        path = node.get("path")
+        if not path:
+            continue
+        skill_file = root / path
+        if not skill_file.exists():
+            continue
+        text = read_text(skill_file)
+        frontmatter, _ = parse_frontmatter(text)
+        context.append(
+            {
+                "nodeId": node["id"],
+                "path": path,
+                "frontmatter": frontmatter,
+                "h1": first_h1(text),
+                "firstParagraph": first_meaningful_paragraph(text)[:max_chars_per_skill],
+                "headings": markdown_headings(text),
+            }
+        )
+    return context
+
+
+def analyze_graph(
+    root: Path,
+    *,
+    agent_context: bool = False,
+    max_chars_per_skill: int = 1200,
+    respect_gitignore: bool = False,
+    exclude_patterns: list[str] | None = None,
+    include_patterns: list[str] | None = None,
+    max_skill_files: int | None = None,
+) -> dict[str, Any]:
     root = root.resolve()
-    registry = load_registry(root)
+    registry = load_registry(
+        root,
+        respect_gitignore=respect_gitignore,
+        exclude_patterns=exclude_patterns,
+        include_patterns=include_patterns,
+        max_skill_files=max_skill_files,
+    )
     skills, alias_map = skill_maps(registry)
     path_to_skill = skill_path_map(skills)
     diagnostics = [Diagnostic(**diag) for diag in registry.get("diagnostics", [])]
@@ -266,4 +366,6 @@ def analyze_graph(root: Path) -> dict[str, Any]:
         "edges": assign_edge_ids(edges),
         "diagnostics": [diag.to_json() for diag in diagnostics],
     }
+    if agent_context:
+        graph["agentContext"] = agent_context_for_skills(root, skill_nodes, max_chars_per_skill)
     return graph

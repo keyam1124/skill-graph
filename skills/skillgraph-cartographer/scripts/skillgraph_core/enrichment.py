@@ -6,6 +6,8 @@ import json
 import re
 from typing import Any
 
+from .shared import graph_digest, normalize_confidence
+
 
 def diagnostic_from_mapping(data: dict[str, Any], message: str) -> dict[str, Any]:
     payload = {
@@ -38,6 +40,62 @@ def normalize_relation_type(value: Any) -> str:
     return relation_type or "related_to"
 
 
+def merge_enrichment(base_graph: dict[str, Any], annotations: dict[str, Any]) -> dict[str, Any]:
+    graph = json.loads(json.dumps(base_graph))
+    for key in ("annotationRun", "nodeAnnotations", "inferredEdges", "viewSuggestions", "enrichmentCoverage"):
+        if key in annotations:
+            graph[key] = annotations[key]
+    if "annotationRun" not in graph:
+        graph["annotationRun"] = {"baseGraphDigest": graph_digest(base_graph)}
+    return graph
+
+
+def enrichment_template(base_graph: dict[str, Any], max_node_summary_chars: int = 800) -> dict[str, Any]:
+    nodes = []
+    for node in base_graph.get("nodes", []):
+        if not isinstance(node, dict):
+            continue
+        nodes.append(
+            {
+                "nodeId": node.get("id"),
+                "label": node.get("label"),
+                "path": node.get("path"),
+                "category": node.get("category"),
+                "description": str(node.get("description") or "")[:max_node_summary_chars],
+            }
+        )
+    return {
+        "annotationRun": {
+            "agent": "",
+            "instructionVersion": "skillgraph-cartographer.v1",
+            "baseGraphDigest": graph_digest(base_graph),
+        },
+        "nodes": nodes,
+        "nodeAnnotations": [],
+        "inferredEdges": [],
+        "viewSuggestions": [],
+    }
+
+
+def inferred_edge_key(edge: dict[str, Any]) -> tuple[str, str, str, str, str]:
+    return (
+        str(edge.get("source") or ""),
+        str(edge.get("target") or ""),
+        str(edge.get("type") or ""),
+        str(edge.get("origin") or ""),
+        str(edge.get("rationale") or ""),
+    )
+
+
+def valid_view_suggestion_filter(value: Any) -> bool:
+    if value in (None, {}):
+        return True
+    if not isinstance(value, dict):
+        return False
+    allowed = {"nodeIds", "clusterId", "suggestedCategory", "roleTags", "confidence", "origin", "query"}
+    return all(key in allowed for key in value)
+
+
 def enrich_graph(graph: dict[str, Any]) -> dict[str, Any]:
     graph = json.loads(json.dumps(graph))
     nodes = graph.setdefault("nodes", [])
@@ -47,6 +105,7 @@ def enrich_graph(graph: dict[str, Any]) -> dict[str, Any]:
     node_index = {node.get("id"): node for node in nodes if node.get("id")}
 
     valid_annotations: list[dict[str, Any]] = []
+    seen_annotations: set[str] = set()
     for annotation in agent_list(graph, "nodeAnnotations", diagnostics):
         if not isinstance(annotation, dict):
             diagnostics.append(diagnostic_from_mapping({"value": annotation}, "Agent node annotation is not an object."))
@@ -55,12 +114,17 @@ def enrich_graph(graph: dict[str, Any]) -> dict[str, Any]:
         if node_id not in node_ids:
             diagnostics.append(diagnostic_from_mapping(annotation, f"Agent node annotation target {node_id or '<missing>'} does not exist."))
             continue
+        if node_id in seen_annotations:
+            diagnostics.append(diagnostic_from_mapping(annotation, f"Agent node annotation target {node_id} is duplicated."))
+            continue
+        seen_annotations.add(node_id)
         valid_annotations.append(annotation)
         node_index[node_id]["annotation"] = annotation
     graph["nodeAnnotations"] = valid_annotations
 
     valid_inferred_edges: list[dict[str, Any]] = []
     counters: dict[str, int] = {}
+    existing_edges = {inferred_edge_key(edge) for edge in edges if isinstance(edge, dict)}
     for edge in agent_list(graph, "inferredEdges", diagnostics):
         if not isinstance(edge, dict):
             diagnostics.append(diagnostic_from_mapping({"value": edge}, "Agent inferred edge is not an object."))
@@ -71,6 +135,7 @@ def enrich_graph(graph: dict[str, Any]) -> dict[str, Any]:
         if source not in node_ids or target not in node_ids:
             diagnostics.append(diagnostic_from_mapping(edge, f"Agent inferred edge {source or '<missing>'} -> {target or '<missing>'} references an unknown node."))
             continue
+        confidence_label, confidence_score = normalize_confidence(edge.get("confidence", "medium"))
         base = re.sub(r"[^A-Za-z0-9_.-]+", "-", f"edge.inferred.{source}.{target}.{edge_type}").strip("-")
         counters[base] = counters.get(base, 0) + 1
         normalized = {
@@ -79,14 +144,29 @@ def enrich_graph(graph: dict[str, Any]) -> dict[str, Any]:
             "target": target,
             "type": edge_type,
             "origin": edge.get("origin") or "agent_inferred",
-            "confidence": edge.get("confidence", "medium"),
+            "confidence": confidence_label,
             "evidence": edge.get("evidence") if isinstance(edge.get("evidence"), list) else [],
             "rationale": edge.get("rationale") or "",
             "inferred": True,
         }
+        if confidence_score is not None:
+            normalized["confidenceScore"] = confidence_score
         valid_inferred_edges.append(normalized)
+        key = inferred_edge_key(normalized)
+        if key in existing_edges:
+            continue
+        existing_edges.add(key)
         edges.append(normalized)
     graph["inferredEdges"] = valid_inferred_edges
 
-    agent_list(graph, "viewSuggestions", diagnostics)
+    valid_suggestions: list[dict[str, Any]] = []
+    for suggestion in agent_list(graph, "viewSuggestions", diagnostics):
+        if not isinstance(suggestion, dict):
+            diagnostics.append(diagnostic_from_mapping({"value": suggestion}, "Agent view suggestion is not an object."))
+            continue
+        if not valid_view_suggestion_filter(suggestion.get("filter")):
+            diagnostics.append(diagnostic_from_mapping(suggestion, "Agent view suggestion filter contains unsupported keys or is not an object."))
+            continue
+        valid_suggestions.append(suggestion)
+    graph["viewSuggestions"] = valid_suggestions
     return graph

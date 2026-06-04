@@ -9,8 +9,13 @@
 - リポジトリ内の `SKILL.md` を収集する
 - Markdown リンクと `SKILL.md` パス参照から、直接確認できる関係を抽出する
 - 解決できない参照と重複 alias を診断する
+- 同じ Skill ID が複数 host scope に存在する場合、copy drift を診断する
+- graph / enrichment JSON を検証する
+- host agent 用の enrichment template を出し、base graph と enrichment JSON を merge する
 - host agent の推論で、表示用のラベル、要約、カテゴリ、クラスタ、解釈済みリレーションを追加する
+- `viewSuggestions` をビューアの操作に接続し、推奨ビューをクリックして絞り込む
 - 各 Skill の詳細で、incoming / outgoing のリレーション、根拠、推論理由を確認する
+- Mermaid、DOT、Markdown summary、HTML を stdout へ export する
 - 決定論的な関係と推論由来の注釈を区別してローカルビューアに表示する
 
 収集と表示は読み取り専用です。対象リポジトリ内のスキル定義や設定ファイルは変更しません。
@@ -71,6 +76,13 @@ JSON だけを確認する場合:
 python3 skills/skillgraph-cartographer/scripts/skillgraph.py collect .
 ```
 
+host agent が読みやすい context を含める場合:
+
+```bash
+python3 skills/skillgraph-cartographer/scripts/skillgraph.py collect . \
+  --agent-context --max-chars-per-skill 1200
+```
+
 任意のリポジトリを調べる場合:
 
 ```bash
@@ -78,7 +90,47 @@ python3 skills/skillgraph-cartographer/scripts/skillgraph.py collect /path/to/re
   | python3 skills/skillgraph-cartographer/scripts/skillgraph.py view --stdin --no-open
 ```
 
+保存済み JSON を再表示する場合:
+
+```bash
+python3 skills/skillgraph-cartographer/scripts/skillgraph.py view \
+  --file /tmp/skillgraph.enriched.json --no-open
+```
+
+graph JSON を検証する場合:
+
+```bash
+python3 skills/skillgraph-cartographer/scripts/skillgraph.py validate --stdin --strict
+python3 skills/skillgraph-cartographer/scripts/skillgraph.py schema graph
+python3 skills/skillgraph-cartographer/scripts/skillgraph.py schema enrichment
+```
+
+base graph と host agent の enrichment JSON を分けて扱う場合:
+
+```bash
+python3 skills/skillgraph-cartographer/scripts/skillgraph.py collect . \
+  > /tmp/skillgraph.base.json
+
+python3 skills/skillgraph-cartographer/scripts/skillgraph.py enrichment-template \
+  /tmp/skillgraph.base.json > /tmp/skillgraph.agent-input.json
+
+python3 skills/skillgraph-cartographer/scripts/skillgraph.py merge \
+  --base /tmp/skillgraph.base.json \
+  --annotations /tmp/skillgraph.annotations.json \
+  > /tmp/skillgraph.enriched.json
+```
+
+ブラウザを使わずに出力する場合:
+
+```bash
+python3 skills/skillgraph-cartographer/scripts/skillgraph.py export --stdin --format mermaid
+python3 skills/skillgraph-cartographer/scripts/skillgraph.py export --stdin --format dot
+python3 skills/skillgraph-cartographer/scripts/skillgraph.py summary --stdin --format markdown
+python3 skills/skillgraph-cartographer/scripts/skillgraph.py render --stdin --format html
+```
+
 ビューアは URL を標準出力へ出します。終了するには、実行中のプロセスを `Ctrl-C` で止めます。
+既定では `127.0.0.1` などの loopback host にだけ bind します。非 loopback host に出す場合は、graph JSON が LAN から読める可能性を理解したうえで `--allow-non-loopback` を指定します。
 
 ## 推論付きグラフの扱い
 
@@ -92,6 +144,7 @@ CLI は外部 LLM API を呼びません。Codex / Claude Code など、この S
 
 決定論的な `nodes` と `edges` は正本として扱い、推論結果では上書きしません。
 `inferredEdges` はグラフの edge として描画され、node 詳細の incoming / outgoing リレーションにも表示されます。
+数値 confidence は `low` / `medium` / `high` に正規化され、元の値は `confidenceScore` として残ります。
 関係がない Skill は正常な状態として扱い、孤立 Skill として診断しません。
 
 ## リポジトリ構成
@@ -139,7 +192,10 @@ gh skill install . skillgraph-cartographer --from-local --dir /tmp/skillgraph-ca
 - `collect` が対象リポジトリを書き換えない
 - free-form な `SKILL.md` を扱える
 - 推論注釈をビューア用データへ安全に反映できる
+- JSON Schema 相当の検証で壊れた enrichment を検出できる
+- Markdown link、reference-style link、line range evidence を扱える
 - 重複 alias と解決できない参照を診断できる
+- 推論 edge を重複 append しない
 - 孤立 Skill を問題として診断しない
 
 ## 制約

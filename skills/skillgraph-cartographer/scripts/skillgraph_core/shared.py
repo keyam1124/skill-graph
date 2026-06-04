@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import datetime as dt
+import hashlib
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Iterable, Iterator, NamedTuple
 
 try:
     import yaml  # type: ignore
@@ -14,7 +15,8 @@ except Exception:  # pragma: no cover - exercised only when PyYAML is absent.
     yaml = None
 
 
-SCHEMA_VERSION = "skillgraph-lite.v1"
+SCHEMA_VERSION = "skillgraph-lite.v1.1"
+CONFIDENCE_LABELS = {"low", "medium", "high"}
 
 EXCLUDED_DIRS = {
     ".git",
@@ -40,9 +42,17 @@ SKILL_PATH_RE = re.compile(
     r"(?:skills|\.codex/skills|\.claude/skills|\.agents/skills)/[^\s)`'\"<>]*SKILL(?:\.[A-Za-z0-9_-]+)?\.md)"
 )
 LINK_RE = re.compile(r"!?\[[^\]]*\]\(([^)]+)\)")
+REFERENCE_LINK_DEFINITION_RE = re.compile(r"^\s*\[([^\]]+)\]:\s+(.+?)\s*$")
 FRONTMATTER_RE = re.compile(r"\A---\s*\n(.*?)\n---\s*(?:\n|\Z)", re.DOTALL)
 HEADING_RE = re.compile(r"^(#{1,6})\s+(.+?)\s*#*\s*$")
 FENCE_RE = re.compile(r"```.*?```|~~~.*?~~~", re.DOTALL)
+
+
+class MarkdownReference(NamedTuple):
+    raw: str
+    line: int
+    text: str
+    match_kind: str
 
 
 @dataclass
@@ -87,6 +97,7 @@ class SkillRecord:
     dirs: list[str] = field(default_factory=list)
     language_variants: list[dict[str, str]] = field(default_factory=list)
     frontmatter: dict[str, Any] = field(default_factory=dict)
+    copies: list[dict[str, str]] = field(default_factory=list)
 
     def to_json(self) -> dict[str, Any]:
         payload = {
@@ -104,6 +115,8 @@ class SkillRecord:
         }
         if self.language_variants:
             payload["languageVariants"] = self.language_variants
+        if self.copies:
+            payload["copies"] = self.copies
         return payload
 
 
@@ -115,6 +128,7 @@ class Edge:
     origin: str
     confidence: str
     evidence: list[dict[str, Any]]
+    legacy_type: str | None = None
 
 
 def utc_now() -> str:
@@ -148,6 +162,45 @@ def should_skip(path: Path, root: Path) -> bool:
 
 def read_text(path: Path) -> str:
     return path.read_text(encoding="utf-8", errors="replace")
+
+
+def content_digest(text: str) -> str:
+    return "sha256:" + hashlib.sha256(text.encode("utf-8", errors="replace")).hexdigest()
+
+
+def graph_digest(graph: dict[str, Any]) -> str:
+    import json
+
+    payload = json.dumps(graph, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return content_digest(payload)
+
+
+def host_scope_for_path(path: str) -> str:
+    if path.startswith(".codex/skills/"):
+        return "codex"
+    if path.startswith(".claude/skills/"):
+        return "claude-code"
+    if path.startswith(".agents/skills/"):
+        return "agents"
+    if path.startswith("skills/"):
+        return "repo"
+    return "other"
+
+
+def normalize_confidence(value: Any, fallback: str = "medium") -> tuple[str, float | None]:
+    if isinstance(value, bool):
+        value = int(value)
+    if isinstance(value, (int, float)):
+        score = max(0.0, min(1.0, float(value)))
+        if score >= 0.75:
+            return "high", score
+        if score >= 0.45:
+            return "medium", score
+        return "low", score
+    label = str(value or fallback).strip().lower()
+    if label not in CONFIDENCE_LABELS:
+        label = fallback
+    return label, None
 
 
 def parse_simple_yaml(text: str) -> dict[str, Any]:
@@ -304,8 +357,151 @@ def strip_code_blocks(text: str) -> str:
     return FENCE_RE.sub("", text)
 
 
-def evidence(path: str, text: str, section: str | None = None) -> dict[str, Any]:
+def evidence(
+    path: str,
+    text: str,
+    section: str | None = None,
+    *,
+    start_line: int | None = None,
+    end_line: int | None = None,
+    match_kind: str | None = None,
+    raw: str | None = None,
+    normalized_target: str | None = None,
+) -> dict[str, Any]:
     payload: dict[str, Any] = {"path": path, "text": text.strip()[:300]}
     if section:
         payload["section"] = section
+    if start_line is not None:
+        payload["startLine"] = start_line
+        payload["endLine"] = end_line or start_line
+    if match_kind:
+        payload["matchKind"] = match_kind
+    if raw is not None:
+        payload["raw"] = raw
+    if normalized_target is not None:
+        payload["normalizedTarget"] = normalized_target
     return payload
+
+
+def is_fence_line(line: str) -> bool:
+    stripped = line.lstrip()
+    return stripped.startswith("```") or stripped.startswith("~~~")
+
+
+def strip_inline_code_spans(line: str) -> str:
+    return re.sub(r"`[^`]*`", "", line)
+
+
+def markdown_reference_key(value: str) -> str:
+    return " ".join(value.strip().lower().split())
+
+
+def split_markdown_destination(value: str) -> str:
+    text = value.strip()
+    if text.startswith("<"):
+        end = text.find(">")
+        if end >= 0:
+            return text[1:end].strip()
+    match = re.match(r"([^\s]+)", text)
+    return match.group(1).strip() if match else text
+
+
+def _collect_reference_link_definitions(lines: list[str]) -> dict[str, str]:
+    references: dict[str, str] = {}
+    in_fence = False
+    for line in lines:
+        if is_fence_line(line):
+            in_fence = not in_fence
+            continue
+        if in_fence:
+            continue
+        match = REFERENCE_LINK_DEFINITION_RE.match(strip_inline_code_spans(line))
+        if not match:
+            continue
+        references[markdown_reference_key(match.group(1))] = split_markdown_destination(match.group(2))
+    return references
+
+
+def _closing_paren_index(line: str, start: int) -> int:
+    depth = 0
+    for index in range(start, len(line)):
+        char = line[index]
+        if char == "(":
+            depth += 1
+        elif char == ")":
+            depth -= 1
+            if depth == 0:
+                return index
+    return -1
+
+
+def iter_markdown_skill_links(text: str) -> Iterator[MarkdownReference]:
+    lines = text.splitlines()
+    references = _collect_reference_link_definitions(lines)
+    in_fence = False
+    for line_number, raw_line in enumerate(lines, start=1):
+        if is_fence_line(raw_line):
+            in_fence = not in_fence
+            continue
+        if in_fence:
+            continue
+        line = strip_inline_code_spans(raw_line)
+        index = 0
+        while index < len(line):
+            if line[index] != "[" or (index > 0 and line[index - 1] == "!"):
+                index += 1
+                continue
+            close_label = line.find("]", index + 1)
+            if close_label < 0:
+                break
+            label = line[index + 1 : close_label]
+            if close_label + 1 < len(line) and line[close_label + 1] == "(":
+                close_paren = _closing_paren_index(line, close_label + 1)
+                if close_paren < 0:
+                    index = close_label + 1
+                    continue
+                destination = split_markdown_destination(line[close_label + 2 : close_paren])
+                if "SKILL" in destination and destination.endswith(".md"):
+                    yield MarkdownReference(destination, line_number, raw_line.strip(), "markdown_link")
+                index = close_paren + 1
+                continue
+            if close_label + 1 < len(line) and line[close_label + 1] == "[":
+                close_ref = line.find("]", close_label + 2)
+                if close_ref < 0:
+                    index = close_label + 1
+                    continue
+                key = markdown_reference_key(line[close_label + 2 : close_ref] or label)
+                destination = references.get(key)
+                if destination and "SKILL" in destination and destination.endswith(".md"):
+                    yield MarkdownReference(destination, line_number, raw_line.strip(), "reference_link")
+                index = close_ref + 1
+                continue
+            index = close_label + 1
+
+
+def iter_skill_path_references(text: str) -> Iterator[MarkdownReference]:
+    in_fence = False
+    for line_number, raw_line in enumerate(text.splitlines(), start=1):
+        if is_fence_line(raw_line):
+            in_fence = not in_fence
+            continue
+        if in_fence:
+            continue
+        line = strip_inline_code_spans(raw_line)
+        for match in SKILL_PATH_RE.finditer(line):
+            yield MarkdownReference(match.group("path"), line_number, raw_line.strip(), "path_reference")
+
+
+def markdown_headings(text: str) -> list[str]:
+    values: list[str] = []
+    in_fence = False
+    for raw_line in strip_frontmatter(text).splitlines():
+        if is_fence_line(raw_line):
+            in_fence = not in_fence
+            continue
+        if in_fence:
+            continue
+        match = HEADING_RE.match(raw_line)
+        if match:
+            values.append(match.group(2).strip())
+    return values

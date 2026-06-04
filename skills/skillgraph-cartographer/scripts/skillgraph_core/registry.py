@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import fnmatch
 from pathlib import Path
 from typing import Any
 
@@ -9,7 +10,9 @@ from .shared import (
     SCHEMA_VERSION,
     Diagnostic,
     SkillRecord,
+    content_digest,
     first_h1,
+    host_scope_for_path,
     normalize_id_part,
     parse_frontmatter,
     read_text,
@@ -18,6 +21,31 @@ from .shared import (
     unique,
     utc_now,
 )
+
+
+def path_matches_pattern(path: str, pattern: str) -> bool:
+    normalized = pattern.strip()
+    if not normalized or normalized.startswith("#"):
+        return False
+    normalized = normalized.rstrip("/")
+    if "/" not in normalized:
+        return any(part == normalized for part in path.split("/"))
+    return fnmatch.fnmatch(path, normalized) or fnmatch.fnmatch(path, f"{normalized}/**")
+
+
+def path_matches_any(path: str, patterns: list[str] | None) -> bool:
+    return any(path_matches_pattern(path, pattern) for pattern in patterns or [])
+
+
+def load_gitignore_patterns(root: Path) -> list[str]:
+    path = root / ".gitignore"
+    if not path.exists():
+        return []
+    return [
+        line.strip()
+        for line in read_text(path).splitlines()
+        if line.strip() and not line.lstrip().startswith("#")
+    ]
 
 
 def skill_identity_parts(skill_file: Path, root: Path) -> tuple[str, ...]:
@@ -38,11 +66,39 @@ def skill_category(skill_file: Path, root: Path) -> str:
     return ".".join(normalize_id_part(part) for part in parts) or "Uncategorized"
 
 
-def scan_registry(root: Path) -> dict[str, Any]:
+def scan_registry(
+    root: Path,
+    *,
+    respect_gitignore: bool = False,
+    exclude_patterns: list[str] | None = None,
+    include_patterns: list[str] | None = None,
+    max_skill_files: int | None = None,
+) -> dict[str, Any]:
     root = root.resolve()
     diagnostics: list[Diagnostic] = []
-    skill_files = sorted(root.glob("**/SKILL.md"), key=lambda path: skill_file_sort_key(path, root))
-    skill_files = [path for path in skill_files if not should_skip(path, root)]
+    gitignore_patterns = load_gitignore_patterns(root) if respect_gitignore else []
+    skill_files: list[Path] = []
+    for path in sorted(root.glob("**/SKILL.md"), key=lambda value: skill_file_sort_key(value, root)):
+        rel = rel_path(path, root)
+        included = path_matches_any(rel, include_patterns)
+        excluded = (
+            should_skip(path, root)
+            or path_matches_any(rel, exclude_patterns)
+            or path_matches_any(rel, gitignore_patterns)
+        )
+        if excluded and not included:
+            continue
+        skill_files.append(path)
+    if max_skill_files is not None and len(skill_files) > max_skill_files:
+        diagnostics.append(
+            Diagnostic(
+                type="scan_limit_exceeded",
+                severity="warning",
+                message=f"Found {len(skill_files)} skill files; scanning first {max_skill_files}.",
+                evidence={"found": len(skill_files), "maxSkillFiles": max_skill_files},
+            )
+        )
+        skill_files = skill_files[:max_skill_files]
     records_by_id: dict[str, SkillRecord] = {}
 
     for skill_file in skill_files:
@@ -85,11 +141,20 @@ def scan_registry(root: Path) -> dict[str, Any]:
             dirs=[skill_dir],
             language_variants=variants,
             frontmatter=frontmatter,
+            copies=[
+                {
+                    "host": host_scope_for_path(path),
+                    "path": path,
+                    "sha256": content_digest(text),
+                }
+            ],
         )
         if skill_id in records_by_id:
             merge_skill_record(records_by_id[skill_id], record)
         else:
             records_by_id[skill_id] = record
+
+    diagnostics.extend(skill_copy_drift_diagnostics(records_by_id))
 
     registry = {
         "schemaVersion": SCHEMA_VERSION,
@@ -116,6 +181,7 @@ def merge_skill_record(existing: SkillRecord, incoming: SkillRecord) -> None:
     existing.dirs = unique([*existing.dirs, *incoming.dirs])
     existing.aliases = unique([*existing.aliases, *incoming.aliases])
     existing.language_variants = merge_language_variants(existing.language_variants, incoming.language_variants)
+    existing.copies = merge_copies(existing.copies, incoming.copies)
     if not existing.description and incoming.description:
         existing.description = incoming.description
     if existing.category == "Uncategorized" and incoming.category != "Uncategorized":
@@ -134,8 +200,52 @@ def merge_language_variants(existing: list[dict[str, str]], incoming: list[dict[
     return merged
 
 
-def load_registry(root: Path) -> dict[str, Any]:
-    return scan_registry(root)
+def merge_copies(existing: list[dict[str, str]], incoming: list[dict[str, str]]) -> list[dict[str, str]]:
+    seen: set[tuple[str, str, str]] = set()
+    merged: list[dict[str, str]] = []
+    for copy in [*existing, *incoming]:
+        key = (copy.get("host", ""), copy.get("path", ""), copy.get("sha256", ""))
+        if key in seen:
+            continue
+        seen.add(key)
+        merged.append(copy)
+    return merged
+
+
+def skill_copy_drift_diagnostics(records_by_id: dict[str, SkillRecord]) -> list[Diagnostic]:
+    diagnostics: list[Diagnostic] = []
+    for skill_id, record in sorted(records_by_id.items()):
+        hosts = sorted({copy.get("host", "other") for copy in record.copies})
+        digests = sorted({copy.get("sha256", "") for copy in record.copies if copy.get("sha256")})
+        if len(hosts) <= 1 or len(digests) <= 1:
+            continue
+        diagnostics.append(
+            Diagnostic(
+                type="skill_copy_drift",
+                severity="info",
+                skill=skill_id,
+                message="Same skill id appears in multiple host scopes with different content digests.",
+                evidence={"copies": record.copies},
+            )
+        )
+    return diagnostics
+
+
+def load_registry(
+    root: Path,
+    *,
+    respect_gitignore: bool = False,
+    exclude_patterns: list[str] | None = None,
+    include_patterns: list[str] | None = None,
+    max_skill_files: int | None = None,
+) -> dict[str, Any]:
+    return scan_registry(
+        root,
+        respect_gitignore=respect_gitignore,
+        exclude_patterns=exclude_patterns,
+        include_patterns=include_patterns,
+        max_skill_files=max_skill_files,
+    )
 
 
 def skill_maps(registry: dict[str, Any]) -> tuple[dict[str, dict[str, Any]], dict[str, list[str]]]:

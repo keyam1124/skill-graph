@@ -42,6 +42,11 @@ inferred skill relationships.
 
    Capture stdout as JSON. Do not expect `.skillgraph/` or HTML files to be
    created.
+   When semantic grouping or relation inference is requested, prefer:
+
+   ```bash
+   python3 "$SKILL_DIR/scripts/skillgraph.py" collect "$TARGET_REPO" --agent-context
+   ```
 
 4. Read the base graph and preserve its facts:
 
@@ -51,7 +56,14 @@ inferred skill relationships.
    - `languageVariants`
    - relation `origin`, `confidence`, and `evidence`
 
-5. Run an agent inference pass in memory:
+5. Validate the JSON before and after enrichment when the user needs a final
+   graph, viewer handoff, or export:
+
+   ```bash
+   python3 "$SKILL_DIR/scripts/skillgraph.py" validate --stdin --strict
+   ```
+
+6. Run an agent inference pass in memory:
 
    - Read the `SKILL.md` files listed in `nodes[].path` when semantic grouping
      or relationship inference is requested.
@@ -63,7 +75,7 @@ inferred skill relationships.
    - Keep excerpts short and cite the relevant `SKILL.md` path in evidence.
    - Treat the host agent's reasoning as advisory annotation, not source truth.
 
-6. Add agent-inferred annotations when useful:
+7. Add agent-inferred annotations when useful:
 
    - concise display labels
    - one-line summaries
@@ -74,12 +86,13 @@ inferred skill relationships.
    - trigger phrases
    - inferred relationship hints
    - optional view suggestions
+   - optional enrichment coverage when only part of the graph was read
 
-7. Keep deterministic and inferred information separate. Use `nodeAnnotations`
+8. Keep deterministic and inferred information separate. Use `nodeAnnotations`
    for inferred node metadata and `inferredEdges` for inferred relationship
    hints. Do not rewrite existing deterministic nodes or edges.
 
-8. Display the base or enriched graph:
+9. Display the base or enriched graph:
 
    ```bash
    python3 "$SKILL_DIR/scripts/skillgraph.py" view --stdin
@@ -91,6 +104,22 @@ For a direct viewer run without custom enrichment, use the bundled wrapper:
 
 ```bash
 SKILLGRAPH_REPO_ROOT="$TARGET_REPO" "$SKILL_DIR/scripts/view-skillgraph.sh" --no-open
+```
+
+For larger graphs or fragile enrichment editing, keep the base graph and
+annotations in separate files:
+
+```bash
+python3 "$SKILL_DIR/scripts/skillgraph.py" enrichment-template "$BASE_GRAPH" > "$AGENT_INPUT"
+python3 "$SKILL_DIR/scripts/skillgraph.py" merge --base "$BASE_GRAPH" --annotations "$ANNOTATIONS"
+```
+
+For non-browser output, use:
+
+```bash
+python3 "$SKILL_DIR/scripts/skillgraph.py" export --stdin --format mermaid
+python3 "$SKILL_DIR/scripts/skillgraph.py" export --stdin --format dot
+python3 "$SKILL_DIR/scripts/skillgraph.py" summary --stdin --format markdown
 ```
 
 ## Enrichment JSON Shape
@@ -120,6 +149,8 @@ Add these top-level fields to the collected graph when useful:
       "evidence": [
         {
           "path": "skills/ddd_tactical/aggregate_design/SKILL.md",
+          "startLine": 42,
+          "endLine": 42,
           "text": "architecture-level consequences"
         }
       ]
@@ -133,7 +164,14 @@ Add these top-level fields to the collected graph when useful:
         "clusterId": "domain-modeling"
       }
     }
-  ]
+  ],
+  "enrichmentCoverage": {
+    "nodeCount": 120,
+    "nodesRead": 85,
+    "nodesSkipped": 35,
+    "reason": "token_budget",
+    "partial": true
+  }
 }
 ```
 
@@ -146,6 +184,8 @@ Add these top-level fields to the collected graph when useful:
 - Do not propose write-back or approval workflows.
 - Always call the bundled CLI from this Skill directory; do not rely on the
   target repository having a copy of the tool.
+- Use `validate --stdin --strict` before reporting a final enriched graph when
+  an enrichment pass was performed.
 - Use host-agent reasoning for semantic labels, clusters, and inferred edges.
 - Do not call nested agent CLIs or external LLM APIs.
 - Treat inferred labels, categories, clusters, and edges as temporary viewer
