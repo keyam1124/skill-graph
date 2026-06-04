@@ -121,10 +121,99 @@ class SkillGraphViewerWorkflowTest(unittest.TestCase):
         diagnostic_types = {item.get("type") for item in self._diagnostics(graph)}
         self.assertNotIn("dangling_reference", diagnostic_types)
 
+    def test_collect_handles_markdown_link_edge_cases_with_line_evidence(self):
+        skillgraph = load_skillgraph_module()
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._write(
+                root / "skills" / "alpha" / "SKILL.md",
+                """\
+                ---
+                name: alpha
+                description: Use when testing Markdown link parsing.
+                ---
+                # Alpha
+
+                See [beta](../beta/SKILL.md "title").
+                See [beta reference][beta-skill].
+                ![beta image](../beta/SKILL.md)
+                Inline code should not count: `../beta/SKILL.md`.
+
+                [beta-skill]: ../beta/SKILL.md
+                """,
+            )
+            self._write(
+                root / "skills" / "beta" / "SKILL.md",
+                """\
+                ---
+                name: beta
+                description: Use when testing Markdown link parsing.
+                ---
+                # Beta
+                """,
+            )
+
+            graph = skillgraph.analyze_graph(root)
+
+        edges = self._edges(graph)
+        self.assertEqual(len(edges), 1)
+        edge = edges[0]
+        self.assertEqual(edge["type"], "direct_reference")
+        self.assertEqual(edge["legacyType"], "depends_on")
+        evidence = edge["evidence"]
+        self.assertGreaterEqual(len(evidence), 2)
+        self.assertTrue(all("startLine" in item for item in evidence))
+        self.assertIn("markdown_link", {item.get("matchKind") for item in evidence})
+        self.assertIn("reference_link", {item.get("matchKind") for item in evidence})
+
+    def test_enrich_graph_dedupes_inferred_edges(self):
+        skillgraph = load_skillgraph_module()
+        graph = {
+            "schemaVersion": "skillgraph-lite.v1.1",
+            "generatedAt": "2026-05-28T00:00:00Z",
+            "root": "/tmp/example",
+            "nodes": [
+                {"id": "skill.alpha", "kind": "skill", "label": "alpha", "path": "skills/alpha/SKILL.md"},
+                {"id": "skill.beta", "kind": "skill", "label": "beta", "path": "skills/beta/SKILL.md"},
+            ],
+            "edges": [
+                {
+                    "id": "edge.inferred.skill.alpha.skill.beta.related_to.1",
+                    "source": "skill.alpha",
+                    "target": "skill.beta",
+                    "type": "related_to",
+                    "origin": "agent_inferred",
+                    "confidence": "medium",
+                    "rationale": "same",
+                    "evidence": [],
+                    "inferred": True,
+                }
+            ],
+            "diagnostics": [],
+            "inferredEdges": [
+                {
+                    "source": "skill.alpha",
+                    "target": "skill.beta",
+                    "type": "related_to",
+                    "confidence": 0.7,
+                    "rationale": "same",
+                }
+            ],
+        }
+
+        enriched = skillgraph.enrich_graph(graph)
+
+        matching = [
+            edge for edge in enriched["edges"]
+            if edge.get("source") == "skill.alpha" and edge.get("target") == "skill.beta"
+        ]
+        self.assertEqual(len(matching), 1)
+        self.assertFalse(enriched["diagnostics"])
+
     def test_enriched_graph_annotations_and_viewer_html(self):
         skillgraph = load_skillgraph_module()
         graph = {
-            "schemaVersion": "skillgraph-lite.v1",
+            "schemaVersion": "skillgraph-lite.v1.1",
             "generatedAt": "2026-05-28T00:00:00Z",
             "root": "/tmp/example",
             "nodes": [
@@ -170,11 +259,21 @@ class SkillGraphViewerWorkflowTest(unittest.TestCase):
             "related_to",
             "agent_inferred",
         )
+        inferred = self._assert_edge(enriched["edges"], "skill.alpha", "skill.beta", "related_to", "agent_inferred")
+        self.assertEqual(inferred["confidence"], "medium")
+        self.assertEqual(inferred["confidenceScore"], 0.74)
         diagnostic_types = {item["type"] for item in enriched["diagnostics"]}
         self.assertIn("invalid_agent_annotation", diagnostic_types)
 
         html = skillgraph.html_for_graph(enriched)
         self.assertIn("SkillGraph Viewer", html)
+        self.assertIn("SkillGraph Cartographer", html)
+        self.assertIn("Agent suggested views", html)
+        self.assertIn("showDirectEdges", html)
+        self.assertIn("showInferredEdges", html)
+        self.assertIn("coverageBadge", html)
+        self.assertIn("relationFocus", html)
+        self.assertIn("Evidence ledger", html)
         self.assertNotIn("Inferred Cluster", html)
         self.assertNotIn("data-view-mode", html)
         self.assertNotIn('id="viewMode"', html)
@@ -247,10 +346,10 @@ class SkillGraphViewerWorkflowTest(unittest.TestCase):
         self.assertIn("Outgoing relations", html)
         self.assertIn("Incoming relations", html)
         self.assertIn("Source details", html)
-        self.assertIn("inspectorPanel.hidden = !selected", html)
+        self.assertIn("inspectorPanel.hidden = false", html)
         self.assertIn("graph-workspace.inspector-hidden", html)
-        self.assertNotIn("renderOverviewDetails", html)
-        self.assertNotIn("<h2>Overview</h2>", html)
+        self.assertIn("renderOverviewDetails", html)
+        self.assertIn("<h2>Overview</h2>", html)
         self.assertNotIn("Trigger phrases", html)
         self.assertIn("interpreted", html)
         self.assertNotIn("node .node-type", html)
@@ -378,7 +477,10 @@ class SkillGraphViewerWorkflowTest(unittest.TestCase):
         self.assertNotIn("scripts/helper.sh", {node.get("id") for node in nodes})
 
         edges = self._edges(graph)
-        self._assert_edge(edges, "ddd-tactical.aggregate-design", "ddd-tactical.repository-design", "depends_on", None)
+        edge = self._assert_edge(edges, "ddd-tactical.aggregate-design", "ddd-tactical.repository-design", "direct_reference", None)
+        self.assertEqual(edge.get("legacyType"), "depends_on")
+        self.assertIn("startLine", edge.get("evidence", [{}])[0])
+        self.assertIn("normalizedTarget", edge.get("evidence", [{}])[0])
         self.assertFalse(
             any(
                 edge.get("source") == "ddd-tactical.aggregate-design"
@@ -435,7 +537,7 @@ class SkillGraphViewerWorkflowTest(unittest.TestCase):
                 and edge.get("type") == edge_type
                 and (origin is None or edge.get("origin") == origin)
             ):
-                return
+                return edge
         self.fail(
             "expected edge "
             f"source={source!r} target={target!r} type={edge_type!r} origin={origin!r}; "

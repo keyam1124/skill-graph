@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+import ipaddress
 import json
 from pathlib import Path
 from typing import Any
@@ -22,20 +23,29 @@ def make_viewer_handler(graph: dict[str, Any]) -> type[BaseHTTPRequestHandler]:
     graph_json = (json.dumps(graph, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
 
     class ViewerHandler(BaseHTTPRequestHandler):
+        def send_viewer_headers(self, content_type: str, content_length: int) -> None:
+            self.send_header("Content-Type", content_type)
+            self.send_header("Content-Length", str(content_length))
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("X-Content-Type-Options", "nosniff")
+
         def do_GET(self) -> None:  # noqa: N802 - stdlib handler API
             if self.path in {"/", "/index.html"}:
                 self.send_response(200)
-                self.send_header("Content-Type", "text/html; charset=utf-8")
-                self.send_header("Content-Length", str(len(html_text)))
+                self.send_viewer_headers("text/html; charset=utf-8", len(html_text))
                 self.end_headers()
                 self.wfile.write(html_text)
                 return
             if self.path == "/graph.json":
                 self.send_response(200)
-                self.send_header("Content-Type", "application/json; charset=utf-8")
-                self.send_header("Content-Length", str(len(graph_json)))
+                self.send_viewer_headers("application/json; charset=utf-8", len(graph_json))
                 self.end_headers()
                 self.wfile.write(graph_json)
+                return
+            if self.path == "/favicon.ico":
+                self.send_response(204)
+                self.send_header("Cache-Control", "no-store")
+                self.end_headers()
                 return
             self.send_error(404)
 
@@ -45,7 +55,18 @@ def make_viewer_handler(graph: dict[str, Any]) -> type[BaseHTTPRequestHandler]:
     return ViewerHandler
 
 
-def serve_viewer(graph: dict[str, Any], host: str, port: int, open_browser: bool) -> int:
+def is_loopback_host(host: str) -> bool:
+    if host == "localhost":
+        return True
+    try:
+        return ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        return False
+
+
+def serve_viewer(graph: dict[str, Any], host: str, port: int, open_browser: bool, *, allow_non_loopback: bool = False) -> int:
+    if not is_loopback_host(host) and not allow_non_loopback:
+        raise SystemExit(f"refusing to bind non-loopback host {host}; pass --allow-non-loopback to expose graph JSON")
     server = ThreadingHTTPServer((host, port), make_viewer_handler(graph))
     url = f"http://{server.server_address[0]}:{server.server_address[1]}/"
     print(url, flush=True)
