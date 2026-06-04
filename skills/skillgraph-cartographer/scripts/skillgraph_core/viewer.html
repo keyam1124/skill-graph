@@ -26,7 +26,7 @@
       --danger-soft: oklch(94% 0.05 28);
       --shadow: 0 18px 50px rgba(20, 30, 50, 0.10);
       --navigator-width: 284px;
-      --inspector-width: 312px;
+      --inspector-width: 360px;
       --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", system-ui, sans-serif;
       --font-body: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
       --font-mono: "SF Mono", "JetBrains Mono", "IBM Plex Mono", ui-monospace, Menlo, monospace;
@@ -256,8 +256,8 @@
       box-shadow: var(--shadow);
     }
 
-    .details.is-overview {
-      bottom: auto;
+    .details[hidden] {
+      display: none;
     }
 
     .panel-scroll {
@@ -524,6 +524,59 @@
       line-height: 1.5;
     }
 
+    .detail-lede {
+      margin: 10px 0 12px;
+      color: var(--fg);
+      line-height: 1.5;
+    }
+
+    .compact-metrics {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+      margin: 12px 0 14px;
+    }
+
+    .compact-metric {
+      min-width: 0;
+      border: 1px solid color-mix(in oklch, var(--border) 72%, transparent);
+      border-radius: 8px;
+      padding: 8px 9px;
+      background: color-mix(in oklch, var(--surface-2) 58%, transparent);
+    }
+
+    .compact-metric span,
+    .reason-label {
+      display: block;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 720;
+      line-height: 1.1;
+      text-transform: uppercase;
+    }
+
+    .compact-metric strong {
+      display: block;
+      margin-top: 5px;
+      color: var(--fg);
+      font: 740 17px/1 var(--font-display);
+    }
+
+    .reason-block {
+      display: grid;
+      gap: 5px;
+      margin: 12px 0;
+      padding: 10px;
+      border: 1px solid color-mix(in oklch, var(--secondary) 28%, var(--border));
+      border-radius: 8px;
+      background: color-mix(in oklch, var(--secondary-soft) 42%, var(--surface));
+    }
+
+    .reason-block p {
+      margin: 0;
+      overflow-wrap: anywhere;
+    }
+
     .relation-section {
       margin: 14px 0;
     }
@@ -553,6 +606,13 @@
       text-align: left;
     }
 
+    .summary-card button.relation-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      align-items: start;
+      justify-content: stretch;
+    }
+
     .relation-row:hover {
       color: var(--fg);
       box-shadow: none;
@@ -574,6 +634,20 @@
       font-size: 12px;
     }
 
+    .edge-list .item strong {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      line-height: 1.35;
+    }
+
+    .edge-list .description,
+    .relation-row .description {
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
     details.raw-json {
       margin-top: 10px;
       border: 1px solid var(--border);
@@ -586,6 +660,13 @@
       padding: 10px 12px;
       color: var(--fg);
       font-weight: 760;
+    }
+
+    details.raw-json .meta-grid {
+      margin: 0;
+      padding: 12px;
+      border-top: 1px solid var(--border);
+      background: var(--surface-2);
     }
 
     pre {
@@ -791,6 +872,35 @@
       vector-effect: non-scaling-stroke;
     }
 
+    .edge-label {
+      pointer-events: none;
+    }
+
+    .edge-label rect {
+      fill: color-mix(in oklch, var(--surface) 94%, transparent);
+      stroke: color-mix(in oklch, var(--relation) 42%, var(--border));
+      stroke-width: 1;
+      vector-effect: non-scaling-stroke;
+    }
+
+    .edge-label.inferred rect {
+      stroke-color: color-mix(in oklch, var(--secondary) 46%, var(--border));
+      fill: color-mix(in oklch, var(--secondary-soft) 62%, var(--surface));
+    }
+
+    .edge-label.selected rect {
+      stroke-color: var(--danger);
+      fill: color-mix(in oklch, var(--danger-soft) 64%, var(--surface));
+    }
+
+    .edge-label text {
+      fill: color-mix(in oklch, var(--fg) 82%, var(--muted));
+      font: 720 11px/1 var(--font-body);
+      text-anchor: middle;
+      paint-order: normal;
+      stroke: none;
+    }
+
     .graph-status {
       position: absolute;
       left: 12px;
@@ -811,6 +921,11 @@
       overflow: hidden;
       box-shadow: 0 8px 28px rgba(20, 30, 50, 0.08);
       backdrop-filter: blur(12px);
+    }
+
+    .graph-workspace.inspector-hidden .graph-toolbar,
+    .graph-workspace.inspector-hidden .graph-status {
+      right: 12px;
     }
 
     .status-points {
@@ -1053,6 +1168,12 @@
           <div id="diagnostics" class="list"></div>
 
           <div class="section-title" style="margin-top: 18px;">
+            <h3>Edges</h3>
+            <span class="count" id="edgeCount">0</span>
+          </div>
+          <div id="edges" class="list edge-list"></div>
+
+          <div class="section-title" style="margin-top: 18px;">
             <h3>Nodes</h3>
             <span class="count" id="nodeCount">0</span>
           </div>
@@ -1091,7 +1212,7 @@
         </footer>
       </section>
 
-      <aside id="inspectorPanel" class="panel details is-overview" aria-label="Selection inspector">
+      <aside id="inspectorPanel" class="panel details" aria-label="Selection inspector" hidden>
         <div class="panel-scroll">
           <div class="section-title">
             <h2>Inspector</h2>
@@ -1139,6 +1260,7 @@
     const panLeft = document.getElementById("panLeft");
     const panRight = document.getElementById("panRight");
     const inspectorPanel = document.getElementById("inspectorPanel");
+    const graphWorkspace = document.querySelector(".graph-workspace");
     categoryFrames.checked = categoryFramesDefault;
 
     for (const value of [...new Set(graphDisplayEdges.map(edge => edge.confidence))].sort()) {
@@ -1156,7 +1278,7 @@
       const values = [];
       for (const edge of graph.edges) {
         if (edge.source !== node.id && edge.target !== node.id) continue;
-        values.push(edge.type, edge.origin, edge.confidence, edge.rationale);
+        values.push(edge.type, edge.origin, edge.confidence, edge.rationale, relationReason(edge), relationEvidenceText(edge));
         values.push(nodeDisplay(edge.source), nodeDisplay(edge.target));
       }
       return values;
@@ -1454,12 +1576,61 @@
       return edge.origin || "direct";
     }
 
+    function relationEvidenceItems(edge) {
+      return Array.isArray(edge.evidence) ? edge.evidence : [];
+    }
+
+    function compactText(value, maxLength = 150) {
+      const text = String(value || "").replace(/\s+/g, " ").trim();
+      if (text.length <= maxLength) return text;
+      return `${text.slice(0, Math.max(0, maxLength - 3)).trim()}...`;
+    }
+
+    function evidenceLabel(item) {
+      if (!item || typeof item !== "object") return "";
+      const where = item.path || item.section || "";
+      const text = item.text || item.value || "";
+      if (where && text) return `${where}: "${compactText(text, 84)}"`;
+      return where || compactText(text, 110);
+    }
+
     function relationEvidenceText(edge) {
-      const evidence = Array.isArray(edge.evidence) ? edge.evidence : [];
-      return evidence
-        .map(item => item.path || item.section || item.text)
+      return relationEvidenceItems(edge)
+        .map(evidenceLabel)
         .filter(Boolean)
-        .join(", ");
+        .join("; ");
+    }
+
+    function relationReasonKind(edge) {
+      if (edge.inferred || edge.origin === "agent_inferred") return "Agent reason";
+      return "Reference reason";
+    }
+
+    function relationReason(edge) {
+      const rationale = String(edge.rationale || "").trim();
+      if (rationale) return rationale;
+      const origin = String(edge.origin || "");
+      const evidenceText = relationEvidenceText(edge);
+      if (origin.includes("link")) {
+        return `Markdown link evidence connects ${nodeDisplay(edge.source)} to ${nodeDisplay(edge.target)}${evidenceText ? ` (${evidenceText})` : ""}.`;
+      }
+      if (origin.includes("path_reference")) {
+        return `SKILL.md path reference connects ${nodeDisplay(edge.source)} to ${nodeDisplay(edge.target)}${evidenceText ? ` (${evidenceText})` : ""}.`;
+      }
+      if (edge.inferred || origin === "agent_inferred") {
+        return evidenceText
+          ? `Host-agent inferred this relation from the cited skill text (${evidenceText}).`
+          : "Host-agent inferred this relation, but no rationale was provided.";
+      }
+      return evidenceText || "No rationale provided.";
+    }
+
+    function edgeBadgeHtml(edge) {
+      return `
+        <span class="badge ${edge.inferred ? "inferred" : ""}">${escapeHtml(relationOriginLabel(edge))}</span>
+        <span class="badge file">${escapeHtml(relationTypeLabel(edge))}</span>
+        ${edge.confidence ? `<span class="badge">${escapeHtml(edge.confidence)}</span>` : ""}
+      `;
     }
 
     function sortedRelations(edges) {
@@ -1473,16 +1644,14 @@
     function relationRowHtml(edge, direction) {
       const otherId = direction === "outgoing" ? edge.target : edge.source;
       const prefix = direction === "outgoing" ? "To" : "From";
-      const rationale = edge.rationale || relationEvidenceText(edge) || "";
+      const rationale = relationReason(edge);
       return `
         <button class="relation-row" type="button" data-edge-id="${escapeHtml(edge.id)}">
           <span class="item-meta">
-            <span class="badge ${edge.inferred ? "inferred" : ""}">${escapeHtml(relationOriginLabel(edge))}</span>
-            <span class="badge file">${escapeHtml(relationTypeLabel(edge))}</span>
-            ${edge.confidence ? `<span class="badge">${escapeHtml(edge.confidence)}</span>` : ""}
+            ${edgeBadgeHtml(edge)}
           </span>
           <strong>${escapeHtml(prefix)} ${escapeHtml(nodeDisplay(otherId))}</strong>
-          ${rationale ? `<span class="description">${escapeHtml(rationale)}</span>` : ""}
+          <span class="description">${escapeHtml(rationale)}</span>
         </button>
       `;
     }
@@ -1511,15 +1680,6 @@
       return String(type || "diagnostic").replaceAll("_", " ");
     }
 
-    function activeScopeLabel() {
-      const parts = [];
-      const q = search.value.trim();
-      if (q) parts.push(`Search "${q}"`);
-      if (confidence.value) parts.push(`Confidence ${confidence.value}`);
-      if (state.selectedCategory) parts.push(`Category ${state.selectedCategory}`);
-      return parts.length ? parts.join(" / ") : "All graph";
-    }
-
     function scopeStatus(nodes, edges) {
       const parts = [
         `${nodes.length}/${graphDisplayNodes.length} nodes`,
@@ -1529,22 +1689,6 @@
       if (q) parts.push(`search: ${q}`);
       if (confidence.value) parts.push(`confidence: ${confidence.value}`);
       return parts.join(" / ");
-    }
-
-    function renderOverviewDetails(nodes, edges, diagnostics) {
-      return `
-        <section class="summary-card">
-          <h2>Overview</h2>
-          <dl class="meta-grid">
-            <dt>Visible</dt><dd>${nodes.length} nodes / ${edges.length} edges</dd>
-            <dt>Total</dt><dd>${graphDisplayNodes.length} nodes / ${graphDisplayEdges.length} edges</dd>
-            <dt>Diagnostics</dt><dd>${diagnostics.length} in scope / ${graph.diagnostics.length} total</dd>
-            <dt>Focus</dt><dd>${escapeHtml(activeScopeLabel())}</dd>
-            <dt>Generated</dt><dd>${escapeHtml(graph.generatedAt || "N/A")}</dd>
-            <dt>Root</dt><dd>${escapeHtml(graph.root || "N/A")}</dd>
-          </dl>
-        </section>
-      `;
     }
 
     function groupBy(values, keyFn) {
@@ -1765,7 +1909,45 @@
       const my = (start.y + end.y) / 2 + (dx / distance) * curve;
       return {
         path: `M ${start.x} ${start.y} Q ${mx} ${my} ${end.x} ${end.y}`,
+        labelX: mx,
+        labelY: my,
       };
+    }
+
+    function edgeLabelText(edge) {
+      const base = relationTypeLabel(edge);
+      const confidence = edge.confidence ? ` · ${edge.confidence}` : "";
+      return compactText(`${base}${confidence}`, 32);
+    }
+
+    function shouldShowEdgeLabel(isSelected, isRelated, edgeCount) {
+      return isSelected || isRelated || (edgeCount <= 12 && state.view.scale >= .58);
+    }
+
+    function drawEdgeLabel(layer, edge, geometry, isSelected, isRelated, edgeCount) {
+      if (!shouldShowEdgeLabel(isSelected, isRelated, edgeCount)) return;
+      const text = edgeLabelText(edge);
+      const width = Math.max(54, Math.min(230, text.length * 6.7 + 18));
+      const group = document.createElementNS("http://www.w3.org/2000/svg", "g");
+      group.setAttribute("class", `edge-label${edge.inferred ? " inferred" : ""}${isSelected ? " selected" : ""}`);
+      group.setAttribute("transform", `translate(${geometry.labelX}, ${geometry.labelY})`);
+
+      const title = document.createElementNS("http://www.w3.org/2000/svg", "title");
+      title.textContent = `${edgeSummary(edge)}: ${relationReason(edge)}`;
+
+      const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+      rect.setAttribute("x", String(-width / 2));
+      rect.setAttribute("y", "-13");
+      rect.setAttribute("width", String(width));
+      rect.setAttribute("height", "25");
+      rect.setAttribute("rx", "7");
+
+      const label = document.createElementNS("http://www.w3.org/2000/svg", "text");
+      label.setAttribute("y", "4");
+      label.textContent = text;
+
+      group.append(title, rect, label);
+      layer.append(group);
     }
 
     function draw() {
@@ -1791,6 +1973,11 @@
       const selectedNodeId = selected?.kind === "node" ? selected.value.id : "";
       const selectedEdge = selected?.kind === "edge" ? selected.value : null;
       const selectedEdgeNodes = selectedEdge ? new Set([selectedEdge.source, selectedEdge.target]) : new Set();
+      inspectorPanel.hidden = !selected;
+      graphWorkspace.classList.toggle("inspector-hidden", !selected);
+      if (!selected) {
+        document.getElementById("details").innerHTML = "";
+      }
       drawCategoryFrames(layer, nodes, state.layoutBounds.width || width, state.layoutBounds.height || height);
       drawCategoryFrameHits(layer, nodes, state.layoutBounds.width || width, state.layoutBounds.height || height);
       const edgeOccurrences = new Map();
@@ -1820,11 +2007,15 @@
         path.setAttribute("d", pathData);
         path.setAttribute("class", edgeClass);
         path.setAttribute("marker-end", edgeMarker(isSelected, isRelated));
+        const title = document.createElementNS("http://www.w3.org/2000/svg", "title");
+        title.textContent = `${edgeSummary(edge)}: ${relationReason(edge)}`;
+        path.append(title);
         path.addEventListener("click", event => {
           event.stopPropagation();
           select(edge, "edge");
         });
         layer.append(path);
+        drawEdgeLabel(layer, edge, geometry, isSelected, isRelated, edges.length);
       }
       for (const node of nodes) {
         const point = positions.get(node.id);
@@ -1871,11 +2062,7 @@
       clearCategory.hidden = !state.selectedCategory;
       const scopedDiagnostics = visibleDiagnostics();
       setText("activeDiagnostics", `${scopedDiagnostics.length} in scope`);
-      renderLists(nodes);
-      if (!selected) {
-        inspectorPanel.classList.add("is-overview");
-        document.getElementById("details").innerHTML = renderOverviewDetails(nodes, edges, scopedDiagnostics);
-      }
+      renderLists(nodes, edges);
     }
 
     function nodeItemHtml(node) {
@@ -1891,6 +2078,16 @@
         <span>${escapeHtml(nodePath(node))}</span>
         ${roleTags.length ? `<span>${roleTags.map(escapeHtml).join(", ")}</span>` : ""}
         ${description}
+      `;
+    }
+
+    function edgeItemHtml(edge) {
+      return `
+        <div class="item-meta">
+          ${edgeBadgeHtml(edge)}
+        </div>
+        <strong>${escapeHtml(edgeSummary(edge))}</strong>
+        <span class="description">${escapeHtml(relationReason(edge))}</span>
       `;
     }
 
@@ -1934,12 +2131,29 @@
       }
     }
 
-    function renderLists(nodes) {
+    function renderEdgeGroups(edgeBox, edges) {
+      const groups = groupBy(edges, edge => edge.inferred || edge.origin === "agent_inferred" ? "Agent-inferred edges" : "Direct references");
+      for (const [title, values] of groups) {
+        appendGroup(edgeBox, title, sortedRelations(values), edge => {
+          const item = document.createElement("div");
+          item.className = `item ${state.selected?.kind === "edge" && edge.id === state.selected.key ? "selected" : ""}`;
+          item.innerHTML = edgeItemHtml(edge);
+          item.addEventListener("click", () => select(edge, "edge"));
+          return item;
+        });
+      }
+    }
+
+    function renderLists(nodes, edges) {
       const nodeBox = document.getElementById("nodes");
+      const edgeBox = document.getElementById("edges");
       nodeBox.innerHTML = "";
+      edgeBox.innerHTML = "";
+      renderEdgeGroups(edgeBox, edges);
       renderNodeGroups(nodeBox, nodes);
       renderDiagnostics();
       setText("nodeCount", String(nodes.length));
+      setText("edgeCount", String(edges.length));
     }
 
     function renderDiagnostics() {
@@ -1961,7 +2175,8 @@
     function select(value, kind) {
       state.selected = { kind, value, key: selectionKey(kind, value) };
       const details = document.getElementById("details");
-      inspectorPanel.classList.remove("is-overview");
+      inspectorPanel.hidden = false;
+      graphWorkspace.classList.remove("inspector-hidden");
       details.innerHTML = renderDetails(value, kind);
       bindDetailActions();
       draw();
@@ -1990,6 +2205,8 @@
       const annotation = node.annotation || {};
       const roleTags = Array.isArray(annotation.roleTags) ? annotation.roleTags : [];
       const triggers = Array.isArray(annotation.triggerPhrases) ? annotation.triggerPhrases : [];
+      const aliases = Array.isArray(node.aliases) ? node.aliases : [];
+      const summary = annotation.summary || node.description || "";
       return `
         <section class="summary-card">
           <h2>Node</h2>
@@ -1998,20 +2215,24 @@
             ${annotation.clusterId ? `<span class="badge inferred">${escapeHtml(annotation.clusterId)}</span>` : ""}
           </div>
           <p><strong>${escapeHtml(annotation.label || node.label || node.id)}</strong></p>
-          ${annotation.summary ? `<p class="description">${escapeHtml(annotation.summary)}</p>` : node.description ? `<p class="description">${escapeHtml(node.description)}</p>` : ""}
-          <dl class="meta-grid">
-            <dt>ID</dt><dd>${escapeHtml(node.id)}</dd>
-            <dt>Path</dt><dd>${escapeHtml(nodePath(node))}</dd>
-            <dt>Outgoing</dt><dd>${outgoing.length} relations</dd>
-            <dt>Incoming</dt><dd>${incoming.length} relations</dd>
-            ${roleTags.length ? `<dt>Role tags</dt><dd>${roleTags.map(escapeHtml).join(", ")}</dd>` : ""}
-            ${triggers.length ? `<dt>Trigger phrases</dt><dd>${triggers.map(escapeHtml).join(", ")}</dd>` : ""}
-            ${node.aliases?.length ? `<dt>Aliases</dt><dd>${node.aliases.map(escapeHtml).join(", ")}</dd>` : ""}
-          </dl>
+          ${summary ? `<p class="detail-lede">${escapeHtml(summary)}</p>` : ""}
+          <div class="compact-metrics" aria-label="Node relation counts">
+            <div class="compact-metric"><span>Outgoing</span><strong>${outgoing.length}</strong></div>
+            <div class="compact-metric"><span>Incoming</span><strong>${incoming.length}</strong></div>
+          </div>
           ${renderRelationGroup("Outgoing relations", outgoing, "outgoing")}
           ${renderRelationGroup("Incoming relations", incoming, "incoming")}
           <button id="clearSelection" type="button">Clear selection</button>
-          ${rawJson(node)}
+          <details class="raw-json">
+            <summary>Source details</summary>
+            <dl class="meta-grid">
+              <dt>ID</dt><dd>${escapeHtml(node.id)}</dd>
+              <dt>Path</dt><dd>${escapeHtml(nodePath(node))}</dd>
+              ${roleTags.length ? `<dt>Role tags</dt><dd>${roleTags.map(escapeHtml).join(", ")}</dd>` : ""}
+              ${triggers.length ? `<dt>Triggers</dt><dd>${triggers.map(escapeHtml).join(", ")}</dd>` : ""}
+              ${aliases.length ? `<dt>Aliases</dt><dd>${aliases.map(escapeHtml).join(", ")}</dd>` : ""}
+            </dl>
+          </details>
         </section>
       `;
     }
@@ -2022,20 +2243,22 @@
     }
 
     function renderEdgeDetails(edge) {
+      const evidenceText = relationEvidenceText(edge);
       return `
         <section class="summary-card">
           <h2>Edge</h2>
           <div class="item-meta">
-            ${edge.confidence ? `<span class="badge">${escapeHtml(edge.confidence)}</span>` : ""}
+            ${edgeBadgeHtml(edge)}
           </div>
           <p><strong>${escapeHtml(edgeSummary(edge))}</strong></p>
+          <div class="reason-block">
+            <span class="reason-label">${escapeHtml(relationReasonKind(edge))}</span>
+            <p>${escapeHtml(relationReason(edge))}</p>
+          </div>
           <dl class="meta-grid">
             <dt>From</dt><dd>${escapeHtml(nodeDisplay(edge.source))}<br>${escapeHtml(edge.source)}</dd>
             <dt>To</dt><dd>${escapeHtml(nodeDisplay(edge.target))}<br>${escapeHtml(edge.target)}</dd>
-            <dt>Relation</dt><dd>${escapeHtml(relationTypeLabel(edge))}</dd>
-            <dt>Origin</dt><dd>${escapeHtml(relationOriginLabel(edge))}</dd>
-            ${edge.rationale ? `<dt>Rationale</dt><dd>${escapeHtml(edge.rationale)}</dd>` : ""}
-            <dt>Evidence</dt><dd>${escapeHtml((edge.evidence || []).map(item => item.path || item.text).filter(Boolean).join(", ") || "N/A")}</dd>
+            ${evidenceText ? `<dt>Evidence</dt><dd>${escapeHtml(evidenceText)}</dd>` : ""}
           </dl>
           <button id="clearSelection" type="button">Clear selection</button>
           ${edgeDetailsJson(edge)}
