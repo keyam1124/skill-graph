@@ -1317,7 +1317,6 @@
       </label>
 
       <div class="top-actions" aria-label="Graph summary">
-        <span class="badge info" id="schemaBadge">Schema</span>
         <span class="badge file" id="skillBadge">0 skills</span>
         <span class="badge inferred" id="relationBadge">0 relations</span>
         <span class="badge">local only</span>
@@ -1345,10 +1344,6 @@
             <button class="purpose-card" type="button" data-purpose-query="dangling duplicate drift">
               <strong>診断・Drift</strong>
               <span>dangling / duplicate / copy drift</span>
-            </button>
-            <button class="purpose-card" type="button" data-purpose-query="export mermaid dot json">
-              <strong>エクスポート</strong>
-              <span>Mermaid / DOT / JSON を出力</span>
             </button>
           </div>
 
@@ -2005,11 +2000,10 @@
       return evidenceText || "No rationale provided.";
     }
 
-    function graphValidationStatus() {
+    function graphDiagnosticStatus() {
       const diagnostics = Array.isArray(graph.diagnostics) ? graph.diagnostics : [];
-      const errorCount = diagnostics.filter(diag => diag.severity === "error").length;
       const invalidAnnotations = diagnostics.filter(diag => diag.type === "invalid_agent_annotation").length;
-      return { errorCount, invalidAnnotations };
+      return { invalidAnnotations };
     }
 
     function coverageLabel() {
@@ -2026,10 +2020,6 @@
     }
 
     function updateTopSummary() {
-      const validation = graphValidationStatus();
-      const schemaBadge = document.getElementById("schemaBadge");
-      schemaBadge.textContent = validation.errorCount ? "Schema issues" : "Schema valid";
-      schemaBadge.className = `badge ${validation.errorCount ? "warning" : "info"}`;
       setText("skillBadge", `${graphDisplayNodes.length} skills`);
       setText("relationBadge", `${graphDisplayEdges.length} relations`);
       document.getElementById("coverageBadge").innerHTML = coverageLabel();
@@ -2706,7 +2696,7 @@
     }
 
     function renderOverviewDetails(nodes, edges) {
-      const validation = graphValidationStatus();
+      const diagnostics = graphDiagnosticStatus();
       const direct = edges.filter(edge => !(edge.inferred || edge.origin === "agent_inferred")).length;
       const inferred = edges.length - direct;
       const categories = [...groupBy(nodes, categoryKeyForNode).entries()]
@@ -2721,21 +2711,20 @@
             <div class="compact-metric"><span>Direct</span><strong>${direct}</strong></div>
             <div class="compact-metric"><span>Inferred</span><strong>${inferred}</strong></div>
             <div class="compact-metric"><span>Warnings</span><strong>${visibleDiagnostics().length}</strong></div>
-            <div class="compact-metric"><span>Invalid</span><strong>${validation.invalidAnnotations}</strong></div>
+            <div class="compact-metric"><span>Invalid</span><strong>${diagnostics.invalidAnnotations}</strong></div>
           </div>
         </section>
         <section class="summary-card">
           <h2>Why this is shown</h2>
           <div class="item-meta">
             ${state.activeSuggestionName ? `<span class="badge inferred">viewSuggestions</span>` : `<span class="badge">manual filters</span>`}
-            ${graph.enrichmentCoverage?.partial ? `<span class="badge warning">coverage partial</span>` : `<span class="badge info">schema checked</span>`}
+            ${graph.enrichmentCoverage?.partial ? `<span class="badge warning">coverage partial</span>` : `<span class="badge info">coverage available</span>`}
           </div>
           <p class="description">${escapeHtml(scopeStatus(nodes, edges))}</p>
         </section>
         <section class="summary-card">
-          <h2>Validation</h2>
+          <h2>Diagnostics</h2>
           <div class="item-meta">
-            <span class="badge info">JSON Schema ${validation.errorCount ? "issues" : "valid"}</span>
             <span class="badge warning">${visibleDiagnostics().length} diagnostics</span>
             <span class="badge file">copy drift checked</span>
           </div>
@@ -2813,7 +2802,7 @@
             <div class="compact-metric"><span>Outgoing</span><strong>${outgoing.length}</strong></div>
             <div class="compact-metric"><span>Incoming</span><strong>${incoming.length}</strong></div>
             <div class="compact-metric"><span>Warnings</span><strong>${graph.diagnostics.filter(diag => diagnosticMatchesNode(diag, node)).length}</strong></div>
-            <div class="compact-metric"><span>Invalid</span><strong>${graphValidationStatus().invalidAnnotations}</strong></div>
+            <div class="compact-metric"><span>Invalid</span><strong>${graphDiagnosticStatus().invalidAnnotations}</strong></div>
           </div>
           <div class="reason-block">
             <span class="reason-label">なぜ今これが見えている？</span>

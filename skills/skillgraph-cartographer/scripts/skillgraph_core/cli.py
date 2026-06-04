@@ -10,8 +10,6 @@ from typing import Any
 
 from .analysis import analyze_graph
 from .enrichment import enrich_graph, enrichment_template, merge_enrichment
-from .exporting import export_dot, export_json, export_mermaid, markdown_summary, render_html
-from .validation import ENRICHMENT_SCHEMA, GRAPH_SCHEMA, validation_report
 from .viewer import serve_viewer
 
 
@@ -65,19 +63,6 @@ def command_view(args: argparse.Namespace) -> int:
     return serve_viewer(graph, args.host, args.port, not args.no_open, allow_non_loopback=args.allow_non_loopback)
 
 
-def command_validate(args: argparse.Namespace) -> int:
-    graph = read_graph_argument(args)
-    report = validation_report(graph, strict=args.strict, enrichment_only=args.enrichment)
-    print(json.dumps(report, ensure_ascii=False, indent=2))
-    return 0 if report["valid"] else 1
-
-
-def command_schema(args: argparse.Namespace) -> int:
-    schema = GRAPH_SCHEMA if args.kind == "graph" else ENRICHMENT_SCHEMA
-    print(json.dumps(schema, ensure_ascii=False, indent=2))
-    return 0
-
-
 def command_enrichment_template(args: argparse.Namespace) -> int:
     graph = read_json_file(args.base)
     print(json.dumps(enrichment_template(graph, args.max_node_summary_chars), ensure_ascii=False, indent=2))
@@ -89,35 +74,6 @@ def command_merge(args: argparse.Namespace) -> int:
     annotations = read_json_file(args.annotations)
     merged = merge_enrichment(base, annotations)
     print(json.dumps(enrich_graph(merged), ensure_ascii=False, indent=2))
-    return 0
-
-
-def command_render(args: argparse.Namespace) -> int:
-    graph = read_graph_argument(args)
-    if args.format != "html":
-        raise SystemExit("render currently supports --format html")
-    print(render_html(graph))
-    return 0
-
-
-def command_export(args: argparse.Namespace) -> int:
-    graph = read_graph_argument(args)
-    if args.format == "mermaid":
-        print(export_mermaid(graph), end="")
-    elif args.format == "dot":
-        print(export_dot(graph), end="")
-    elif args.format == "json":
-        print(export_json(graph), end="")
-    else:
-        raise SystemExit(f"unsupported export format: {args.format}")
-    return 0
-
-
-def command_summary(args: argparse.Namespace) -> int:
-    graph = read_graph_argument(args)
-    if args.format != "markdown":
-        raise SystemExit("summary currently supports --format markdown")
-    print(markdown_summary(graph), end="")
     return 0
 
 
@@ -148,16 +104,6 @@ def build_parser() -> argparse.ArgumentParser:
     view.add_argument("--allow-non-loopback", action="store_true", help="Allow serving graph JSON on a non-loopback host.")
     view.set_defaults(func=command_view)
 
-    validate = subparsers.add_parser("validate", help="Validate graph or enrichment JSON.")
-    add_json_input_arguments(validate)
-    validate.add_argument("--strict", action="store_true", help="Emit additional warnings for weak enrichment shape.")
-    validate.add_argument("--enrichment", action="store_true", help="Validate an enrichment-only document.")
-    validate.set_defaults(func=command_validate)
-
-    schema = subparsers.add_parser("schema", help="Print JSON Schema metadata.")
-    schema.add_argument("kind", choices=["graph", "enrichment"])
-    schema.set_defaults(func=command_schema)
-
     template = subparsers.add_parser("enrichment-template", help="Create a small host-agent enrichment input template from a base graph.")
     template.add_argument("base", help="Base graph JSON file, or - for stdin.")
     template.add_argument("--max-node-summary-chars", type=int, default=800)
@@ -167,21 +113,6 @@ def build_parser() -> argparse.ArgumentParser:
     merge.add_argument("--base", required=True, help="Base graph JSON file, or - for stdin.")
     merge.add_argument("--annotations", required=True, help="Enrichment JSON file, or - for stdin.")
     merge.set_defaults(func=command_merge)
-
-    render = subparsers.add_parser("render", help="Render graph JSON to stdout.")
-    add_json_input_arguments(render)
-    render.add_argument("--format", choices=["html"], default="html")
-    render.set_defaults(func=command_render)
-
-    export = subparsers.add_parser("export", help="Export graph JSON to a non-browser format.")
-    add_json_input_arguments(export)
-    export.add_argument("--format", choices=["mermaid", "dot", "json"], default="mermaid")
-    export.set_defaults(func=command_export)
-
-    summary = subparsers.add_parser("summary", help="Write a compact graph summary.")
-    add_json_input_arguments(summary)
-    summary.add_argument("--format", choices=["markdown"], default="markdown")
-    summary.set_defaults(func=command_summary)
 
     return parser
 

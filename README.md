@@ -10,12 +10,10 @@
 - Markdown リンクと `SKILL.md` パス参照から、直接確認できる関係を抽出する
 - 解決できない参照と重複 alias を診断する
 - 同じ Skill ID が複数 host scope に存在する場合、copy drift を診断する
-- graph / enrichment JSON を検証する
 - host agent 用の enrichment template を出し、base graph と enrichment JSON を merge する
 - host agent の推論で、表示用のラベル、要約、カテゴリ、クラスタ、解釈済みリレーションを追加する
 - `viewSuggestions` をビューアの操作に接続し、推奨ビューをクリックして絞り込む
 - 各 Skill の詳細で、incoming / outgoing のリレーション、根拠、推論理由を確認する
-- Mermaid、DOT、Markdown summary、HTML を stdout へ export する
 - 決定論的な関係と推論由来の注釈を区別してローカルビューアに表示する
 
 収集と表示は読み取り専用です。対象リポジトリ内のスキル定義や設定ファイルは変更しません。
@@ -97,14 +95,6 @@ python3 skills/skillgraph-cartographer/scripts/skillgraph.py view \
   --file /tmp/skillgraph.enriched.json --no-open
 ```
 
-graph JSON を検証する場合:
-
-```bash
-python3 skills/skillgraph-cartographer/scripts/skillgraph.py validate --stdin --strict
-python3 skills/skillgraph-cartographer/scripts/skillgraph.py schema graph
-python3 skills/skillgraph-cartographer/scripts/skillgraph.py schema enrichment
-```
-
 base graph と host agent の enrichment JSON を分けて扱う場合:
 
 ```bash
@@ -118,15 +108,6 @@ python3 skills/skillgraph-cartographer/scripts/skillgraph.py merge \
   --base /tmp/skillgraph.base.json \
   --annotations /tmp/skillgraph.annotations.json \
   > /tmp/skillgraph.enriched.json
-```
-
-ブラウザを使わずに出力する場合:
-
-```bash
-python3 skills/skillgraph-cartographer/scripts/skillgraph.py export --stdin --format mermaid
-python3 skills/skillgraph-cartographer/scripts/skillgraph.py export --stdin --format dot
-python3 skills/skillgraph-cartographer/scripts/skillgraph.py summary --stdin --format markdown
-python3 skills/skillgraph-cartographer/scripts/skillgraph.py render --stdin --format html
 ```
 
 ビューアは URL を標準出力へ出します。終了するには、実行中のプロセスを `Ctrl-C` で止めます。
@@ -192,7 +173,6 @@ gh skill install . skillgraph-cartographer --from-local --dir /tmp/skillgraph-ca
 - `collect` が対象リポジトリを書き換えない
 - free-form な `SKILL.md` を扱える
 - 推論注釈をビューア用データへ安全に反映できる
-- JSON Schema 相当の検証で壊れた enrichment を検出できる
 - Markdown link、reference-style link、line range evidence を扱える
 - 重複 alias と解決できない参照を診断できる
 - 推論 edge を重複 append しない
