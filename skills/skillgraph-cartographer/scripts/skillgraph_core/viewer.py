@@ -11,16 +11,31 @@ import webbrowser
 
 
 HTML_TEMPLATE = Path(__file__).with_name("viewer.html").read_text(encoding="utf-8")
+LEGACY_RELATION_WEIGHT_KEYS = ("confidence", "confidenceScore")
+
+
+def viewer_graph(graph: dict[str, Any]) -> dict[str, Any]:
+    payload = json.loads(json.dumps(graph))
+    for key in ("edges", "inferredEdges"):
+        values = payload.get(key)
+        if not isinstance(values, list):
+            continue
+        for value in values:
+            if not isinstance(value, dict):
+                continue
+            for legacy_key in LEGACY_RELATION_WEIGHT_KEYS:
+                value.pop(legacy_key, None)
+    return payload
 
 
 def html_for_graph(graph: dict[str, Any] | None = None) -> str:
-    graph_json = "null" if graph is None else json.dumps(graph, ensure_ascii=False)
+    graph_json = "null" if graph is None else json.dumps(viewer_graph(graph), ensure_ascii=False)
     return HTML_TEMPLATE.replace("__GRAPH_JSON__", graph_json.replace("</", "<\\/"))
 
 
 def make_viewer_handler(graph: dict[str, Any]) -> type[BaseHTTPRequestHandler]:
     html_text = html_for_graph().encode("utf-8")
-    graph_json = (json.dumps(graph, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
+    graph_json = (json.dumps(viewer_graph(graph), ensure_ascii=False, indent=2) + "\n").encode("utf-8")
 
     class ViewerHandler(BaseHTTPRequestHandler):
         def send_viewer_headers(self, content_type: str, content_length: int) -> None:
