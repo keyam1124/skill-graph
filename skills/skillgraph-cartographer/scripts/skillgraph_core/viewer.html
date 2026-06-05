@@ -97,30 +97,10 @@
       position: relative;
     }
 
-    .brand-mark::before,
-    .brand-mark::after {
-      content: "";
-      position: absolute;
-      border-radius: 999px;
-      background: var(--blue);
-    }
-
-    .brand-mark::before {
-      width: 8px;
-      height: 8px;
-      box-shadow: 20px -16px 0 var(--green), 9px -7px 0 1px transparent;
-      left: 13px;
-      top: 25px;
-    }
-
-    .brand-mark::after {
-      width: 28px;
-      height: 3px;
-      left: 12px;
-      top: 22px;
-      background: linear-gradient(110deg, var(--blue), var(--green));
-      transform: rotate(-39deg);
-      transform-origin: left center;
+    .brand-mark svg {
+      width: 30px;
+      height: 30px;
+      display: block;
     }
 
     .brand h1 {
@@ -223,7 +203,7 @@
     .layout {
       min-height: 0;
       display: grid;
-      grid-template-columns: minmax(236px, 310px) minmax(0, 1fr) minmax(280px, 370px);
+      grid-template-columns: minmax(236px, 300px) minmax(0, 1fr) minmax(280px, 350px);
     }
 
     .nav,
@@ -250,7 +230,7 @@
     }
 
     .main .scroll {
-      padding: 20px 24px 28px;
+      padding: 20px 22px 28px;
     }
 
     h2,
@@ -297,7 +277,7 @@
       width: 100%;
       min-height: 68px;
       display: grid;
-      grid-template-columns: 34px minmax(0, 1fr) auto;
+      grid-template-columns: 36px minmax(0, 1fr) auto;
       align-items: center;
       gap: 12px;
       border: 1px solid var(--border);
@@ -318,19 +298,19 @@
       box-shadow: inset 3px 0 0 var(--blue);
     }
 
-    .nav-card strong,
-    .nav-card span {
+    .nav-card-body strong,
+    .nav-card-body span {
       display: block;
       overflow-wrap: anywhere;
     }
 
-    .nav-card strong {
+    .nav-card-body strong {
       color: var(--blue);
       font-weight: 800;
       line-height: 1.2;
     }
 
-    .nav-card span {
+    .nav-card-body span {
       margin-top: 3px;
       color: var(--muted);
       font-size: 12px;
@@ -346,17 +326,38 @@
       color: white;
       font-size: 12px;
       font-weight: 800;
+      justify-self: end;
     }
 
     .nav-icon {
-      width: 34px;
-      height: 34px;
+      width: 36px;
+      height: 36px;
       display: grid;
       place-items: center;
       border-radius: 8px;
       background: var(--surface-strong);
       color: var(--blue);
       font-weight: 900;
+    }
+
+    .nav-icon svg {
+      width: 22px;
+      height: 22px;
+      display: block;
+      fill: none;
+      stroke: currentColor;
+      stroke-width: 2.1;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .nav-icon-issues {
+      background: var(--red-soft);
+      color: var(--red);
+    }
+
+    .nav-card.active .nav-icon {
+      background: var(--surface);
     }
 
     .hint,
@@ -534,8 +535,8 @@
     }
 
     .map-stage {
-      height: min(54vh, 560px);
-      min-height: 360px;
+      height: clamp(440px, 60vh, 680px);
+      min-height: 420px;
       position: relative;
       background:
         linear-gradient(var(--surface-strong) 1px, transparent 1px),
@@ -903,6 +904,22 @@
       text-align: center;
     }
 
+    @media (max-width: 1500px) {
+      .layout {
+        grid-template-columns: minmax(236px, 300px) minmax(0, 1fr);
+      }
+
+      .side {
+        grid-column: 1 / -1;
+        border-left: 0;
+        border-top: 1px solid var(--border);
+      }
+
+      .side .scroll {
+        height: auto;
+      }
+    }
+
     @media (max-width: 1180px) {
       .topbar {
         grid-template-columns: minmax(260px, 1fr) auto;
@@ -914,16 +931,6 @@
 
       .layout {
         grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
-      }
-
-      .side {
-        grid-column: 1 / -1;
-        border-left: 0;
-        border-top: 1px solid var(--border);
-      }
-
-      .side .scroll {
-        height: auto;
       }
     }
 
@@ -961,7 +968,7 @@
       }
 
       .map-stage {
-        height: 440px;
+        height: 460px;
       }
     }
   </style>
@@ -970,7 +977,13 @@
   <div class="app">
     <header class="topbar">
       <div class="brand">
-        <div class="brand-mark" aria-hidden="true"></div>
+        <div class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 32 32">
+            <path d="M8 22.5 22.5 9" stroke="#2368d8" stroke-width="3.2" stroke-linecap="round"></path>
+            <circle cx="7" cy="24" r="4.2" fill="#2368d8"></circle>
+            <circle cx="24.5" cy="7.5" r="4.2" fill="#1f9d57"></circle>
+          </svg>
+        </div>
         <div>
           <h1>SkillGraph Cartographer</h1>
           <p>スキルの関係を、わかりやすく確認するツール</p>
@@ -1047,11 +1060,14 @@
     };
 
     const pageIcons = {
-      overview: "H",
-      relations: "R",
-      issues: "!",
-      skills: "S",
+      overview: '<svg viewBox="0 0 24 24"><path d="M3.5 10.5 12 4l8.5 6.5"></path><path d="M5.5 10v9h5v-5h3v5h5v-9"></path></svg>',
+      relations: '<svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="3"></circle><circle cx="5" cy="18" r="3"></circle><circle cx="19" cy="18" r="3"></circle><path d="M10.4 7.7 6.6 15.2"></path><path d="M13.6 7.7 17.4 15.2"></path><path d="M8 18h8"></path></svg>',
+      issues: '<svg viewBox="0 0 24 24"><path d="M12 4 21 20H3Z"></path><path d="M12 9v5"></path><path d="M12 17.5h.01"></path></svg>',
+      skills: '<svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"></circle><path d="M16 16 21 21"></path></svg>',
     };
+
+    const MAP_NODE_WIDTH = 136;
+    const MAP_NODE_HEIGHT = 38;
 
     const state = {
       activePage: "overview",
@@ -1312,8 +1328,8 @@
       const nav = document.getElementById("pageNav");
       nav.innerHTML = Object.entries(pages).map(([key, label]) => `
         <button class="nav-card ${state.activePage === key ? "active" : ""}" type="button" data-page="${escapeHtml(key)}">
-          <span class="nav-icon" aria-hidden="true">${escapeHtml(pageIcons[key])}</span>
-          <span>
+          <span class="nav-icon nav-icon-${escapeHtml(key)}" aria-hidden="true">${pageIcons[key] || ""}</span>
+          <span class="nav-card-body">
             <strong>${escapeHtml(label)}</strong>
             <span>${escapeHtml(pageDescriptions[key])}</span>
           </span>
@@ -1827,7 +1843,7 @@
       }
       const layer = svgElement("g", { transform: `translate(${state.view.x} ${state.view.y}) scale(${state.view.scale})` });
       svg.append(layer);
-      const positions = layoutPositions(nodes, bounds.width, bounds.height);
+      const positions = layoutPositions(nodes, bounds);
       if (state.showGroupFrames) drawGroupFrames(layer, nodes, positions);
       const occurrence = new Map();
       for (const edge of relations) {
@@ -1854,39 +1870,38 @@
 
     function layoutBounds(nodes, width, height) {
       const count = Math.max(1, nodes.length);
-      const columns = Math.max(1, Math.ceil(Math.sqrt(count)));
+      const aspect = Math.max(.8, Math.min(2.6, width / Math.max(1, height)));
+      const columns = Math.max(1, Math.ceil(Math.sqrt(count * aspect)));
       const rows = Math.max(1, Math.ceil(count / columns));
       return {
-        width: Math.max(width, columns * 220 + 120),
-        height: Math.max(height, rows * 150 + 120),
+        width: Math.max(width, columns * (MAP_NODE_WIDTH + 20) + 96),
+        height: Math.max(height, rows * (MAP_NODE_HEIGHT + 58) + 96),
+        columns,
+        rows,
       };
     }
 
-    function layoutPositions(nodes, width, height) {
-      const grouped = new Map();
-      for (const node of nodes) {
-        const key = categoryFor(node);
-        if (!grouped.has(key)) grouped.set(key, []);
-        grouped.get(key).push(node);
-      }
-      const groupEntries = [...grouped.entries()];
-      const groupColumns = Math.max(1, Math.ceil(Math.sqrt(groupEntries.length)));
-      const groupRows = Math.max(1, Math.ceil(groupEntries.length / groupColumns));
-      const groupWidth = width / groupColumns;
-      const groupHeight = height / groupRows;
+    function layoutPositions(nodes, bounds) {
+      const width = bounds.width;
+      const height = bounds.height;
+      const columns = Math.max(1, bounds.columns || 1);
+      const rows = Math.max(1, bounds.rows || 1);
+      const paddingX = MAP_NODE_WIDTH / 2 + 24;
+      const paddingY = MAP_NODE_HEIGHT / 2 + 32;
+      const usableWidth = Math.max(1, width - paddingX * 2);
+      const usableHeight = Math.max(1, height - paddingY * 2);
       const positions = new Map();
-      groupEntries.forEach(([category, values], groupIndex) => {
-        const gx = groupIndex % groupColumns;
-        const gy = Math.floor(groupIndex / groupColumns);
-        const cols = Math.max(1, Math.ceil(Math.sqrt(values.length)));
-        const rows = Math.max(1, Math.ceil(values.length / cols));
-        values.forEach((node, index) => {
-          const col = index % cols;
-          const row = Math.floor(index / cols);
-          const x = gx * groupWidth + ((col + 1) / (cols + 1)) * groupWidth;
-          const y = gy * groupHeight + ((row + 1) / (rows + 1)) * groupHeight;
-          positions.set(node.id, { x, y, category });
-        });
+      const sortedNodes = [...nodes].sort((a, b) => {
+        const categoryCompare = String(categoryFor(a)).localeCompare(String(categoryFor(b)), "ja");
+        if (categoryCompare) return categoryCompare;
+        return skillName(a.id).localeCompare(skillName(b.id), "ja");
+      });
+      sortedNodes.forEach((node, index) => {
+        const col = index % columns;
+        const row = Math.floor(index / columns);
+        const x = columns === 1 ? width / 2 : paddingX + (col / (columns - 1)) * usableWidth;
+        const y = rows === 1 ? height / 2 : paddingY + (row / (rows - 1)) * usableHeight;
+        positions.set(node.id, { x, y, category: categoryFor(node) });
       });
       return positions;
     }
@@ -1903,10 +1918,10 @@
       for (const [category, points] of groups) {
         const xs = points.map(point => point.x);
         const ys = points.map(point => point.y);
-        const x = Math.min(...xs) - 96;
-        const y = Math.min(...ys) - 58;
-        const w = Math.max(...xs) - Math.min(...xs) + 192;
-        const h = Math.max(...ys) - Math.min(...ys) + 116;
+        const x = Math.min(...xs) - MAP_NODE_WIDTH / 2 - 18;
+        const y = Math.min(...ys) - MAP_NODE_HEIGHT / 2 - 28;
+        const w = Math.max(...xs) - Math.min(...xs) + MAP_NODE_WIDTH + 36;
+        const h = Math.max(...ys) - Math.min(...ys) + MAP_NODE_HEIGHT + 56;
         layer.append(svgElement("rect", { class: "category-frame", x, y, width: w, height: h, rx: 8 }));
         const label = svgElement("text", { class: "category-label", x: x + 12, y: y + 23 });
         label.textContent = categoryLabel(category);
@@ -1919,10 +1934,10 @@
       const dy = target.y - source.y;
       const distance = Math.max(1, Math.hypot(dx, dy));
       const offset = ((index % 5) - 2) * 16;
-      const sx = source.x + (dx / distance) * 76;
-      const sy = source.y + (dy / distance) * 28;
-      const tx = target.x - (dx / distance) * 76;
-      const ty = target.y - (dy / distance) * 28;
+      const sx = source.x + (dx / distance) * (MAP_NODE_WIDTH / 2 - 4);
+      const sy = source.y + (dy / distance) * (MAP_NODE_HEIGHT / 2 - 2);
+      const tx = target.x - (dx / distance) * (MAP_NODE_WIDTH / 2 - 4);
+      const ty = target.y - (dy / distance) * (MAP_NODE_HEIGHT / 2 - 2);
       const mx = (sx + tx) / 2 - (dy / distance) * offset;
       const my = (sy + ty) / 2 + (dx / distance) * offset;
       const d = `M ${sx} ${sy} Q ${mx} ${my} ${tx} ${ty}`;
@@ -1949,14 +1964,14 @@
       const hasAi = relationsForSkill(node.id).some(isAiRelation);
       const group = svgElement("g", {
         class: `skill-node ${hasAi ? "ai" : ""} ${selected ? "selected" : ""}`,
-        transform: `translate(${point.x - 78} ${point.y - 24})`,
+        transform: `translate(${point.x - MAP_NODE_WIDTH / 2} ${point.y - MAP_NODE_HEIGHT / 2})`,
       });
       group.addEventListener("click", event => {
         event.stopPropagation();
         setSelection("skill", node);
       });
-      group.append(svgElement("rect", { width: 156, height: 48, rx: 8 }));
-      const label = svgElement("text", { x: 78, y: 29, "text-anchor": "middle" });
+      group.append(svgElement("rect", { width: MAP_NODE_WIDTH, height: MAP_NODE_HEIGHT, rx: 8 }));
+      const label = svgElement("text", { x: MAP_NODE_WIDTH / 2, y: MAP_NODE_HEIGHT / 2 + 4, "text-anchor": "middle" });
       label.textContent = compactText(skillName(node.id), 20);
       group.append(label);
       layer.append(group);
