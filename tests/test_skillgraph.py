@@ -61,6 +61,29 @@ class SkillGraphViewerWorkflowTest(unittest.TestCase):
             self._assert_graph(graph)
             self._assert_diagnostics(graph)
 
+    def test_cli_help_lists_only_supported_workflow_commands(self):
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(SKILLGRAPH_CLI),
+                "--help",
+            ],
+            cwd=REPO_ROOT,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+
+        self.assertEqual(
+            result.returncode,
+            0,
+            msg=f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}",
+        )
+        self.assertIn("{collect,view,enrichment-template,merge}", result.stdout)
+        self.assertNotIn("export", result.stdout)
+        self.assertNotIn("render", result.stdout)
+        self.assertNotIn("summary", result.stdout)
+
     def test_collect_allows_free_form_skill_markdown_without_structure_diagnostics(self):
         skillgraph = load_skillgraph_module()
         with tempfile.TemporaryDirectory() as tmp:
@@ -278,6 +301,13 @@ class SkillGraphViewerWorkflowTest(unittest.TestCase):
         self.assertIn("showDirectEdges", html)
         self.assertIn("showInferredEdges", html)
         self.assertIn("coverageBadge", html)
+        self.assertNotIn("schemaBadge", html)
+        self.assertNotIn("JSON Schema", html)
+        self.assertNotIn("schema checked", html)
+        self.assertIn("Diagnostics", html)
+        self.assertNotIn('data-purpose-query="export mermaid dot json"', html)
+        self.assertNotIn("Mermaid / DOT / JSON", html)
+        self.assertNotIn("エクスポート", html)
         self.assertIn("relationFocus", html)
         self.assertIn("Evidence ledger", html)
         self.assertNotIn('id="confidence"', html)
@@ -379,74 +409,6 @@ class SkillGraphViewerWorkflowTest(unittest.TestCase):
         self.assertIn('markerWidth="8"', html)
         self.assertIn("renderNodeDetails", html)
         self.assertIn("renderEdgeDetails", html)
-
-    def test_exports_relation_labels_without_confidence(self):
-        skillgraph = load_skillgraph_module()
-        graph = {
-            "schemaVersion": "skillgraph-lite.v1.2",
-            "generatedAt": "2026-05-28T00:00:00Z",
-            "root": "/tmp/example",
-            "nodes": [
-                {"id": "skill.alpha", "kind": "skill", "label": "alpha", "path": "skills/alpha/SKILL.md"},
-                {"id": "skill.beta", "kind": "skill", "label": "beta", "path": "skills/beta/SKILL.md"},
-            ],
-            "edges": [
-                {
-                    "id": "edge.skill.alpha.skill.beta.related_to.1",
-                    "source": "skill.alpha",
-                    "target": "skill.beta",
-                    "type": "related_to",
-                    "origin": "agent_inferred",
-                    "confidence": "medium",
-                    "evidence": [],
-                    "rationale": "legacy input",
-                    "inferred": True,
-                }
-            ],
-            "diagnostics": [],
-            "viewSuggestions": [
-                {"name": "legacy", "filter": {"confidence": "high", "origin": "agent_inferred"}}
-            ],
-        }
-
-        mermaid = skillgraph.export_mermaid(graph)
-        summary = skillgraph.markdown_summary(graph)
-
-        self.assertIn("related to", mermaid)
-        self.assertIn("related to", summary)
-        self.assertNotIn("/ medium", mermaid)
-        self.assertNotIn("/ medium", summary)
-
-    def test_validation_ignores_legacy_confidence_fields(self):
-        skillgraph = load_skillgraph_module()
-        graph = {
-            "schemaVersion": "skillgraph-lite.v1.2",
-            "generatedAt": "2026-05-28T00:00:00Z",
-            "root": "/tmp/example",
-            "nodes": [
-                {"id": "skill.alpha", "kind": "skill", "label": "alpha", "path": "skills/alpha/SKILL.md"},
-                {"id": "skill.beta", "kind": "skill", "label": "beta", "path": "skills/beta/SKILL.md"},
-            ],
-            "edges": [
-                {
-                    "source": "skill.alpha",
-                    "target": "skill.beta",
-                    "type": "related_to",
-                    "origin": "agent_inferred",
-                    "confidence": "not-a-label",
-                    "confidenceScore": 0.7,
-                    "evidence": [{"path": "skills/alpha/SKILL.md", "text": "alpha"}],
-                    "rationale": "legacy input",
-                }
-            ],
-            "diagnostics": [],
-        }
-
-        report = skillgraph.validation_report(graph, strict=True)
-
-        self.assertTrue(report["valid"])
-        messages = "\n".join(item.get("message", "") for item in report["diagnostics"])
-        self.assertNotIn("confidence", messages)
 
     def _write_fixture(self, root):
         self._write(

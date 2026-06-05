@@ -56,14 +56,7 @@ inferred skill relationships.
    - `languageVariants`
    - relation `origin` and `evidence`
 
-5. Validate the JSON before and after enrichment when the user needs a final
-   graph, viewer handoff, or export:
-
-   ```bash
-   python3 "$SKILL_DIR/scripts/skillgraph.py" validate --stdin --strict
-   ```
-
-6. Run an agent inference pass in memory:
+5. Run an agent inference pass in memory:
 
    - Read the `SKILL.md` files listed in `nodes[].path` when semantic grouping
      or relationship inference is requested.
@@ -75,7 +68,7 @@ inferred skill relationships.
    - Keep excerpts short and cite the relevant `SKILL.md` path in evidence.
    - Treat the host agent's reasoning as advisory annotation, not source truth.
 
-7. Add agent-inferred annotations when useful:
+6. Add agent-inferred annotations when useful:
 
    - concise display labels
    - one-line summaries
@@ -88,11 +81,11 @@ inferred skill relationships.
    - optional view suggestions
    - optional enrichment coverage when only part of the graph was read
 
-8. Keep deterministic and inferred information separate. Use `nodeAnnotations`
+7. Keep deterministic and inferred information separate. Use `nodeAnnotations`
    for inferred node metadata and `inferredEdges` for inferred relationship
    hints. Do not rewrite existing deterministic nodes or edges.
 
-9. Display the base or enriched graph:
+8. Display the base or enriched graph:
 
    ```bash
    python3 "$SKILL_DIR/scripts/skillgraph.py" view --stdin
@@ -112,14 +105,6 @@ annotations in separate files:
 ```bash
 python3 "$SKILL_DIR/scripts/skillgraph.py" enrichment-template "$BASE_GRAPH" > "$AGENT_INPUT"
 python3 "$SKILL_DIR/scripts/skillgraph.py" merge --base "$BASE_GRAPH" --annotations "$ANNOTATIONS"
-```
-
-For non-browser output, use:
-
-```bash
-python3 "$SKILL_DIR/scripts/skillgraph.py" export --stdin --format mermaid
-python3 "$SKILL_DIR/scripts/skillgraph.py" export --stdin --format dot
-python3 "$SKILL_DIR/scripts/skillgraph.py" summary --stdin --format markdown
 ```
 
 ## Enrichment JSON Shape
@@ -183,8 +168,6 @@ Add these top-level fields to the collected graph when useful:
 - Do not propose write-back or approval workflows.
 - Always call the bundled CLI from this Skill directory; do not rely on the
   target repository having a copy of the tool.
-- Use `validate --stdin --strict` before reporting a final enriched graph when
-  an enrichment pass was performed.
 - Use host-agent reasoning for semantic labels, clusters, and inferred edges.
 - Do not call nested agent CLIs or external LLM APIs.
 - Treat inferred labels, categories, clusters, and edges as temporary viewer
@@ -205,10 +188,10 @@ Add these top-level fields to the collected graph when useful:
 ## Output Guidance
 
 When reporting to the user, distinguish deterministic graph facts from this
-agent's inferred annotations. Keep the summary focused on what the viewer shows:
+agent's inferred annotations. Keep the report focused on what the viewer shows:
 notable clusters, likely entry skills, dependencies, and diagnostics that affect
 understanding the current graph.
 
-Report the local viewer URL when `view` starts. If the user only asked for JSON,
-return the enriched graph JSON or a compact summary of the important nodes,
-edges, clusters, and diagnostics.
+Report the local viewer URL when `view` starts. If the user only asked for the
+important results, summarize the visible nodes, edges, clusters, and diagnostics
+instead of creating a separate output file.
