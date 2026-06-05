@@ -9,9 +9,6 @@ from typing import Any
 from .shared import graph_digest
 
 
-LEGACY_RELATION_WEIGHT_KEYS = ("confidence", "confidenceScore")
-
-
 def diagnostic_from_mapping(data: dict[str, Any], message: str) -> dict[str, Any]:
     payload = {
         "type": "invalid_agent_annotation",
@@ -90,19 +87,20 @@ def inferred_edge_key(edge: dict[str, Any]) -> tuple[str, str, str, str, str]:
     )
 
 
+def strip_edge_strength(edge: dict[str, Any]) -> dict[str, Any]:
+    edge.pop("confidence", None)
+    edge.pop("confidenceScore", None)
+    return edge
+
+
 def valid_view_suggestion_filter(value: Any) -> bool:
     if value in (None, {}):
         return True
     if not isinstance(value, dict):
         return False
     allowed = {"nodeIds", "clusterId", "suggestedCategory", "roleTags", "origin", "query"}
-    return all(key in allowed for key in value)
-
-
-def remove_legacy_relation_weight(data: dict[str, Any]) -> dict[str, Any]:
-    for key in LEGACY_RELATION_WEIGHT_KEYS:
-        data.pop(key, None)
-    return data
+    deprecated_ignored = {"confidence"}
+    return all(key in allowed or key in deprecated_ignored for key in value)
 
 
 def enrich_graph(graph: dict[str, Any]) -> dict[str, Any]:
@@ -110,6 +108,9 @@ def enrich_graph(graph: dict[str, Any]) -> dict[str, Any]:
     nodes = graph.setdefault("nodes", [])
     edges = graph.setdefault("edges", [])
     diagnostics = graph.setdefault("diagnostics", [])
+    for edge in edges:
+        if isinstance(edge, dict):
+            strip_edge_strength(edge)
     node_ids = {node.get("id") for node in nodes if node.get("id")}
     node_index = {node.get("id"): node for node in nodes if node.get("id")}
 
@@ -133,9 +134,6 @@ def enrich_graph(graph: dict[str, Any]) -> dict[str, Any]:
 
     valid_inferred_edges: list[dict[str, Any]] = []
     counters: dict[str, int] = {}
-    for edge in edges:
-        if isinstance(edge, dict):
-            remove_legacy_relation_weight(edge)
     existing_edges = {inferred_edge_key(edge) for edge in edges if isinstance(edge, dict)}
     for edge in agent_list(graph, "inferredEdges", diagnostics):
         if not isinstance(edge, dict):
@@ -172,6 +170,9 @@ def enrich_graph(graph: dict[str, Any]) -> dict[str, Any]:
         if not isinstance(suggestion, dict):
             diagnostics.append(diagnostic_from_mapping({"value": suggestion}, "Agent view suggestion is not an object."))
             continue
+        suggestion_filter = suggestion.get("filter")
+        if isinstance(suggestion_filter, dict):
+            suggestion_filter.pop("confidence", None)
         if not valid_view_suggestion_filter(suggestion.get("filter")):
             diagnostics.append(diagnostic_from_mapping(suggestion, "Agent view suggestion filter contains unsupported keys or is not an object."))
             continue

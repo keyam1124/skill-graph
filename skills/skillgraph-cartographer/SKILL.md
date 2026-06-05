@@ -180,10 +180,10 @@ Add these top-level fields to the collected graph when useful:
 - Deterministic relations come from direct `SKILL.md` links, raw `SKILL.md` path
   references.
 - Do not diagnose or report orphan skills. No relation is a normal outcome.
-- Prefer conservative inferred edges with rationale over overstating uncertain
-  relationships.
-- If an inferred edge has no evidence, include a rationale and do not add
-  numeric or tiered certainty fields.
+- Do not encode relationship strength. Add inferred edges only when a
+  meaningful relation can be explained with short evidence or a rationale.
+- If an inferred edge has no evidence, include a rationale that makes the
+  interpretation clear. Do not add numeric or tiered certainty fields.
 
 ## Output Guidance
 

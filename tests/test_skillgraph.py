@@ -194,7 +194,7 @@ class SkillGraphViewerWorkflowTest(unittest.TestCase):
     def test_enrich_graph_dedupes_inferred_edges(self):
         skillgraph = load_skillgraph_module()
         graph = {
-            "schemaVersion": "skillgraph-lite.v1.1",
+            "schemaVersion": "skillgraph-lite.v1.2",
             "generatedAt": "2026-05-28T00:00:00Z",
             "root": "/tmp/example",
             "nodes": [
@@ -241,7 +241,7 @@ class SkillGraphViewerWorkflowTest(unittest.TestCase):
     def test_enriched_graph_annotations_and_viewer_html(self):
         skillgraph = load_skillgraph_module()
         graph = {
-            "schemaVersion": "skillgraph-lite.v1.1",
+            "schemaVersion": "skillgraph-lite.v1.2",
             "generatedAt": "2026-05-28T00:00:00Z",
             "root": "/tmp/example",
             "nodes": [
@@ -273,7 +273,9 @@ class SkillGraphViewerWorkflowTest(unittest.TestCase):
                 },
                 {"source": "skill.alpha", "target": "missing", "type": "related_to"},
             ],
-            "viewSuggestions": [],
+            "viewSuggestions": [
+                {"name": "legacy", "filter": {"confidence": "high", "origin": "agent_inferred"}}
+            ],
         }
 
         enriched = skillgraph.enrich_graph(graph)
@@ -292,6 +294,7 @@ class SkillGraphViewerWorkflowTest(unittest.TestCase):
         self.assertNotIn("confidenceScore", inferred)
         diagnostic_types = {item["type"] for item in enriched["diagnostics"]}
         self.assertIn("invalid_agent_annotation", diagnostic_types)
+        self.assertEqual(enriched["viewSuggestions"][0]["filter"], {"origin": "agent_inferred"})
 
         html = skillgraph.html_for_graph(enriched)
         self.assertIn("SkillGraph Cartographer", html)
@@ -440,6 +443,8 @@ class SkillGraphViewerWorkflowTest(unittest.TestCase):
         edges = self._edges(graph)
         edge = self._assert_edge(edges, "ddd-tactical.aggregate-design", "ddd-tactical.repository-design", "direct_reference", None)
         self.assertEqual(edge.get("legacyType"), "depends_on")
+        self.assertNotIn("confidence", edge)
+        self.assertNotIn("confidenceScore", edge)
         self.assertIn("startLine", edge.get("evidence", [{}])[0])
         self.assertIn("normalizedTarget", edge.get("evidence", [{}])[0])
         self.assertFalse(

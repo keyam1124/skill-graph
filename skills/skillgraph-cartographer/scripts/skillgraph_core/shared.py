@@ -15,7 +15,7 @@ except Exception:  # pragma: no cover - exercised only when PyYAML is absent.
     yaml = None
 
 
-SCHEMA_VERSION = "skillgraph-lite.v1.1"
+SCHEMA_VERSION = "skillgraph-lite.v1.2"
 
 EXCLUDED_DIRS = {
     ".git",
