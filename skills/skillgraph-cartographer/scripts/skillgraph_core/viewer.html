@@ -7,10 +7,10 @@
   <style>
     :root {
       color-scheme: light;
-      --bg: #f6f8fb;
+      --bg: #f4f7fb;
       --surface: #ffffff;
       --surface-soft: #f8fafc;
-      --surface-strong: #eef3f8;
+      --surface-strong: #edf2f7;
       --text: #111827;
       --muted: #526173;
       --faint: #7a8796;
@@ -23,7 +23,7 @@
       --violet-soft: #f3edff;
       --red: #d92d3a;
       --red-soft: #fff0f1;
-      --orange: #e06a1b;
+      --orange: #d86518;
       --orange-soft: #fff3e8;
       --shadow: 0 12px 30px rgba(15, 23, 42, .08);
       --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
@@ -60,18 +60,17 @@
       min-height: 100vh;
       display: grid;
       grid-template-rows: auto 1fr;
-      background: var(--bg);
     }
 
     .topbar {
-      min-height: 76px;
+      min-height: 78px;
       display: grid;
       grid-template-columns: minmax(270px, 420px) minmax(260px, 1fr) auto;
       gap: 18px;
       align-items: center;
       padding: 14px 20px;
       border-bottom: 1px solid var(--border);
-      background: rgba(255, 255, 255, .92);
+      background: rgba(255, 255, 255, .94);
       backdrop-filter: blur(12px);
       position: sticky;
       top: 0;
@@ -97,10 +96,30 @@
       position: relative;
     }
 
-    .brand-mark svg {
-      width: 30px;
-      height: 30px;
-      display: block;
+    .brand-mark::before,
+    .brand-mark::after {
+      content: "";
+      position: absolute;
+      border-radius: 999px;
+      background: var(--blue);
+    }
+
+    .brand-mark::before {
+      width: 8px;
+      height: 8px;
+      box-shadow: 20px -16px 0 var(--green);
+      left: 13px;
+      top: 25px;
+    }
+
+    .brand-mark::after {
+      width: 28px;
+      height: 3px;
+      left: 12px;
+      top: 22px;
+      background: linear-gradient(110deg, var(--blue), var(--green));
+      transform: rotate(-39deg);
+      transform-origin: left center;
     }
 
     .brand h1 {
@@ -194,47 +213,45 @@
       font-variant-numeric: tabular-nums;
     }
 
-    .stat.issue {
+    .issue-button {
+      color: var(--red);
       border-color: #f4b7bd;
       background: var(--red-soft);
-      color: var(--red);
     }
 
-    .layout {
+    .issue-button:hover,
+    .issue-button.active {
+      border-color: var(--red);
+      box-shadow: 0 0 0 3px rgba(217, 45, 58, .12);
+    }
+
+    .workspace {
       min-height: 0;
       display: grid;
-      grid-template-columns: minmax(236px, 300px) minmax(0, 1fr) minmax(280px, 350px);
+      grid-template-columns: minmax(0, 1fr) minmax(320px, 390px);
     }
 
-    .nav,
-    .side {
+    .map-area {
       min-width: 0;
-      border-right: 1px solid var(--border);
-      background: rgba(255, 255, 255, .78);
+      min-height: 0;
+      padding: 20px 24px 28px;
     }
 
-    .side {
-      border-right: 0;
+    .detail-panel {
+      min-width: 0;
       border-left: 1px solid var(--border);
+      background: rgba(255, 255, 255, .84);
     }
 
-    .scroll {
-      height: calc(100vh - 77px);
+    .detail-scroll {
+      height: calc(100vh - 79px);
       overflow: auto;
       padding: 20px;
     }
 
-    .main {
-      min-width: 0;
-      min-height: 0;
-    }
-
-    .main .scroll {
-      padding: 20px 22px 28px;
-    }
-
     h2,
     h3,
+    h4,
     p {
       margin-top: 0;
     }
@@ -262,196 +279,11 @@
       font-size: 12px;
     }
 
-    .nav-title {
-      margin: 0 0 14px;
-      font-size: 15px;
-      line-height: 1.25;
-    }
-
-    .page-nav {
+    .map-panel {
+      height: calc(100vh - 126px);
+      min-height: 480px;
       display: grid;
-      gap: 10px;
-    }
-
-    .nav-card {
-      width: 100%;
-      min-height: 68px;
-      display: grid;
-      grid-template-columns: 36px minmax(0, 1fr) auto;
-      align-items: center;
-      gap: 12px;
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      background: var(--surface);
-      color: var(--text);
-      padding: 10px 12px;
-      text-align: left;
-    }
-
-    .nav-card:hover,
-    .nav-card.active {
-      border-color: #8bb8ff;
-      background: var(--blue-soft);
-    }
-
-    .nav-card.active {
-      box-shadow: inset 3px 0 0 var(--blue);
-    }
-
-    .nav-card-body strong,
-    .nav-card-body span {
-      display: block;
-      overflow-wrap: anywhere;
-    }
-
-    .nav-card-body strong {
-      color: var(--blue);
-      font-weight: 800;
-      line-height: 1.2;
-    }
-
-    .nav-card-body span {
-      margin-top: 3px;
-      color: var(--muted);
-      font-size: 12px;
-    }
-
-    .nav-badge {
-      min-width: 24px;
-      height: 24px;
-      display: inline-grid;
-      place-items: center;
-      border-radius: 999px;
-      background: var(--red);
-      color: white;
-      font-size: 12px;
-      font-weight: 800;
-      justify-self: end;
-    }
-
-    .nav-icon {
-      width: 36px;
-      height: 36px;
-      display: grid;
-      place-items: center;
-      border-radius: 8px;
-      background: var(--surface-strong);
-      color: var(--blue);
-      font-weight: 900;
-    }
-
-    .nav-icon svg {
-      width: 22px;
-      height: 22px;
-      display: block;
-      fill: none;
-      stroke: currentColor;
-      stroke-width: 2.1;
-      stroke-linecap: round;
-      stroke-linejoin: round;
-    }
-
-    .nav-icon-issues {
-      background: var(--red-soft);
-      color: var(--red);
-    }
-
-    .nav-card.active .nav-icon {
-      background: var(--surface);
-    }
-
-    .hint,
-    .control-box,
-    .plain-box {
-      margin-top: 22px;
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      background: var(--surface);
-      padding: 14px;
-    }
-
-    .hint {
-      background: var(--blue-soft);
-      border-color: #b7d4ff;
-    }
-
-    .hint h3,
-    .control-box h3,
-    .plain-box h3 {
-      margin: 0 0 10px;
-      font-size: 14px;
-    }
-
-    .hint ul,
-    .issue-body ul {
-      margin: 0;
-      padding-left: 18px;
-    }
-
-    .hint li + li,
-    .issue-body li + li {
-      margin-top: 7px;
-    }
-
-    .check-row {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      min-height: 30px;
-      color: var(--text);
-      font-size: 13px;
-    }
-
-    .summary-grid {
-      display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: 14px;
-      margin-bottom: 20px;
-    }
-
-    .metric-card,
-    .recommend-card,
-    .skill-card,
-    .issue-card,
-    .detail-card {
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      background: var(--surface);
-      padding: 14px;
-      box-shadow: 0 1px 0 rgba(15, 23, 42, .03);
-    }
-
-    .metric-card {
-      min-height: 92px;
-      display: grid;
-      gap: 4px;
-      align-content: center;
-    }
-
-    .metric-card.blue { border-color: #bdd8ff; background: var(--blue-soft); }
-    .metric-card.green { border-color: #b9e4c8; background: var(--green-soft); }
-    .metric-card.violet { border-color: #d7c6ff; background: var(--violet-soft); }
-    .metric-card.red { border-color: #f4b7bd; background: var(--red-soft); }
-
-    .metric-card span {
-      color: var(--muted);
-      font-size: 12px;
-      font-weight: 700;
-    }
-
-    .metric-card strong {
-      font-size: 26px;
-      line-height: 1;
-      font-variant-numeric: tabular-nums;
-    }
-
-    .metric-card small {
-      color: var(--muted);
-      font-size: 12px;
-    }
-
-    .map-panel,
-    .list-panel {
+      grid-template-rows: auto 1fr;
       border: 1px solid var(--border);
       border-radius: 8px;
       background: var(--surface);
@@ -459,7 +291,7 @@
     }
 
     .panel-head {
-      min-height: 54px;
+      min-height: 58px;
       display: flex;
       align-items: center;
       justify-content: space-between;
@@ -477,36 +309,11 @@
       line-height: 1.25;
     }
 
-    .tools,
     .legend {
       display: flex;
       align-items: center;
       gap: 8px;
       flex-wrap: wrap;
-    }
-
-    .tool-button,
-    .text-button,
-    .tab-button {
-      min-height: 34px;
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      background: var(--surface);
-      color: var(--text);
-      padding: 0 11px;
-      font-weight: 700;
-    }
-
-    .tool-button {
-      width: 34px;
-      padding: 0;
-    }
-
-    .text-button.primary,
-    .tab-button.active {
-      border-color: #8bb8ff;
-      background: var(--blue-soft);
-      color: var(--blue);
     }
 
     .legend-item {
@@ -534,9 +341,20 @@
       border-top-style: dashed;
     }
 
+    .warning-sample {
+      width: 18px;
+      height: 18px;
+      display: inline-grid;
+      place-items: center;
+      border-radius: 999px;
+      background: var(--red);
+      color: white;
+      font-size: 12px;
+      font-weight: 900;
+    }
+
     .map-stage {
-      height: clamp(440px, 60vh, 680px);
-      min-height: 420px;
+      min-height: 0;
       position: relative;
       background:
         linear-gradient(var(--surface-strong) 1px, transparent 1px),
@@ -565,26 +383,11 @@
       display: none;
     }
 
-    .category-frame {
-      fill: rgba(35, 104, 216, .05);
-      stroke: rgba(35, 104, 216, .18);
-      stroke-width: 1;
-    }
-
-    .category-label {
-      fill: var(--blue);
-      font-size: 12px;
-      font-weight: 800;
-      paint-order: stroke;
-      stroke: white;
-      stroke-width: 3px;
-    }
-
     .relation-path {
       fill: none;
       stroke: var(--blue);
       stroke-width: 1.6;
-      opacity: .72;
+      opacity: .74;
       cursor: pointer;
     }
 
@@ -593,9 +396,18 @@
       stroke-dasharray: 7 5;
     }
 
+    .relation-path.dim {
+      opacity: .16;
+    }
+
+    .relation-path.focused {
+      stroke-width: 2.4;
+      opacity: .92;
+    }
+
     .relation-path.selected {
       stroke: var(--red);
-      stroke-width: 2.4;
+      stroke-width: 2.8;
       opacity: 1;
     }
 
@@ -615,16 +427,42 @@
       fill: white;
       stroke: #8bb8ff;
       stroke-width: 1.4;
+      filter: drop-shadow(0 1px 0 rgba(15, 23, 42, .06));
     }
 
     .skill-node.ai rect {
       stroke: #b99dff;
     }
 
+    .skill-node.dim {
+      opacity: .28;
+    }
+
+    .skill-node.search rect,
+    .skill-node.issue rect,
+    .skill-node.related rect {
+      stroke-width: 2.2;
+    }
+
+    .skill-node.search rect {
+      fill: var(--green-soft);
+      stroke: var(--green);
+    }
+
+    .skill-node.issue rect {
+      fill: var(--red-soft);
+      stroke: var(--red);
+    }
+
+    .skill-node.related rect {
+      fill: var(--blue-soft);
+      stroke: var(--blue);
+    }
+
     .skill-node.selected rect {
       fill: var(--blue-soft);
       stroke: var(--blue);
-      stroke-width: 2.2;
+      stroke-width: 2.8;
     }
 
     .skill-node text {
@@ -634,90 +472,187 @@
       pointer-events: none;
     }
 
-    .recommend-grid {
+    .warning-mark circle {
+      fill: var(--red);
+      stroke: white;
+      stroke-width: 2;
+    }
+
+    .warning-mark text {
+      fill: white;
+      font-size: 12px;
+      font-weight: 900;
+    }
+
+    .detail-card,
+    .summary-card,
+    .result-card,
+    .issue-card {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--surface);
+      padding: 14px;
+      box-shadow: 0 1px 0 rgba(15, 23, 42, .03);
+    }
+
+    .summary-card + .summary-card,
+    .detail-card + .detail-card,
+    .issue-card + .issue-card {
+      margin-top: 12px;
+    }
+
+    .summary-grid {
       display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+
+    .metric-card {
+      min-height: 86px;
+      display: grid;
+      gap: 4px;
+      align-content: center;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--surface);
+      padding: 12px;
+    }
+
+    .metric-card.blue { border-color: #bdd8ff; background: var(--blue-soft); }
+    .metric-card.green { border-color: #b9e4c8; background: var(--green-soft); }
+    .metric-card.violet { border-color: #d7c6ff; background: var(--violet-soft); }
+    .metric-card.red { border-color: #f4b7bd; background: var(--red-soft); }
+
+    .metric-card span {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .metric-card strong {
+      font-size: 24px;
+      line-height: 1;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .metric-card small {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .detail-header {
+      display: flex;
       gap: 12px;
-      margin-top: 18px;
+      align-items: center;
+      margin-bottom: 16px;
     }
 
-    .recommend-card {
-      min-height: 76px;
-      text-align: left;
+    .detail-icon {
+      width: 48px;
+      height: 48px;
+      flex: 0 0 auto;
+      display: grid;
+      place-items: center;
+      border-radius: 999px;
+      background: var(--blue);
+      color: white;
+      font-weight: 900;
     }
 
-    .recommend-card strong,
-    .skill-card strong,
-    .issue-card strong {
-      display: block;
+    .detail-header h2 {
+      margin: 0;
+      font-size: 18px;
       line-height: 1.25;
       overflow-wrap: anywhere;
     }
 
-    .recommend-card span,
-    .skill-card span,
-    .issue-card span {
-      display: block;
-      margin-top: 4px;
+    .detail-header p {
+      margin: 4px 0 0;
       color: var(--muted);
+      overflow-wrap: anywhere;
+    }
+
+    .file-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--surface-soft);
+      padding: 8px 10px;
+      color: var(--muted);
+      font-family: var(--mono);
       font-size: 12px;
       overflow-wrap: anywhere;
     }
 
-    .filter-row {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      flex-wrap: wrap;
-      margin-bottom: 16px;
+    .detail-section {
+      margin-top: 16px;
     }
 
-    .filter-input {
-      min-height: 40px;
-      min-width: 240px;
-      flex: 1 1 260px;
+    .detail-section h3,
+    .issue-body h4 {
+      margin: 0 0 8px;
+      font-size: 14px;
+    }
+
+    .issue-body {
+      display: grid;
+      gap: 12px;
+      margin-top: 12px;
+    }
+
+    .issue-body p {
+      margin: 0;
+      color: var(--muted);
+    }
+
+    .issue-body ul {
+      margin: 0;
+      padding-left: 18px;
+    }
+
+    .issue-body li + li {
+      margin-top: 6px;
+    }
+
+    .relation-list,
+    .result-list {
+      display: grid;
+      gap: 8px;
+    }
+
+    .relation-row,
+    .result-card {
+      width: 100%;
       border: 1px solid var(--border);
       border-radius: 8px;
       background: var(--surface);
-      padding: 0 12px;
-      outline: 0;
-    }
-
-    .filter-input:focus {
-      border-color: var(--blue);
-      box-shadow: 0 0 0 3px rgba(35, 104, 216, .14);
-    }
-
-    .skill-grid,
-    .issue-grid {
-      display: grid;
-      gap: 12px;
-    }
-
-    .skill-grid {
-      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-    }
-
-    .skill-card,
-    .issue-card {
-      width: 100%;
+      padding: 9px 10px;
       text-align: left;
     }
 
-    .skill-card:hover,
-    .issue-card:hover,
-    .recommend-card:hover,
-    .tool-button:hover,
-    .text-button:hover,
-    .tab-button:hover {
+    .relation-row:hover,
+    .result-card:hover {
       border-color: #8bb8ff;
       box-shadow: var(--shadow);
     }
 
-    .skill-card.selected,
-    .issue-card.selected {
-      border-color: var(--blue);
-      box-shadow: inset 3px 0 0 var(--blue);
+    .relation-row strong,
+    .relation-row span,
+    .result-card strong,
+    .result-card span {
+      display: block;
+      overflow-wrap: anywhere;
+    }
+
+    .relation-row span,
+    .result-card span {
+      margin-top: 3px;
+      color: var(--muted);
+      font-size: 12px;
     }
 
     .pill-row {
@@ -744,129 +679,13 @@
     .pill.ai { background: var(--violet-soft); color: var(--violet); }
     .pill.issue { background: var(--red-soft); color: var(--red); }
 
-    .issue-summary {
-      display: grid;
-      grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: 12px;
-      margin-bottom: 16px;
-    }
-
-    .issue-body {
-      display: grid;
-      gap: 10px;
-      margin-top: 12px;
-    }
-
-    .issue-body h4 {
-      margin: 0 0 3px;
-      font-size: 13px;
-    }
-
-    .issue-body p {
-      margin: 0;
-      color: var(--muted);
-    }
-
-    .detail-header {
-      display: flex;
-      gap: 12px;
-      align-items: center;
-      margin-bottom: 16px;
-    }
-
-    .detail-icon {
-      width: 48px;
-      height: 48px;
-      flex: 0 0 auto;
-      display: grid;
-      place-items: center;
-      border-radius: 999px;
-      background: var(--blue);
-      color: white;
-      font-weight: 900;
-    }
-
-    .detail-header h2 {
-      margin: 0;
-      font-size: 18px;
-      line-height: 1.25;
-    }
-
-    .detail-header p {
-      margin: 4px 0 0;
-      color: var(--muted);
-    }
-
-    .file-row {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      min-width: 0;
-      border: 1px solid var(--border);
+    .empty {
+      border: 1px dashed var(--border);
       border-radius: 8px;
-      background: var(--surface-soft);
-      padding: 8px 10px;
-      color: var(--muted);
-      font-family: var(--mono);
-      font-size: 12px;
-      overflow-wrap: anywhere;
-    }
-
-    .tabs {
-      display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      border-bottom: 1px solid var(--border);
-      margin: 16px -20px 0;
-      padding: 0 20px;
-    }
-
-    .tabs button {
-      min-height: 42px;
-      border: 0;
-      border-bottom: 3px solid transparent;
-      background: transparent;
-      color: var(--muted);
-      font-weight: 800;
-    }
-
-    .tabs button.active {
-      border-bottom-color: var(--blue);
-      color: var(--blue);
-    }
-
-    .detail-section {
-      margin-top: 16px;
-    }
-
-    .detail-section h3 {
-      margin: 0 0 9px;
-      font-size: 14px;
-    }
-
-    .relation-list {
-      display: grid;
-      gap: 8px;
-    }
-
-    .relation-row {
-      width: 100%;
-      border: 1px solid var(--border);
-      border-radius: 8px;
+      padding: 22px;
       background: var(--surface);
-      padding: 9px 10px;
-      text-align: left;
-    }
-
-    .relation-row strong,
-    .relation-row span {
-      display: block;
-      overflow-wrap: anywhere;
-    }
-
-    .relation-row span {
-      margin-top: 3px;
       color: var(--muted);
-      font-size: 12px;
+      text-align: center;
     }
 
     details.dev {
@@ -895,32 +714,7 @@
       overflow-wrap: anywhere;
     }
 
-    .empty {
-      border: 1px dashed var(--border);
-      border-radius: 8px;
-      padding: 24px;
-      background: var(--surface);
-      color: var(--muted);
-      text-align: center;
-    }
-
-    @media (max-width: 1500px) {
-      .layout {
-        grid-template-columns: minmax(236px, 300px) minmax(0, 1fr);
-      }
-
-      .side {
-        grid-column: 1 / -1;
-        border-left: 0;
-        border-top: 1px solid var(--border);
-      }
-
-      .side .scroll {
-        height: auto;
-      }
-    }
-
-    @media (max-width: 1180px) {
+    @media (max-width: 1120px) {
       .topbar {
         grid-template-columns: minmax(260px, 1fr) auto;
       }
@@ -929,16 +723,37 @@
         grid-column: 1 / -1;
       }
 
-      .layout {
-        grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
+      .workspace {
+        grid-template-columns: minmax(0, 1fr);
+      }
+
+      .detail-panel {
+        border-left: 0;
+        border-top: 1px solid var(--border);
+      }
+
+      .detail-scroll {
+        height: auto;
+      }
+
+      .map-panel {
+        height: 68vh;
       }
     }
 
-    @media (max-width: 780px) {
+    @media (max-width: 720px) {
       .topbar {
         position: static;
         grid-template-columns: 1fr;
         padding: 12px;
+      }
+
+      .brand h1 {
+        font-size: 21px;
+      }
+
+      .brand p {
+        white-space: normal;
       }
 
       .stats {
@@ -946,29 +761,17 @@
         overflow-x: auto;
       }
 
-      .layout {
-        display: block;
+      .map-area {
+        padding: 14px;
       }
 
-      .scroll {
-        height: auto;
-        padding: 16px;
+      .map-panel {
+        min-height: 440px;
+        height: 62vh;
       }
 
-      .nav,
-      .side {
-        border: 0;
-        border-bottom: 1px solid var(--border);
-      }
-
-      .summary-grid,
-      .issue-summary,
-      .recommend-grid {
+      .summary-grid {
         grid-template-columns: 1fr;
-      }
-
-      .map-stage {
-        height: 460px;
       }
     }
   </style>
@@ -977,13 +780,7 @@
   <div class="app">
     <header class="topbar">
       <div class="brand">
-        <div class="brand-mark" aria-hidden="true">
-          <svg viewBox="0 0 32 32">
-            <path d="M8 22.5 22.5 9" stroke="#2368d8" stroke-width="3.2" stroke-linecap="round"></path>
-            <circle cx="7" cy="24" r="4.2" fill="#2368d8"></circle>
-            <circle cx="24.5" cy="7.5" r="4.2" fill="#1f9d57"></circle>
-          </svg>
-        </div>
+        <div class="brand-mark" aria-hidden="true"></div>
         <div>
           <h1>SkillGraph Cartographer</h1>
           <p>スキルの関係を、わかりやすく確認するツール</p>
@@ -998,40 +795,32 @@
       <div class="stats" aria-label="全体の件数">
         <span class="stat"><strong id="totalSkills">0</strong> スキル</span>
         <span class="stat"><strong id="totalRelations">0</strong> つながり</span>
-        <span class="stat issue"><strong id="totalIssues">0</strong> 確認が必要</span>
+        <button id="issueButton" class="stat issue-button" type="button">
+          確認が必要 <strong id="totalIssues">0</strong> 件
+        </button>
       </div>
     </header>
 
-    <div class="layout">
-      <nav class="nav" aria-label="見る内容">
-        <div class="scroll">
-          <h2 class="nav-title">見る内容を選ぶ</h2>
-          <div class="page-nav" id="pageNav"></div>
-
-          <section class="hint">
-            <h3>使い方のヒント</h3>
-            <ul>
-              <li>迷ったら「全体を把握する」から始めましょう</li>
-              <li>リンクが書かれた関係と、AI の読み取り結果は見分けて確認できます</li>
-              <li>気になる点は、どこを直せばよいかまで説明しています</li>
-            </ul>
-          </section>
-
-          <section class="control-box" id="displayControls">
-            <h3>表示を調整</h3>
-            <label class="check-row"><input id="showDirectRelations" type="checkbox" checked> 直接書かれている関係を表示</label>
-            <label class="check-row"><input id="showAiRelations" type="checkbox" checked> AI が読み取った関係を表示</label>
-            <label class="check-row"><input id="showGroupFrames" type="checkbox"> グループの枠を表示</label>
-          </section>
-        </div>
-      </nav>
-
-      <main class="main">
-        <div class="scroll" id="mainContent"></div>
+    <div class="workspace">
+      <main class="map-area">
+        <section class="map-panel">
+          <div class="panel-head">
+            <h2>スキルのつながり</h2>
+            <div class="legend" aria-label="地図の凡例">
+              <span class="legend-item"><span class="line-sample"></span>直接書かれている関係</span>
+              <span class="legend-item"><span class="line-sample ai"></span>AI が読み取った関係</span>
+              <span class="legend-item"><span class="warning-sample">!</span>確認が必要</span>
+            </div>
+          </div>
+          <div class="map-stage">
+            <svg id="skillMap" role="img" aria-label="スキルのつながり"></svg>
+            <div class="map-empty" id="mapEmpty" hidden>表示できるスキルがありません。</div>
+          </div>
+        </section>
       </main>
 
-      <aside class="side" aria-label="詳細">
-        <div class="scroll" id="detailPanel"></div>
+      <aside class="detail-panel" aria-label="説明">
+        <div class="detail-scroll" id="detailPanel"></div>
       </aside>
     </div>
   </div>
@@ -1045,42 +834,13 @@
       graph = JSON.parse(request.responseText);
     }
 
-    const pages = {
-      overview: "全体を把握する",
-      relations: "つながりを確認する",
-      issues: "気になる点を確認する",
-      skills: "スキルを探す",
-    };
-
-    const pageDescriptions = {
-      overview: "スキルの全体像と状態を確認",
-      relations: "スキル同士の関係を見る",
-      issues: "問題や不整合を見つける",
-      skills: "スキルを検索して詳細を見る",
-    };
-
-    const pageIcons = {
-      overview: '<svg viewBox="0 0 24 24"><path d="M3.5 10.5 12 4l8.5 6.5"></path><path d="M5.5 10v9h5v-5h3v5h5v-9"></path></svg>',
-      relations: '<svg viewBox="0 0 24 24"><circle cx="12" cy="5" r="3"></circle><circle cx="5" cy="18" r="3"></circle><circle cx="19" cy="18" r="3"></circle><path d="M10.4 7.7 6.6 15.2"></path><path d="M13.6 7.7 17.4 15.2"></path><path d="M8 18h8"></path></svg>',
-      issues: '<svg viewBox="0 0 24 24"><path d="M12 4 21 20H3Z"></path><path d="M12 9v5"></path><path d="M12 17.5h.01"></path></svg>',
-      skills: '<svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"></circle><path d="M16 16 21 21"></path></svg>',
-    };
-
-    const MAP_NODE_WIDTH = 136;
-    const MAP_NODE_HEIGHT = 38;
-
     const state = {
-      activePage: "overview",
       selected: null,
+      panelMode: "overall",
       searchQuery: "",
-      localSkillSearch: "",
-      selectedCategory: "すべて",
-      showDirectRelations: true,
-      showAiRelations: true,
-      showGroupFrames: false,
-      positions: {},
       view: { x: 0, y: 0, scale: 1 },
       pendingFit: true,
+      panning: null,
     };
 
     graph.nodes = Array.isArray(graph.nodes) ? graph.nodes : [];
@@ -1088,7 +848,6 @@
     graph.diagnostics = Array.isArray(graph.diagnostics) ? graph.diagnostics : [];
     graph.nodeAnnotations = Array.isArray(graph.nodeAnnotations) ? graph.nodeAnnotations : [];
     graph.inferredEdges = Array.isArray(graph.inferredEdges) ? graph.inferredEdges : [];
-    graph.viewSuggestions = Array.isArray(graph.viewSuggestions) ? graph.viewSuggestions : [];
 
     const nodeIndex = new Map(graph.nodes.map(node => [node.id, node]));
     const edgeIndex = new Map(graph.edges.map(edge => [edge.id, edge]));
@@ -1130,37 +889,41 @@
       return `${text.slice(0, Math.max(0, maxLength - 3)).trim()}...`;
     }
 
-    function isAiRelation(edge) {
-      return edge.inferred || edge.origin === "agent_inferred";
+    function isAiRelation(relation) {
+      return relation.inferred || relation.origin === "agent_inferred";
     }
 
-    function relationKindLabel(edge) {
-      return isAiRelation(edge) ? "AI が読み取った関係" : "直接書かれている関係";
+    function relationKindLabel(relation) {
+      return isAiRelation(relation) ? "AI が読み取った関係" : "直接書かれている関係";
     }
 
-    function relationTypeText(edge) {
-      const value = String(edge.type || "related_to");
-      if (value === "direct_reference") return "直接参照";
-      if (value === "related_to") return "関連";
-      if (value === "depends_on") return "参考にしている";
-      return value.replaceAll("_", " ");
+    function relationTypeText(relation) {
+      const value = String(relation.type || "").toLowerCase();
+      const labels = {
+        direct_reference: "参照",
+        depends_on: "利用・依存",
+        related_to: "関連",
+        supports: "補助",
+        alternative: "代替候補",
+        overlap: "重なり",
+        sequence: "前後関係",
+        sequencing: "前後関係",
+        prerequisite: "前提",
+      };
+      return labels[value] || "関係";
     }
 
-    function relationSourceText(edge) {
-      if (isAiRelation(edge)) {
-        const reason = String(edge.rationale || "").trim();
+    function relationSourceItems(relation) {
+      return Array.isArray(relation.evidence) ? relation.evidence : [];
+    }
+
+    function relationReasonText(relation) {
+      if (isAiRelation(relation)) {
+        const reason = String(relation.rationale || "").trim();
         if (reason) return reason;
         return "SKILL.md の本文から、一緒に確認するとよい関係として読み取られています。";
       }
-      const evidence = relationSourceItems(edge)[0];
-      if (evidence?.path) {
-        return `${skillName(edge.source)} の SKILL.md に、${skillName(edge.target)} へのリンクやパスが書かれています。`;
-      }
-      return "SKILL.md のリンクやパスから見つかった関係です。";
-    }
-
-    function relationSourceItems(edge) {
-      return Array.isArray(edge.evidence) ? edge.evidence : [];
+      return "SKILL.md に相手スキルへのリンクまたはファイルパスが書かれているため表示しています。";
     }
 
     function evidenceText(item) {
@@ -1169,15 +932,6 @@
       const line = item.startLine ? `${item.startLine}行目${item.endLine && item.endLine !== item.startLine ? `-${item.endLine}行目` : ""}` : "";
       const text = item.text || item.raw || item.value || "";
       return [path, line, text ? `「${compactText(text, 80)}」` : ""].filter(Boolean).join(" ");
-    }
-
-    function issueLabel(type) {
-      return issueCopy[type]?.title || "確認が必要な項目";
-    }
-
-    function issueActionList(diag) {
-      const actions = issueCopy[diag.type]?.action || ["内容を確認し、必要なら SKILL.md を更新する"];
-      return actions.map(item => `<li>${escapeHtml(item)}</li>`).join("");
     }
 
     function skillName(id) {
@@ -1194,91 +948,64 @@
       return node.path || (Array.isArray(node.paths) ? node.paths[0] : "") || "";
     }
 
-    function categoryFor(node) {
-      return node.annotation?.suggestedCategory || node.annotation?.clusterId || node.category || "未分類";
+    function searchableSkillText(node) {
+      return [
+        node.id,
+        node.label,
+        node.name,
+        node.description,
+        node.path,
+        ...(node.aliases || []),
+        node.annotation?.label,
+        node.annotation?.summary,
+        ...(node.annotation?.triggerPhrases || []),
+      ].join(" ").toLowerCase();
     }
 
-    function categoryLabel(value) {
-      const labels = {
-        ddd_tactical: "ドメインモデリング",
-        "ddd-tactical": "ドメインモデリング",
-        architecture: "アーキテクチャ",
-        quality: "品質・改善",
-        Uncategorized: "未分類",
-      };
-      return labels[value] || value || "未分類";
-    }
-
-    function allCategories() {
-      const values = [...new Set(graph.nodes.map(node => categoryFor(node)))].sort((a, b) => String(a).localeCompare(String(b), "ja"));
-      return ["すべて", ...values];
+    function matchingSkills() {
+      const query = state.searchQuery.trim().toLowerCase();
+      if (!query) return [];
+      return graph.nodes.filter(node => searchableSkillText(node).includes(query));
     }
 
     function relationsForSkill(id) {
-      return graph.edges.filter(edge => edge.source === id || edge.target === id);
+      return graph.edges.filter(relation => relation.source === id || relation.target === id);
     }
 
     function issuesForSkill(node) {
       const paths = [node.path, node.dir, ...(node.paths || []), ...(node.dirs || [])].filter(Boolean);
-      return graph.diagnostics.filter(diag => {
-        if (diag.skill === node.id || diag.target === node.id) return true;
-        if (paths.some(path => diag.path === path || String(diag.path || "").startsWith(`${path}/`))) return true;
-        const skills = diag.evidence && Array.isArray(diag.evidence.skills) ? diag.evidence.skills : [];
+      return graph.diagnostics.filter(item => {
+        if (item.skill === node.id || item.target === node.id) return true;
+        if (paths.some(path => item.path === path || String(item.path || "").startsWith(`${path}/`))) return true;
+        const skills = item.evidence && Array.isArray(item.evidence.skills) ? item.evidence.skills : [];
         return skills.includes(node.id);
       });
     }
 
-    function visibleRelations() {
-      return graph.edges.filter(edge => {
-        if (isAiRelation(edge) && !state.showAiRelations) return false;
-        if (!isAiRelation(edge) && !state.showDirectRelations) return false;
-        const source = nodeIndex.get(edge.source);
-        const target = nodeIndex.get(edge.target);
-        if (!source || !target) return false;
-        const q = state.searchQuery.trim().toLowerCase();
-        if (!q) return true;
-        return [
-          skillName(edge.source),
-          skillName(edge.target),
-          skillPath(source),
-          skillPath(target),
-          relationTypeText(edge),
-          relationSourceText(edge),
-        ].some(value => String(value || "").toLowerCase().includes(q));
-      });
-    }
-
-    function visibleSkills() {
-      const query = (state.activePage === "skills" ? state.localSkillSearch : state.searchQuery).trim().toLowerCase();
-      return graph.nodes.filter(node => {
-        if (state.activePage === "skills" && state.selectedCategory !== "すべて" && categoryFor(node) !== state.selectedCategory) return false;
-        if (!query) return true;
-        const values = [
-          node.id,
-          node.label,
-          node.name,
-          node.description,
-          node.path,
-          ...(node.aliases || []),
-          node.annotation?.label,
-          node.annotation?.summary,
-          categoryFor(node),
-        ];
-        return values.some(value => String(value || "").toLowerCase().includes(query));
-      });
-    }
-
-    function issueCounts() {
-      const counts = { dangling_reference: 0, duplicate_alias: 0, skill_copy_drift: 0, other: 0 };
-      for (const diag of graph.diagnostics) {
-        if (diag.type in counts) counts[diag.type] += 1;
-        else counts.other += 1;
+    function issueSkillIds() {
+      const ids = new Set();
+      for (const item of graph.diagnostics) {
+        if (nodeIndex.has(item.skill)) ids.add(item.skill);
+        if (nodeIndex.has(item.target)) ids.add(item.target);
+        const skills = item.evidence && Array.isArray(item.evidence.skills) ? item.evidence.skills : [];
+        for (const id of skills) {
+          if (nodeIndex.has(id)) ids.add(id);
+        }
       }
-      return counts;
+      return ids;
+    }
+
+    function issueLabel(type) {
+      return issueCopy[type]?.title || "確認が必要な項目";
+    }
+
+    function issueActionList(item) {
+      const actions = issueCopy[item.type]?.action || ["内容を確認し、必要なら SKILL.md を更新する"];
+      return actions.map(action => `<li>${escapeHtml(action)}</li>`).join("");
     }
 
     function directRelationCount() {
-      return graph.edges.filter(edge => !isAiRelation(edge)).length;
+      return graph.edges.filter(relation => !isAiRelation(relation)).length;
     }
 
     function aiRelationCount() {
@@ -1287,30 +1014,26 @@
 
     function setSelection(kind, value) {
       state.selected = { kind, value };
+      state.panelMode = "selection";
       render();
     }
 
     function clearSelection() {
       state.selected = null;
+      state.panelMode = state.searchQuery.trim() ? "search" : "overall";
       render();
     }
 
-    function setPage(page) {
-      state.activePage = page;
-      state.pendingFit = true;
-      if (page === "overview") {
-        state.selected = null;
-      }
+    function showIssues() {
+      state.selected = null;
+      state.panelMode = "issues";
       render();
     }
 
     function render() {
       renderHeader();
-      renderNavigation();
-      renderMain();
       renderDetails();
-      const map = document.getElementById("skillMap");
-      if (map) drawMap(map);
+      drawMap(document.getElementById("skillMap"));
     }
 
     function renderHeader() {
@@ -1318,51 +1041,38 @@
       document.getElementById("totalRelations").textContent = String(graph.edges.length);
       document.getElementById("totalIssues").textContent = String(graph.diagnostics.length);
       document.getElementById("globalSearch").value = state.searchQuery;
-      document.getElementById("displayControls").hidden = !["overview", "relations"].includes(state.activePage);
-      document.getElementById("showDirectRelations").checked = state.showDirectRelations;
-      document.getElementById("showAiRelations").checked = state.showAiRelations;
-      document.getElementById("showGroupFrames").checked = state.showGroupFrames;
+      document.getElementById("issueButton").classList.toggle("active", state.panelMode === "issues");
     }
 
-    function renderNavigation() {
-      const nav = document.getElementById("pageNav");
-      nav.innerHTML = Object.entries(pages).map(([key, label]) => `
-        <button class="nav-card ${state.activePage === key ? "active" : ""}" type="button" data-page="${escapeHtml(key)}">
-          <span class="nav-icon nav-icon-${escapeHtml(key)}" aria-hidden="true">${pageIcons[key] || ""}</span>
-          <span class="nav-card-body">
-            <strong>${escapeHtml(label)}</strong>
-            <span>${escapeHtml(pageDescriptions[key])}</span>
-          </span>
-          ${key === "issues" && graph.diagnostics.length ? `<span class="nav-badge">${graph.diagnostics.length}</span>` : ""}
-        </button>
-      `).join("");
-      for (const button of nav.querySelectorAll("[data-page]")) {
-        button.addEventListener("click", () => setPage(button.dataset.page));
+    function renderDetails() {
+      const panel = document.getElementById("detailPanel");
+      if (state.panelMode === "issues") {
+        panel.innerHTML = issuesPanelHtml();
+      } else if (state.selected?.kind === "skill") {
+        panel.innerHTML = skillDetailsHtml(state.selected.value);
+      } else if (state.selected?.kind === "relation") {
+        panel.innerHTML = relationDetailsHtml(state.selected.value);
+      } else if (state.searchQuery.trim()) {
+        panel.innerHTML = searchDetailsHtml();
+      } else {
+        panel.innerHTML = overallDetailsHtml();
       }
+      bindDetailActions(panel);
     }
 
-    function renderMain() {
-      const main = document.getElementById("mainContent");
-      if (state.activePage === "overview") main.innerHTML = overviewHtml();
-      if (state.activePage === "relations") main.innerHTML = relationsHtml();
-      if (state.activePage === "issues") main.innerHTML = issuesHtml();
-      if (state.activePage === "skills") main.innerHTML = skillsHtml();
-      bindMainActions(main);
-    }
-
-    function overviewHtml() {
+    function overallDetailsHtml() {
       return `
         <h2 class="section-title">全体のまとめ</h2>
-        <section class="summary-grid" aria-label="全体のまとめ">
+        <section class="summary-grid" aria-label="全体の件数">
           <div class="metric-card blue">
-            <span>スキルの数</span>
+            <span>スキル</span>
             <strong>${graph.nodes.length}</strong>
-            <small>このリポジトリ内の SKILL.md</small>
+            <small>読み取った SKILL.md</small>
           </div>
           <div class="metric-card green">
             <span>直接書かれている関係</span>
             <strong>${directRelationCount()}</strong>
-            <small>SKILL.md のリンクやパス</small>
+            <small>リンクやファイルパス</small>
           </div>
           <div class="metric-card violet">
             <span>AI が読み取った関係</span>
@@ -1375,259 +1085,43 @@
             <small>見ておきたい項目</small>
           </div>
         </section>
-        ${mapPanelHtml("スキルのつながり（地図）", true)}
-        <section class="recommend-grid" aria-label="まず見るおすすめ">
-          <button class="recommend-card" type="button" data-recommend="entry">
-            <strong>入口になりそうなスキル</strong>
-            <span>最初に読むと理解が進みます</span>
-          </button>
-          <button class="recommend-card" type="button" data-recommend="groups">
-            <strong>まとまりを見たいとき</strong>
-            <span>関連するスキルをまとめて確認</span>
-          </button>
-          <button class="recommend-card" type="button" data-recommend="issues">
-            <strong>気になる点を先に確認</strong>
-            <span>問題を見つけて整理しましょう</span>
-          </button>
+        <section class="summary-card">
+          <h3 class="sub-title">見方</h3>
+          <p class="muted">中央の地図では、スキル同士の関係を線で確認できます。実線は直接書かれている関係、点線は AI が読み取った関係です。</p>
+          <p class="muted">検索すると該当するスキルが地図上で強調されます。スキルや線をクリックすると、このパネルに詳しい説明を表示します。</p>
         </section>
       `;
     }
 
-    function relationsHtml() {
+    function searchDetailsHtml() {
+      const results = matchingSkills();
       return `
-        <h2 class="section-title">つながりを確認する</h2>
-        <div class="filter-row">
-          <label class="check-row"><input id="mainDirectRelations" type="checkbox" ${state.showDirectRelations ? "checked" : ""}> 直接書かれている関係</label>
-          <label class="check-row"><input id="mainAiRelations" type="checkbox" ${state.showAiRelations ? "checked" : ""}> AI が読み取った関係</label>
-        </div>
-        ${mapPanelHtml("スキルのつながり（地図）", false)}
-        <section class="list-panel" style="margin-top:16px;">
-          <div class="panel-head">
-            <h2>つながりの一覧</h2>
-            <span class="tiny">${visibleRelations().length} 件</span>
-          </div>
-          <div class="skill-grid" style="padding:14px;">
-            ${visibleRelations().map(edge => relationCardHtml(edge)).join("") || `<div class="empty">表示できるつながりがありません。</div>`}
+        <h2 class="section-title">検索結果</h2>
+        <section class="detail-card">
+          <p class="muted">${results.length ? `${results.length} 件のスキルが見つかりました。地図上でも強調しています。` : "条件に合うスキルは見つかりませんでした。"}</p>
+          <div class="result-list">
+            ${results.map(node => skillResultHtml(node)).join("") || `<div class="empty">別の言葉で検索してください。</div>`}
           </div>
         </section>
       `;
     }
 
-    function issuesHtml() {
-      const counts = issueCounts();
-      return `
-        <h2 class="section-title">気になる点</h2>
-        <section class="issue-summary" aria-label="気になる点の概要">
-          <div class="metric-card red"><span>確認が必要</span><strong>${graph.diagnostics.length}</strong><small>件</small></div>
-          <div class="metric-card blue"><span>参照先が見つからない</span><strong>${counts.dangling_reference}</strong><small>件</small></div>
-          <div class="metric-card violet"><span>同じ呼び名のスキルがあります</span><strong>${counts.duplicate_alias}</strong><small>件</small></div>
-          <div class="metric-card green"><span>置き場所ごとにスキル内容が違います</span><strong>${counts.skill_copy_drift}</strong><small>件</small></div>
-        </section>
-        <section class="issue-grid">
-          ${graph.diagnostics.map(diag => issueCardHtml(diag)).join("") || `<div class="empty">気になる点は見つかっていません。</div>`}
-        </section>
-      `;
-    }
-
-    function skillsHtml() {
-      const categories = allCategories();
-      const skills = visibleSkills();
-      return `
-        <h2 class="section-title">スキルを探す</h2>
-        <div class="filter-row">
-          <input id="localSkillSearch" class="filter-input" type="search" value="${escapeHtml(state.localSkillSearch)}" placeholder="検索: DDD, review, repository...">
-          <div class="tools" aria-label="カテゴリ">
-            ${categories.map(category => `
-              <button class="tab-button ${state.selectedCategory === category ? "active" : ""}" type="button" data-category="${escapeHtml(category)}">
-                ${escapeHtml(categoryLabel(category))}
-              </button>
-            `).join("")}
-          </div>
-        </div>
-        <section class="skill-grid">
-          ${skills.map(node => skillCardHtml(node)).join("") || `<div class="empty">条件に合うスキルがありません。</div>`}
-        </section>
-      `;
-    }
-
-    function mapPanelHtml(title, showRecommendations) {
-      return `
-        <section class="map-panel">
-          <div class="panel-head">
-            <h2>${escapeHtml(title)}</h2>
-            <div class="tools" aria-label="地図の操作">
-              <div class="legend">
-                <span class="legend-item"><span class="line-sample"></span>直接書かれている関係</span>
-                <span class="legend-item"><span class="line-sample ai"></span>AI が読み取った関係</span>
-              </div>
-              <button id="zoomOut" class="tool-button" type="button" title="縮小">-</button>
-              <button id="zoomIn" class="tool-button" type="button" title="拡大">+</button>
-              <button id="fitMap" class="text-button" type="button">全体表示</button>
-            </div>
-          </div>
-          <div class="map-stage">
-            <svg id="skillMap" role="img" aria-label="スキルのつながり"></svg>
-            <div class="map-empty" id="mapEmpty" hidden>表示できるスキルがありません。</div>
-          </div>
-        </section>
-      `;
-    }
-
-    function relationCardHtml(edge) {
-      return `
-        <button class="skill-card ${state.selected?.kind === "relation" && state.selected.value.id === edge.id ? "selected" : ""}" type="button" data-relation-id="${escapeHtml(edge.id)}">
-          <strong>${escapeHtml(skillName(edge.source))} → ${escapeHtml(skillName(edge.target))}</strong>
-          <span>${escapeHtml(relationSourceText(edge))}</span>
-          <span class="pill-row">
-            <span class="pill ${isAiRelation(edge) ? "ai" : "direct"}">${escapeHtml(relationKindLabel(edge))}</span>
-            <span class="pill">${escapeHtml(relationTypeText(edge))}</span>
-          </span>
-        </button>
-      `;
-    }
-
-    function skillCardHtml(node) {
-      const relationCount = relationsForSkill(node.id).length;
+    function skillResultHtml(node) {
       const issueCount = issuesForSkill(node).length;
       return `
-        <button class="skill-card ${state.selected?.kind === "skill" && state.selected.value.id === node.id ? "selected" : ""}" type="button" data-skill-id="${escapeHtml(node.id)}">
+        <button class="result-card" type="button" data-skill-id="${escapeHtml(node.id)}">
           <strong>${escapeHtml(skillName(node.id))}</strong>
           <span>${escapeHtml(skillSummary(node))}</span>
           <span class="pill-row">
-            <span class="pill">${escapeHtml(categoryLabel(categoryFor(node)))}</span>
-            <span class="pill direct">関係: ${relationCount} 件</span>
-            <span class="pill ${issueCount ? "issue" : ""}">気になる点: ${issueCount} 件</span>
+            <span class="pill">${escapeHtml(skillPath(node))}</span>
+            ${issueCount ? `<span class="pill issue">確認が必要 ${issueCount} 件</span>` : ""}
           </span>
         </button>
-      `;
-    }
-
-    function issueCardHtml(diag) {
-      const copy = issueCopy[diag.type] || issueCopy.invalid_agent_annotation;
-      return `
-        <button class="issue-card ${state.selected?.kind === "issue" && state.selected.value === diag ? "selected" : ""}" type="button" data-issue-key="${escapeHtml(issueKey(diag))}">
-          <strong>${escapeHtml(copy.title)}</strong>
-          <span>${escapeHtml(copy.what)}</span>
-          <span class="pill-row">
-            <span class="pill issue">確認が必要</span>
-            ${diag.path ? `<span class="pill">${escapeHtml(diag.path)}</span>` : ""}
-            ${diag.skill ? `<span class="pill">${escapeHtml(skillName(diag.skill))}</span>` : ""}
-          </span>
-        </button>
-      `;
-    }
-
-    function issueKey(diag) {
-      return [diag.type, diag.path, diag.skill, diag.target, diag.message].filter(Boolean).join("|");
-    }
-
-    function bindMainActions(root) {
-      for (const button of root.querySelectorAll("[data-skill-id]")) {
-        button.addEventListener("click", () => {
-          const node = nodeIndex.get(button.dataset.skillId);
-          if (node) setSelection("skill", node);
-        });
-      }
-      for (const button of root.querySelectorAll("[data-relation-id]")) {
-        button.addEventListener("click", () => {
-          const edge = edgeIndex.get(button.dataset.relationId);
-          if (edge) setSelection("relation", edge);
-        });
-      }
-      for (const button of root.querySelectorAll("[data-issue-key]")) {
-        button.addEventListener("click", () => {
-          const diag = graph.diagnostics.find(item => issueKey(item) === button.dataset.issueKey);
-          if (diag) setSelection("issue", diag);
-        });
-      }
-      for (const button of root.querySelectorAll("[data-category]")) {
-        button.addEventListener("click", () => {
-          state.selectedCategory = button.dataset.category || "すべて";
-          render();
-        });
-      }
-      const localSearch = root.querySelector("#localSkillSearch");
-      if (localSearch) {
-        localSearch.addEventListener("input", event => {
-          state.localSkillSearch = event.target.value;
-          render();
-        });
-      }
-      const direct = root.querySelector("#mainDirectRelations");
-      if (direct) direct.addEventListener("change", event => {
-        state.showDirectRelations = event.target.checked;
-        render();
-      });
-      const ai = root.querySelector("#mainAiRelations");
-      if (ai) ai.addEventListener("change", event => {
-        state.showAiRelations = event.target.checked;
-        render();
-      });
-      const zoomIn = root.querySelector("#zoomIn");
-      const zoomOut = root.querySelector("#zoomOut");
-      const fitMap = root.querySelector("#fitMap");
-      if (zoomIn) zoomIn.addEventListener("click", () => zoomMap(1.15));
-      if (zoomOut) zoomOut.addEventListener("click", () => zoomMap(1 / 1.15));
-      if (fitMap) fitMap.addEventListener("click", () => {
-        state.pendingFit = true;
-        render();
-      });
-      for (const button of root.querySelectorAll("[data-recommend]")) {
-        button.addEventListener("click", () => applyRecommendation(button.dataset.recommend));
-      }
-    }
-
-    function applyRecommendation(value) {
-      if (value === "issues") {
-        setPage("issues");
-        return;
-      }
-      if (value === "groups") {
-        state.showGroupFrames = true;
-        setPage("relations");
-        return;
-      }
-      const entry = graph.nodes.find(node => Array.isArray(node.annotation?.roleTags) && node.annotation.roleTags.includes("entry")) || graph.nodes[0];
-      if (entry) {
-        state.activePage = "skills";
-        setSelection("skill", entry);
-      }
-    }
-
-    function renderDetails() {
-      const panel = document.getElementById("detailPanel");
-      if (!state.selected) {
-        panel.innerHTML = overallDetailsHtml();
-      } else if (state.selected.kind === "skill") {
-        panel.innerHTML = skillDetailsHtml(state.selected.value);
-      } else if (state.selected.kind === "relation") {
-        panel.innerHTML = relationDetailsHtml(state.selected.value);
-      } else {
-        panel.innerHTML = issueDetailsHtml(state.selected.value);
-      }
-      bindDetailActions(panel);
-    }
-
-    function overallDetailsHtml() {
-      return `
-        <h2 class="section-title">全体について</h2>
-        <section class="detail-card">
-          <p class="muted">このビューアでは、リポジトリ内の SKILL.md と、スキル同士のつながり、確認が必要な項目を確認できます。</p>
-          <div class="detail-section">
-            <h3>見ておくとよい順番</h3>
-            <div class="relation-list">
-              <button class="relation-row" type="button" data-detail-page="overview"><strong>全体を把握する</strong><span>件数と地図から全体像を見る</span></button>
-              <button class="relation-row" type="button" data-detail-page="relations"><strong>つながりを確認する</strong><span>直接の参照と AI の読み取りを見分ける</span></button>
-              <button class="relation-row" type="button" data-detail-page="issues"><strong>気になる点を確認する</strong><span>修正候補を確認する</span></button>
-            </div>
-          </div>
-        </section>
       `;
     }
 
     function skillDetailsHtml(node) {
-      const incoming = graph.edges.filter(edge => edge.target === node.id);
-      const outgoing = graph.edges.filter(edge => edge.source === node.id);
+      const relations = relationsForSkill(node.id);
       const issues = issuesForSkill(node);
       return `
         <h2 class="section-title">選択中のスキル</h2>
@@ -1640,90 +1134,73 @@
             </div>
           </div>
           <div class="file-row">${escapeHtml(skillPath(node))}</div>
-          <div class="tabs" aria-label="詳細タブ">
-            <button class="active" type="button">概要</button>
-            <button type="button">関係</button>
-            <button type="button">補足情報</button>
-          </div>
-          <div class="detail-section">
-            <h3>このスキルについて</h3>
-            <p class="muted">${escapeHtml(skillSummary(node))}</p>
-          </div>
           <div class="detail-section">
             <h3>関係しているスキル</h3>
-            ${renderRelationList("参考にしている（入ってくる）", incoming, "source")}
-            ${renderRelationList("関連している（出ていく）", outgoing, "target")}
+            ${relations.length ? `<div class="relation-list">${relations.map(relation => relationRowHtml(relation, node.id)).join("")}</div>` : `<p class="muted">このスキルにつながる関係はありません。</p>`}
           </div>
           <div class="detail-section">
-            <h3>気になる点</h3>
-            ${issues.length ? `<ul>${issues.map(issue => `<li>${escapeHtml(issueLabel(issue.type))}</li>`).join("")}</ul>` : `<p class="muted">このスキルに紐づく項目はありません。</p>`}
+            <h3>確認が必要な項目</h3>
+            ${issues.length ? `<div class="relation-list">${issues.map(item => `<div class="relation-row"><strong>${escapeHtml(issueLabel(item.type))}</strong><span>${escapeHtml(issueSummary(item))}</span></div>`).join("")}</div>` : `<p class="muted">このスキルに紐づく項目はありません。</p>`}
           </div>
-          <button class="text-button primary" type="button" data-open-skill="${escapeHtml(skillPath(node))}">このスキルを開く</button>
-          ${devDetails({ id: node.id, path: skillPath(node), category: categoryFor(node), aliases: node.aliases || [] })}
+          ${devDetails({ id: node.id, path: skillPath(node), aliases: node.aliases || [] })}
         </section>
       `;
     }
 
-    function renderRelationList(title, relations, otherKey) {
-      if (!relations.length) {
-        return `
-          <div class="detail-section">
-            <h3>${escapeHtml(title)}</h3>
-            <p class="muted">該当するつながりはありません。</p>
-          </div>
-        `;
-      }
+    function relationRowHtml(relation, currentSkillId) {
+      const otherId = relation.source === currentSkillId ? relation.target : relation.source;
       return `
-        <div class="detail-section">
-          <h3>${escapeHtml(title)}</h3>
-          <div class="relation-list">
-            ${relations.map(edge => `
-              <button class="relation-row" type="button" data-relation-id="${escapeHtml(edge.id)}">
-                <strong>${escapeHtml(skillName(edge[otherKey]))}</strong>
-                <span>${escapeHtml(relationKindLabel(edge))}</span>
-              </button>
-            `).join("")}
-          </div>
-        </div>
+        <button class="relation-row" type="button" data-relation-id="${escapeHtml(relation.id)}">
+          <strong>${escapeHtml(skillName(otherId))}</strong>
+          <span>${escapeHtml(relationKindLabel(relation))} / ${escapeHtml(relationTypeText(relation))}</span>
+        </button>
       `;
     }
 
-    function relationDetailsHtml(edge) {
-      const evidence = relationSourceItems(edge);
+    function relationDetailsHtml(relation) {
+      const evidence = relationSourceItems(relation);
       return `
         <h2 class="section-title">つながりの詳細</h2>
         <section class="detail-card">
-          <p><strong>${escapeHtml(skillName(edge.source))}</strong><br>→ ${escapeHtml(skillName(edge.target))}</p>
+          <p><strong>${escapeHtml(skillName(relation.source))}</strong><br>→ ${escapeHtml(skillName(relation.target))}</p>
           <div class="detail-section">
-            <h3>関係の種類</h3>
-            <p class="muted">${escapeHtml(relationKindLabel(edge))}</p>
+            <h3>つながりの種類</h3>
+            <p class="muted">${escapeHtml(relationKindLabel(relation))} / ${escapeHtml(relationTypeText(relation))}</p>
           </div>
           <div class="detail-section">
             <h3>なぜ表示されているか</h3>
-            <p class="muted">${escapeHtml(relationSourceText(edge))}</p>
+            <p class="muted">${escapeHtml(relationReasonText(relation))}</p>
           </div>
           <div class="detail-section">
             <h3>根拠</h3>
             ${evidence.length ? `<div class="relation-list">${evidence.map(item => `<div class="relation-row"><strong>${escapeHtml(evidenceText(item) || "根拠")}</strong></div>`).join("")}</div>` : `<p class="muted">根拠は追加されていません。</p>`}
           </div>
-          ${isAiRelation(edge) ? `<div class="detail-section"><h3>注意</h3><p class="muted">これは SKILL.md に直接リンクが書かれている関係ではありません。AI が本文から読み取った補足情報です。</p></div>` : ""}
-          ${devDetails({ id: edge.id, type: edge.type, origin: edge.origin, inferred: Boolean(edge.inferred) })}
+          <div class="detail-section">
+            <h3>注意書き</h3>
+            <p class="muted">${isAiRelation(relation) ? "これは SKILL.md に直接リンクが書かれている関係ではありません。AI が本文から読み取った補足情報です。" : "これは SKILL.md に直接書かれている参照から見つかった関係です。"}</p>
+          </div>
+          ${devDetails({ id: relation.id, type: relation.type, origin: relation.origin, inferred: Boolean(relation.inferred) })}
         </section>
       `;
     }
 
-    function issueDetailsHtml(diag) {
-      const copy = issueCopy[diag.type] || issueCopy.invalid_agent_annotation;
-      const evidence = diag.evidence || {};
-      const evidenceLines = issueSourceLines(diag);
+    function issuesPanelHtml() {
       return `
-        <h2 class="section-title">気になる点の詳細</h2>
-        <section class="detail-card">
+        <h2 class="section-title">確認が必要な項目</h2>
+        ${graph.diagnostics.length ? graph.diagnostics.map(issueDetailsCardHtml).join("") : `<div class="empty">確認が必要な項目は見つかっていません。</div>`}
+      `;
+    }
+
+    function issueDetailsCardHtml(item) {
+      const copy = issueCopy[item.type] || issueCopy.invalid_agent_annotation;
+      const evidenceLines = issueSourceLines(item);
+      return `
+        <section class="issue-card">
           <div class="detail-header">
             <span class="detail-icon" style="background:var(--red);">!</span>
             <div>
               <h2>${escapeHtml(copy.title)}</h2>
-              <p>${escapeHtml(diag.path || diag.skill || diag.target || "")}</p>
+              <p>${escapeHtml(issueSummary(item))}</p>
             </div>
           </div>
           <div class="issue-body">
@@ -1741,31 +1218,39 @@
             </section>
             <section>
               <h4>次にすること</h4>
-              <ul>${issueActionList(diag)}</ul>
+              <ul>${issueActionList(item)}</ul>
             </section>
           </div>
-          ${devDetails({ internalName: diag.type, message: diag.message, evidence })}
+          ${devDetails({ internalName: item.type, message: item.message, evidence: item.evidence || {} })}
         </section>
       `;
     }
 
-    function issueSourceLines(diag) {
+    function issueSummary(item) {
+      if (item.skill && nodeIndex.has(item.skill)) return skillName(item.skill);
+      if (item.path) return item.path;
+      if (item.target && nodeIndex.has(item.target)) return skillName(item.target);
+      if (item.target) return String(item.target);
+      return issueLabel(item.type);
+    }
+
+    function issueSourceLines(item) {
       const lines = [];
-      if (diag.path) lines.push(diag.path);
-      if (diag.skill) lines.push(`対象のスキル: ${skillName(diag.skill)}`);
-      if (diag.target) lines.push(`参照している先: ${diag.target}`);
-      const evidence = diag.evidence;
+      if (item.path) lines.push(item.path);
+      if (item.skill) lines.push(`対象のスキル: ${skillName(item.skill)}`);
+      if (item.target) lines.push(`参照している先: ${item.target}`);
+      const evidence = item.evidence;
       if (evidence && typeof evidence === "object") {
         if (evidence.path || evidence.text || evidence.raw) lines.push(evidenceText(evidence));
         if (Array.isArray(evidence.skills)) lines.push(`該当するスキル: ${evidence.skills.map(skillName).join(", ")}`);
         if (Array.isArray(evidence.aliases)) {
-          for (const item of evidence.aliases) {
-            lines.push(`${skillName(item.skill)} / ${item.path || ""} / ${item.source || ""}`);
+          for (const alias of evidence.aliases) {
+            lines.push(`${skillName(alias.skill)} / ${alias.path || ""} / ${alias.source || ""}`);
           }
         }
         if (Array.isArray(evidence.copies)) {
-          for (const item of evidence.copies) {
-            lines.push(`${item.host || "unknown"}: ${item.path || ""}`);
+          for (const copy of evidence.copies) {
+            lines.push(`${copy.host || "unknown"}: ${copy.path || ""}`);
           }
         }
       }
@@ -1782,45 +1267,26 @@
     }
 
     function bindDetailActions(root) {
+      for (const button of root.querySelectorAll("[data-skill-id]")) {
+        button.addEventListener("click", () => {
+          const node = nodeIndex.get(button.dataset.skillId);
+          if (node) setSelection("skill", node);
+        });
+      }
       for (const button of root.querySelectorAll("[data-relation-id]")) {
         button.addEventListener("click", () => {
-          const edge = edgeIndex.get(button.dataset.relationId);
-          if (edge) setSelection("relation", edge);
+          const relation = edgeIndex.get(button.dataset.relationId);
+          if (relation) setSelection("relation", relation);
         });
       }
-      for (const button of root.querySelectorAll("[data-detail-page]")) {
-        button.addEventListener("click", () => setPage(button.dataset.detailPage));
-      }
-      for (const button of root.querySelectorAll("[data-open-skill]")) {
-        button.addEventListener("click", () => {
-          const path = button.dataset.openSkill || "";
-          if (!path || !graph.root) return;
-          const url = `file://${String(graph.root).replace(/\/$/, "")}/${path}`;
-          window.open(url, "_blank", "noopener");
-        });
-      }
-    }
-
-    function mapNodes() {
-      const relatedIds = new Set();
-      const relations = visibleRelations();
-      for (const edge of relations) {
-        relatedIds.add(edge.source);
-        relatedIds.add(edge.target);
-      }
-      const searched = visibleSkills();
-      if (state.searchQuery.trim()) {
-        return searched.filter(node => relatedIds.has(node.id) || relations.length === 0);
-      }
-      return graph.nodes;
     }
 
     function drawMap(svg) {
       const width = Math.max(360, svg.clientWidth || svg.parentElement.clientWidth || 720);
-      const height = Math.max(320, svg.clientHeight || svg.parentElement.clientHeight || 420);
-      const nodes = mapNodes();
+      const height = Math.max(320, svg.clientHeight || svg.parentElement.clientHeight || 520);
+      const nodes = graph.nodes;
       const nodeIds = new Set(nodes.map(node => node.id));
-      const relations = visibleRelations().filter(edge => nodeIds.has(edge.source) && nodeIds.has(edge.target));
+      const relations = graph.edges.filter(relation => nodeIds.has(relation.source) && nodeIds.has(relation.target));
       document.getElementById("mapEmpty").hidden = nodes.length > 0;
       svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
       svg.innerHTML = `
@@ -1843,137 +1309,158 @@
       }
       const layer = svgElement("g", { transform: `translate(${state.view.x} ${state.view.y}) scale(${state.view.scale})` });
       svg.append(layer);
-      const positions = layoutPositions(nodes, bounds);
-      if (state.showGroupFrames) drawGroupFrames(layer, nodes, positions);
+      const positions = layoutPositions(nodes, bounds.width, bounds.height);
       const occurrence = new Map();
-      for (const edge of relations) {
-        const source = positions.get(edge.source);
-        const target = positions.get(edge.target);
+      for (const relation of relations) {
+        const source = positions.get(relation.source);
+        const target = positions.get(relation.target);
         if (!source || !target) continue;
-        const key = `${edge.source}->${edge.target}`;
+        const key = `${relation.source}->${relation.target}`;
         const index = occurrence.get(key) || 0;
         occurrence.set(key, index + 1);
-        drawRelation(layer, edge, source, target, index);
+        drawRelation(layer, relation, source, target, index);
       }
       for (const node of nodes) {
         const point = positions.get(node.id);
         if (point) drawSkill(layer, node, point);
       }
-      svg.onwheel = event => {
-        event.preventDefault();
-        zoomMap(event.deltaY < 0 ? 1.12 : 1 / 1.12);
-      };
-      svg.onclick = event => {
-        if (event.target === svg) clearSelection();
-      };
+      bindMapGestures(svg);
     }
 
     function layoutBounds(nodes, width, height) {
       const count = Math.max(1, nodes.length);
-      const aspect = Math.max(.8, Math.min(2.6, width / Math.max(1, height)));
-      const columns = Math.max(1, Math.ceil(Math.sqrt(count * aspect)));
+      const columns = Math.max(1, Math.ceil(Math.sqrt(count)));
       const rows = Math.max(1, Math.ceil(count / columns));
       return {
-        width: Math.max(width, columns * (MAP_NODE_WIDTH + 20) + 96),
-        height: Math.max(height, rows * (MAP_NODE_HEIGHT + 58) + 96),
-        columns,
-        rows,
+        width: Math.max(width, columns * 220 + 120),
+        height: Math.max(height, rows * 150 + 120),
       };
     }
 
-    function layoutPositions(nodes, bounds) {
-      const width = bounds.width;
-      const height = bounds.height;
-      const columns = Math.max(1, bounds.columns || 1);
-      const rows = Math.max(1, bounds.rows || 1);
-      const paddingX = MAP_NODE_WIDTH / 2 + 24;
-      const paddingY = MAP_NODE_HEIGHT / 2 + 32;
-      const usableWidth = Math.max(1, width - paddingX * 2);
-      const usableHeight = Math.max(1, height - paddingY * 2);
+    function layoutPositions(nodes, width, height) {
+      const grouped = new Map();
+      for (const node of nodes) {
+        const key = node.annotation?.suggestedCategory || node.annotation?.clusterId || node.category || "未分類";
+        if (!grouped.has(key)) grouped.set(key, []);
+        grouped.get(key).push(node);
+      }
+      const groupEntries = [...grouped.entries()];
+      const groupColumns = Math.max(1, Math.ceil(Math.sqrt(groupEntries.length)));
+      const groupRows = Math.max(1, Math.ceil(groupEntries.length / groupColumns));
+      const groupWidth = width / groupColumns;
+      const groupHeight = height / groupRows;
       const positions = new Map();
-      const sortedNodes = [...nodes].sort((a, b) => {
-        const categoryCompare = String(categoryFor(a)).localeCompare(String(categoryFor(b)), "ja");
-        if (categoryCompare) return categoryCompare;
-        return skillName(a.id).localeCompare(skillName(b.id), "ja");
-      });
-      sortedNodes.forEach((node, index) => {
-        const col = index % columns;
-        const row = Math.floor(index / columns);
-        const x = columns === 1 ? width / 2 : paddingX + (col / (columns - 1)) * usableWidth;
-        const y = rows === 1 ? height / 2 : paddingY + (row / (rows - 1)) * usableHeight;
-        positions.set(node.id, { x, y, category: categoryFor(node) });
+      groupEntries.forEach(([category, values], groupIndex) => {
+        const gx = groupIndex % groupColumns;
+        const gy = Math.floor(groupIndex / groupColumns);
+        const cols = Math.max(1, Math.ceil(Math.sqrt(values.length)));
+        const rows = Math.max(1, Math.ceil(values.length / cols));
+        values.forEach((node, index) => {
+          const col = index % cols;
+          const row = Math.floor(index / cols);
+          const x = gx * groupWidth + ((col + 1) / (cols + 1)) * groupWidth;
+          const y = gy * groupHeight + ((row + 1) / (rows + 1)) * groupHeight;
+          positions.set(node.id, { x, y, category });
+        });
       });
       return positions;
     }
 
-    function drawGroupFrames(layer, nodes, positions) {
-      const groups = new Map();
-      for (const node of nodes) {
-        const point = positions.get(node.id);
-        if (!point) continue;
-        const key = categoryFor(node);
-        if (!groups.has(key)) groups.set(key, []);
-        groups.get(key).push(point);
+    function focusInfo() {
+      const queryIds = new Set(matchingSkills().map(node => node.id));
+      const issueIds = issueSkillIds();
+      const relatedIds = new Set();
+      const focusedRelationIds = new Set();
+      if (state.selected?.kind === "skill") {
+        const id = state.selected.value.id;
+        relatedIds.add(id);
+        for (const relation of relationsForSkill(id)) {
+          focusedRelationIds.add(relation.id);
+          relatedIds.add(relation.source);
+          relatedIds.add(relation.target);
+        }
       }
-      for (const [category, points] of groups) {
-        const xs = points.map(point => point.x);
-        const ys = points.map(point => point.y);
-        const x = Math.min(...xs) - MAP_NODE_WIDTH / 2 - 18;
-        const y = Math.min(...ys) - MAP_NODE_HEIGHT / 2 - 28;
-        const w = Math.max(...xs) - Math.min(...xs) + MAP_NODE_WIDTH + 36;
-        const h = Math.max(...ys) - Math.min(...ys) + MAP_NODE_HEIGHT + 56;
-        layer.append(svgElement("rect", { class: "category-frame", x, y, width: w, height: h, rx: 8 }));
-        const label = svgElement("text", { class: "category-label", x: x + 12, y: y + 23 });
-        label.textContent = categoryLabel(category);
-        layer.append(label);
+      if (state.selected?.kind === "relation") {
+        const relation = state.selected.value;
+        focusedRelationIds.add(relation.id);
+        relatedIds.add(relation.source);
+        relatedIds.add(relation.target);
       }
+      return {
+        queryIds,
+        issueIds,
+        relatedIds,
+        focusedRelationIds,
+        hasFocus: queryIds.size > 0 || relatedIds.size > 0 || state.panelMode === "issues",
+      };
     }
 
-    function drawRelation(layer, edge, source, target, index) {
+    function drawRelation(layer, relation, source, target, index) {
       const dx = target.x - source.x;
       const dy = target.y - source.y;
       const distance = Math.max(1, Math.hypot(dx, dy));
       const offset = ((index % 5) - 2) * 16;
-      const sx = source.x + (dx / distance) * (MAP_NODE_WIDTH / 2 - 4);
-      const sy = source.y + (dy / distance) * (MAP_NODE_HEIGHT / 2 - 2);
-      const tx = target.x - (dx / distance) * (MAP_NODE_WIDTH / 2 - 4);
-      const ty = target.y - (dy / distance) * (MAP_NODE_HEIGHT / 2 - 2);
+      const sx = source.x + (dx / distance) * 76;
+      const sy = source.y + (dy / distance) * 28;
+      const tx = target.x - (dx / distance) * 76;
+      const ty = target.y - (dy / distance) * 28;
       const mx = (sx + tx) / 2 - (dy / distance) * offset;
       const my = (sy + ty) / 2 + (dx / distance) * offset;
       const d = `M ${sx} ${sy} Q ${mx} ${my} ${tx} ${ty}`;
-      const selected = state.selected?.kind === "relation" && state.selected.value.id === edge.id;
+      const focus = focusInfo();
+      const selected = state.selected?.kind === "relation" && state.selected.value.id === relation.id;
+      const relevantToSearch = focus.queryIds.has(relation.source) || focus.queryIds.has(relation.target);
+      const relevantToIssue = state.panelMode === "issues" && (focus.issueIds.has(relation.source) || focus.issueIds.has(relation.target));
+      const focused = selected || focus.focusedRelationIds.has(relation.id) || relevantToSearch || relevantToIssue;
+      const dim = focus.hasFocus && !focused;
       const hit = svgElement("path", { class: "relation-hit", d });
       hit.addEventListener("click", event => {
         event.stopPropagation();
-        setSelection("relation", edge);
+        setSelection("relation", relation);
       });
       const path = svgElement("path", {
-        class: `relation-path ${isAiRelation(edge) ? "ai" : ""} ${selected ? "selected" : ""}`,
+        class: `relation-path ${isAiRelation(relation) ? "ai" : ""} ${selected ? "selected" : ""} ${focused ? "focused" : ""} ${dim ? "dim" : ""}`,
         d,
-        "marker-end": selected ? "url(#arrowSelected)" : isAiRelation(edge) ? "url(#arrowAi)" : "url(#arrowDirect)",
+        "marker-end": selected ? "url(#arrowSelected)" : isAiRelation(relation) ? "url(#arrowAi)" : "url(#arrowDirect)",
       });
       path.addEventListener("click", event => {
         event.stopPropagation();
-        setSelection("relation", edge);
+        setSelection("relation", relation);
       });
       layer.append(hit, path);
     }
 
     function drawSkill(layer, node, point) {
+      const focus = focusInfo();
       const selected = state.selected?.kind === "skill" && state.selected.value.id === node.id;
+      const searched = focus.queryIds.has(node.id);
+      const related = focus.relatedIds.has(node.id);
+      const hasIssue = issuesForSkill(node).length > 0;
+      const issueFocused = state.panelMode === "issues" && focus.issueIds.has(node.id);
       const hasAi = relationsForSkill(node.id).some(isAiRelation);
+      const dim = focus.hasFocus && !(selected || searched || related || issueFocused);
       const group = svgElement("g", {
-        class: `skill-node ${hasAi ? "ai" : ""} ${selected ? "selected" : ""}`,
-        transform: `translate(${point.x - MAP_NODE_WIDTH / 2} ${point.y - MAP_NODE_HEIGHT / 2})`,
+        class: `skill-node ${hasAi ? "ai" : ""} ${selected ? "selected" : ""} ${searched ? "search" : ""} ${related ? "related" : ""} ${issueFocused ? "issue" : ""} ${dim ? "dim" : ""}`,
+        transform: `translate(${point.x - 78} ${point.y - 24})`,
       });
       group.addEventListener("click", event => {
         event.stopPropagation();
         setSelection("skill", node);
       });
-      group.append(svgElement("rect", { width: MAP_NODE_WIDTH, height: MAP_NODE_HEIGHT, rx: 8 }));
-      const label = svgElement("text", { x: MAP_NODE_WIDTH / 2, y: MAP_NODE_HEIGHT / 2 + 4, "text-anchor": "middle" });
+      group.append(svgElement("rect", { width: 156, height: 48, rx: 8 }));
+      const label = svgElement("text", { x: 78, y: 29, "text-anchor": "middle" });
       label.textContent = compactText(skillName(node.id), 20);
       group.append(label);
+      if (hasIssue) {
+        const warning = svgElement("g", { class: "warning-mark", transform: "translate(145 -9)" });
+        warning.append(svgElement("title", {}));
+        warning.querySelector("title").textContent = "確認が必要な項目があります";
+        warning.append(svgElement("circle", { cx: 0, cy: 0, r: 10 }));
+        const text = svgElement("text", { x: 0, y: 4, "text-anchor": "middle" });
+        text.textContent = "!";
+        warning.append(text);
+        group.append(warning);
+      }
       layer.append(group);
     }
 
@@ -1985,29 +1472,58 @@
       return element;
     }
 
-    function zoomMap(factor) {
-      state.view.scale = Math.max(.28, Math.min(2.6, state.view.scale * factor));
-      const map = document.getElementById("skillMap");
-      if (map) drawMap(map);
+    function zoomMap(factor, originX, originY) {
+      const before = state.view.scale;
+      const next = Math.max(.28, Math.min(2.6, before * factor));
+      if (next === before) return;
+      if (Number.isFinite(originX) && Number.isFinite(originY)) {
+        state.view.x = originX - ((originX - state.view.x) / before) * next;
+        state.view.y = originY - ((originY - state.view.y) / before) * next;
+      }
+      state.view.scale = next;
+      drawMap(document.getElementById("skillMap"));
+    }
+
+    function bindMapGestures(svg) {
+      svg.onwheel = event => {
+        event.preventDefault();
+        const rect = svg.getBoundingClientRect();
+        zoomMap(event.deltaY < 0 ? 1.12 : 1 / 1.12, event.clientX - rect.left, event.clientY - rect.top);
+      };
+      svg.onpointerdown = event => {
+        if (event.target !== svg) return;
+        svg.setPointerCapture(event.pointerId);
+        state.panning = { id: event.pointerId, x: event.clientX, y: event.clientY, startX: state.view.x, startY: state.view.y, moved: false };
+      };
+      svg.onpointermove = event => {
+        if (!state.panning || state.panning.id !== event.pointerId) return;
+        const dx = event.clientX - state.panning.x;
+        const dy = event.clientY - state.panning.y;
+        if (Math.hypot(dx, dy) > 3) state.panning.moved = true;
+        state.view.x = state.panning.startX + dx;
+        state.view.y = state.panning.startY + dy;
+        drawMap(svg);
+      };
+      svg.onpointerup = event => {
+        if (!state.panning || state.panning.id !== event.pointerId) return;
+        const moved = state.panning.moved;
+        state.panning = null;
+        if (!moved) clearSelection();
+      };
+      svg.onpointercancel = () => {
+        state.panning = null;
+      };
     }
 
     document.getElementById("globalSearch").addEventListener("input", event => {
       state.searchQuery = event.target.value;
-      state.pendingFit = true;
+      state.selected = null;
+      state.panelMode = state.searchQuery.trim() ? "search" : "overall";
       render();
     });
-    document.getElementById("showDirectRelations").addEventListener("change", event => {
-      state.showDirectRelations = event.target.checked;
-      render();
-    });
-    document.getElementById("showAiRelations").addEventListener("change", event => {
-      state.showAiRelations = event.target.checked;
-      render();
-    });
-    document.getElementById("showGroupFrames").addEventListener("change", event => {
-      state.showGroupFrames = event.target.checked;
-      render();
-    });
+
+    document.getElementById("issueButton").addEventListener("click", showIssues);
+
     window.addEventListener("resize", () => {
       state.pendingFit = true;
       render();

@@ -11,7 +11,8 @@ compatibility: Requires Python 3 and a local shell. No network access or externa
 ---
 # SkillGraph Cartographer
 
-Explore a target repository's current SkillGraph as a read-only map. This Agent
+Explore a target repository's current SkillGraph as a read-only map. The viewer
+is a single screen with a header, the skill map, and a detail panel. This Agent
 Skill includes its own CLI under `scripts/skillgraph.py`; always call the
 bundled CLI, even when the target repository is somewhere else and does not
 contain this tool.
@@ -78,7 +79,6 @@ inferred skill relationships.
    - role tags
    - trigger phrases
    - inferred relationship hints
-   - optional view suggestions
    - optional enrichment coverage when only part of the graph was read
 
 7. Keep deterministic and inferred information separate. Use `nodeAnnotations`
@@ -140,15 +140,6 @@ Add these top-level fields to the collected graph when useful:
       ]
     }
   ],
-  "viewSuggestions": [
-    {
-      "name": "Domain modeling cluster",
-      "description": "Focus on DDD tactical design skills.",
-      "filter": {
-        "clusterId": "domain-modeling"
-      }
-    }
-  ],
   "enrichmentCoverage": {
     "nodeCount": 120,
     "nodesRead": 85,
@@ -179,6 +170,9 @@ Add these top-level fields to the collected graph when useful:
   fixed section names.
 - Deterministic relations come from direct `SKILL.md` links, raw `SKILL.md` path
   references.
+- Do not create viewer modes, tabs, or purpose filters. Search, skill clicks,
+  relationship clicks, and the needs-review button should be enough for normal
+  viewer use.
 - Do not diagnose or report orphan skills. No relation is a normal outcome.
 - Do not encode relationship strength. Add inferred edges only when a
   meaningful relation can be explained with short evidence or a rationale.
@@ -189,8 +183,8 @@ Add these top-level fields to the collected graph when useful:
 
 When reporting to the user, distinguish deterministic graph facts from this
 agent's inferred annotations. Keep the report focused on what the viewer shows:
-notable clusters, likely entry skills, dependencies, and diagnostics that affect
-understanding the current graph.
+notable clusters, likely entry skills, dependencies, and items that need human
+review to understand the current graph.
 
 Report the local viewer URL when `view` starts. If the user only asked for the
 important results, summarize the visible nodes, edges, clusters, and diagnostics

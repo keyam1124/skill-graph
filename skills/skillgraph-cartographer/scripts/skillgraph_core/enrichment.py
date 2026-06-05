@@ -42,7 +42,7 @@ def normalize_relation_type(value: Any) -> str:
 
 def merge_enrichment(base_graph: dict[str, Any], annotations: dict[str, Any]) -> dict[str, Any]:
     graph = json.loads(json.dumps(base_graph))
-    for key in ("annotationRun", "nodeAnnotations", "inferredEdges", "viewSuggestions", "enrichmentCoverage"):
+    for key in ("annotationRun", "nodeAnnotations", "inferredEdges", "enrichmentCoverage"):
         if key in annotations:
             graph[key] = annotations[key]
     if "annotationRun" not in graph:
@@ -73,7 +73,6 @@ def enrichment_template(base_graph: dict[str, Any], max_node_summary_chars: int 
         "nodes": nodes,
         "nodeAnnotations": [],
         "inferredEdges": [],
-        "viewSuggestions": [],
     }
 
 
@@ -91,16 +90,6 @@ def strip_edge_strength(edge: dict[str, Any]) -> dict[str, Any]:
     edge.pop("confidence", None)
     edge.pop("confidenceScore", None)
     return edge
-
-
-def valid_view_suggestion_filter(value: Any) -> bool:
-    if value in (None, {}):
-        return True
-    if not isinstance(value, dict):
-        return False
-    allowed = {"nodeIds", "clusterId", "suggestedCategory", "roleTags", "origin", "query"}
-    deprecated_ignored = {"confidence"}
-    return all(key in allowed or key in deprecated_ignored for key in value)
 
 
 def enrich_graph(graph: dict[str, Any]) -> dict[str, Any]:
@@ -165,17 +154,5 @@ def enrich_graph(graph: dict[str, Any]) -> dict[str, Any]:
         edges.append(normalized)
     graph["inferredEdges"] = valid_inferred_edges
 
-    valid_suggestions: list[dict[str, Any]] = []
-    for suggestion in agent_list(graph, "viewSuggestions", diagnostics):
-        if not isinstance(suggestion, dict):
-            diagnostics.append(diagnostic_from_mapping({"value": suggestion}, "Agent view suggestion is not an object."))
-            continue
-        suggestion_filter = suggestion.get("filter")
-        if isinstance(suggestion_filter, dict):
-            suggestion_filter.pop("confidence", None)
-        if not valid_view_suggestion_filter(suggestion.get("filter")):
-            diagnostics.append(diagnostic_from_mapping(suggestion, "Agent view suggestion filter contains unsupported keys or is not an object."))
-            continue
-        valid_suggestions.append(suggestion)
-    graph["viewSuggestions"] = valid_suggestions
+    graph.pop("viewSuggestions", None)
     return graph
