@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from .enrichment import normalize_relation_type, valid_view_suggestion_filter
-from .shared import CONFIDENCE_LABELS, SCHEMA_VERSION, normalize_confidence
+from .shared import SCHEMA_VERSION
 
 
 GRAPH_SCHEMA: dict[str, Any] = {
@@ -148,16 +148,10 @@ def validate_edges(
         origin = str(edge.get("origin") or ("agent_inferred" if inferred else ""))
         if source not in node_ids or edge_target not in node_ids:
             diagnostics.append(validation_diag("error", f"edge {source or '<missing>'} -> {edge_target or '<missing>'} references an unknown node.", target=target))
-        confidence = edge.get("confidence", "medium")
-        label, _ = normalize_confidence(confidence)
-        if isinstance(confidence, str) and confidence.strip().lower() not in CONFIDENCE_LABELS:
-            diagnostics.append(validation_diag("warning", f"confidence {confidence!r} will be normalized to {label}.", target=target))
         key = (source, edge_target, edge_type, origin)
         if key in seen:
             diagnostics.append(validation_diag("warning", f"edge {source} -> {edge_target} duplicates source/target/type/origin.", target=target))
         seen.add(key)
-        if strict and inferred and label == "high" and not str(edge.get("rationale") or "").strip():
-            diagnostics.append(validation_diag("warning", "high-confidence inferred edge should include rationale.", target=target))
         evidence = edge.get("evidence", [])
         if evidence is None:
             continue

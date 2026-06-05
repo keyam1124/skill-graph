@@ -21,9 +21,7 @@ def node_display(index: dict[str, dict[str, Any]], node_id: str) -> str:
 
 
 def relation_label(edge: dict[str, Any]) -> str:
-    value = str(edge.get("type") or "related_to").replace("_", " ")
-    confidence = edge.get("confidence")
-    return f"{value} / {confidence}" if confidence else value
+    return str(edge.get("type") or "related_to").replace("_", " ")
 
 
 def mermaid_id(value: str) -> str:

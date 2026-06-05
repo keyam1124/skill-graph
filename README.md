@@ -144,7 +144,7 @@ CLI は外部 LLM API を呼びません。Codex / Claude Code など、この S
 
 決定論的な `nodes` と `edges` は正本として扱い、推論結果では上書きしません。
 `inferredEdges` はグラフの edge として描画され、node 詳細の incoming / outgoing リレーションにも表示されます。
-数値 confidence は `low` / `medium` / `high` に正規化され、元の値は `confidenceScore` として残ります。
+推論リレーションには、短い `evidence` と判断理由の `rationale` を添えます。評価値は扱いません。
 関係がない Skill は正常な状態として扱い、孤立 Skill として診断しません。
 
 ## リポジトリ構成

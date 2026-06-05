@@ -169,7 +169,7 @@ class SkillGraphViewerWorkflowTest(unittest.TestCase):
     def test_enrich_graph_dedupes_inferred_edges(self):
         skillgraph = load_skillgraph_module()
         graph = {
-            "schemaVersion": "skillgraph-lite.v1.1",
+            "schemaVersion": "skillgraph-lite.v1.2",
             "generatedAt": "2026-05-28T00:00:00Z",
             "root": "/tmp/example",
             "nodes": [
@@ -208,12 +208,15 @@ class SkillGraphViewerWorkflowTest(unittest.TestCase):
             if edge.get("source") == "skill.alpha" and edge.get("target") == "skill.beta"
         ]
         self.assertEqual(len(matching), 1)
+        self.assertNotIn("confidence", matching[0])
+        self.assertNotIn("confidenceScore", matching[0])
+        self.assertFalse(any("confidence" in edge or "confidenceScore" in edge for edge in enriched["inferredEdges"]))
         self.assertFalse(enriched["diagnostics"])
 
     def test_enriched_graph_annotations_and_viewer_html(self):
         skillgraph = load_skillgraph_module()
         graph = {
-            "schemaVersion": "skillgraph-lite.v1.1",
+            "schemaVersion": "skillgraph-lite.v1.2",
             "generatedAt": "2026-05-28T00:00:00Z",
             "root": "/tmp/example",
             "nodes": [
@@ -245,7 +248,9 @@ class SkillGraphViewerWorkflowTest(unittest.TestCase):
                 },
                 {"source": "skill.alpha", "target": "missing", "type": "related_to"},
             ],
-            "viewSuggestions": [],
+            "viewSuggestions": [
+                {"name": "legacy", "filter": {"confidence": "high", "origin": "agent_inferred"}}
+            ],
         }
 
         enriched = skillgraph.enrich_graph(graph)
@@ -260,10 +265,11 @@ class SkillGraphViewerWorkflowTest(unittest.TestCase):
             "agent_inferred",
         )
         inferred = self._assert_edge(enriched["edges"], "skill.alpha", "skill.beta", "related_to", "agent_inferred")
-        self.assertEqual(inferred["confidence"], "medium")
-        self.assertEqual(inferred["confidenceScore"], 0.74)
+        self.assertNotIn("confidence", inferred)
+        self.assertNotIn("confidenceScore", inferred)
         diagnostic_types = {item["type"] for item in enriched["diagnostics"]}
         self.assertIn("invalid_agent_annotation", diagnostic_types)
+        self.assertEqual(enriched["viewSuggestions"][0]["filter"], {"origin": "agent_inferred"})
 
         html = skillgraph.html_for_graph(enriched)
         self.assertIn("SkillGraph Viewer", html)
@@ -274,6 +280,10 @@ class SkillGraphViewerWorkflowTest(unittest.TestCase):
         self.assertIn("coverageBadge", html)
         self.assertIn("relationFocus", html)
         self.assertIn("Evidence ledger", html)
+        self.assertNotIn('id="confidence"', html)
+        self.assertNotIn("confidence-chips", html)
+        self.assertNotIn("信頼度フィルタ", html)
+        self.assertNotIn("data-confidence-value", html)
         self.assertNotIn("Inferred Cluster", html)
         self.assertNotIn("data-view-mode", html)
         self.assertNotIn('id="viewMode"', html)
@@ -369,6 +379,74 @@ class SkillGraphViewerWorkflowTest(unittest.TestCase):
         self.assertIn('markerWidth="8"', html)
         self.assertIn("renderNodeDetails", html)
         self.assertIn("renderEdgeDetails", html)
+
+    def test_exports_relation_labels_without_confidence(self):
+        skillgraph = load_skillgraph_module()
+        graph = {
+            "schemaVersion": "skillgraph-lite.v1.2",
+            "generatedAt": "2026-05-28T00:00:00Z",
+            "root": "/tmp/example",
+            "nodes": [
+                {"id": "skill.alpha", "kind": "skill", "label": "alpha", "path": "skills/alpha/SKILL.md"},
+                {"id": "skill.beta", "kind": "skill", "label": "beta", "path": "skills/beta/SKILL.md"},
+            ],
+            "edges": [
+                {
+                    "id": "edge.skill.alpha.skill.beta.related_to.1",
+                    "source": "skill.alpha",
+                    "target": "skill.beta",
+                    "type": "related_to",
+                    "origin": "agent_inferred",
+                    "confidence": "medium",
+                    "evidence": [],
+                    "rationale": "legacy input",
+                    "inferred": True,
+                }
+            ],
+            "diagnostics": [],
+            "viewSuggestions": [
+                {"name": "legacy", "filter": {"confidence": "high", "origin": "agent_inferred"}}
+            ],
+        }
+
+        mermaid = skillgraph.export_mermaid(graph)
+        summary = skillgraph.markdown_summary(graph)
+
+        self.assertIn("related to", mermaid)
+        self.assertIn("related to", summary)
+        self.assertNotIn("/ medium", mermaid)
+        self.assertNotIn("/ medium", summary)
+
+    def test_validation_ignores_legacy_confidence_fields(self):
+        skillgraph = load_skillgraph_module()
+        graph = {
+            "schemaVersion": "skillgraph-lite.v1.2",
+            "generatedAt": "2026-05-28T00:00:00Z",
+            "root": "/tmp/example",
+            "nodes": [
+                {"id": "skill.alpha", "kind": "skill", "label": "alpha", "path": "skills/alpha/SKILL.md"},
+                {"id": "skill.beta", "kind": "skill", "label": "beta", "path": "skills/beta/SKILL.md"},
+            ],
+            "edges": [
+                {
+                    "source": "skill.alpha",
+                    "target": "skill.beta",
+                    "type": "related_to",
+                    "origin": "agent_inferred",
+                    "confidence": "not-a-label",
+                    "confidenceScore": 0.7,
+                    "evidence": [{"path": "skills/alpha/SKILL.md", "text": "alpha"}],
+                    "rationale": "legacy input",
+                }
+            ],
+            "diagnostics": [],
+        }
+
+        report = skillgraph.validation_report(graph, strict=True)
+
+        self.assertTrue(report["valid"])
+        messages = "\n".join(item.get("message", "") for item in report["diagnostics"])
+        self.assertNotIn("confidence", messages)
 
     def _write_fixture(self, root):
         self._write(
@@ -482,6 +560,8 @@ class SkillGraphViewerWorkflowTest(unittest.TestCase):
         edges = self._edges(graph)
         edge = self._assert_edge(edges, "ddd-tactical.aggregate-design", "ddd-tactical.repository-design", "direct_reference", None)
         self.assertEqual(edge.get("legacyType"), "depends_on")
+        self.assertNotIn("confidence", edge)
+        self.assertNotIn("confidenceScore", edge)
         self.assertIn("startLine", edge.get("evidence", [{}])[0])
         self.assertIn("normalizedTarget", edge.get("evidence", [{}])[0])
         self.assertFalse(

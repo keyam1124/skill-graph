@@ -451,28 +451,6 @@
       width: 100%;
     }
 
-    .confidence-chips {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      margin-top: 9px;
-    }
-
-    .confidence-chips button {
-      min-height: 26px;
-      padding: 0 10px;
-      border: 0;
-      border-radius: 999px;
-      background: var(--surface-3);
-      color: var(--muted);
-      font: 700 12px/1 var(--font-body);
-    }
-
-    .confidence-chips button.active {
-      color: oklch(43% 0.15 255);
-      background: var(--secondary-soft);
-    }
-
     .list {
       display: grid;
       gap: 9px;
@@ -1041,10 +1019,6 @@
       stroke-dasharray: 8 4;
     }
 
-    .edge.high {
-      stroke-width: 1.25;
-    }
-
     .edge.related {
       stroke: var(--accent-strong);
       stroke-width: 2.1;
@@ -1359,11 +1333,6 @@
           <div id="suggestions" class="list"></div>
 
           <div class="field">
-            <label for="confidence">Confidence</label>
-            <select id="confidence"><option value="">All</option></select>
-          </div>
-
-          <div class="field">
             <label for="origin">Origin</label>
             <select id="origin"><option value="">All</option></select>
           </div>
@@ -1379,16 +1348,6 @@
           <div class="filter-actions">
             <button id="filterCategory" class="text-button" type="button" hidden>Filter selected category</button>
             <button id="clearCategoryFilter" class="text-button" type="button" hidden>Clear category filter</button>
-          </div>
-
-          <div class="summary-card">
-            <h2>信頼度フィルタ</h2>
-            <div class="confidence-chips">
-              <button type="button" data-confidence-value="high">High</button>
-              <button type="button" data-confidence-value="medium">Medium</button>
-              <button type="button" data-confidence-value="low">Low</button>
-            </div>
-            <p class="description" id="confidenceDescription">現在: すべて表示</p>
           </div>
 
           <div class="metric-grid" aria-label="Graph metrics">
@@ -1516,7 +1475,6 @@
     const graphDisplayNodes = graph.nodes;
     const graphDisplayNodeIds = new Set(graphDisplayNodes.map(node => node.id));
     const graphDisplayEdges = graph.edges.filter(edgeConnectsDisplayNodes);
-    const confidence = document.getElementById("confidence");
     const origin = document.getElementById("origin");
     const search = document.getElementById("search");
     const categoryFrames = document.getElementById("categoryFrames");
@@ -1539,13 +1497,6 @@
     const inspectorPanel = document.getElementById("inspectorPanel");
     const graphWorkspace = document.querySelector(".graph-workspace");
     categoryFrames.checked = categoryFramesDefault;
-
-    for (const value of [...new Set(graphDisplayEdges.map(edge => edge.confidence))].sort()) {
-      const option = document.createElement("option");
-      option.value = value;
-      option.textContent = value;
-      confidence.append(option);
-    }
 
     for (const value of [...new Set(graphDisplayEdges.map(edgeOriginValue))].filter(Boolean).sort()) {
       const option = document.createElement("option");
@@ -1581,7 +1532,6 @@
 
     function edgePassesSuggestion(edge) {
       const filter = suggestionFilter();
-      if (filter.confidence && String(edge.confidence) !== String(filter.confidence)) return false;
       if (filter.origin && edgeOriginValue(edge) !== String(filter.origin)) return false;
       return true;
     }
@@ -1590,7 +1540,7 @@
       const values = [];
       for (const edge of graph.edges) {
         if (edge.source !== node.id && edge.target !== node.id) continue;
-        values.push(edge.type, edge.origin, edge.confidence, edge.rationale, relationReason(edge), relationEvidenceText(edge));
+        values.push(edge.type, edge.origin, edge.rationale, relationReason(edge), relationEvidenceText(edge));
         values.push(nodeDisplay(edge.source), nodeDisplay(edge.target));
       }
       return values;
@@ -1613,7 +1563,6 @@
       const inferred = edge.inferred || edge.origin === "agent_inferred";
       if (inferred && !showInferredEdges.checked) return false;
       if (!inferred && !showDirectEdges.checked) return false;
-      if (confidence.value && String(edge.confidence) !== confidence.value) return false;
       if (origin.value && edgeOriginValue(edge) !== origin.value) return false;
       if (!edgePassesSuggestion(edge)) return false;
       return true;
@@ -1736,9 +1685,6 @@
       state.selected = null;
       if (filter.query) {
         search.value = filter.query;
-      }
-      if (filter.confidence) {
-        confidence.value = String(filter.confidence);
       }
       if (filter.origin) {
         origin.value = String(filter.origin);
@@ -2039,7 +1985,6 @@
       return `
         <span class="badge ${edge.inferred ? "inferred" : ""}">${escapeHtml(relationOriginLabel(edge))}</span>
         <span class="badge file">${escapeHtml(relationTypeLabel(edge))}</span>
-        ${edge.confidence ? `<span class="badge">${escapeHtml(edge.confidence)}</span>` : ""}
       `;
     }
 
@@ -2119,7 +2064,6 @@
       ];
       const q = search.value.trim();
       if (q) parts.push(`search: ${q}`);
-      if (confidence.value) parts.push(`confidence: ${confidence.value}`);
       if (origin.value) parts.push(`origin: ${origin.value}`);
       if (state.categoryFilter) parts.push(`category: ${state.categoryFilter}`);
       if (state.activeSuggestionName) parts.push(`view: ${state.activeSuggestionName}`);
@@ -2354,9 +2298,7 @@
     }
 
     function edgeLabelText(edge) {
-      const base = relationTypeLabel(edge);
-      const confidence = edge.confidence ? ` · ${edge.confidence}` : "";
-      return compactText(`${base}${confidence}`, 32);
+      return compactText(relationTypeLabel(edge), 32);
     }
 
     function shouldShowEdgeLabel(isSelected, isRelated, edgeCount) {
@@ -2438,7 +2380,7 @@
         const pathData = geometry.path;
         const isSelected = selected?.kind === "edge" && edge.id === selectedKey;
         const isRelated = selectedNodeId && (edge.source === selectedNodeId || edge.target === selectedNodeId);
-        const edgeClass = `edge ${edgeConfidenceClass(edge)}${edge.inferred ? " inferred" : ""}${isSelected ? " selected" : ""}${isRelated ? " related" : ""}`;
+        const edgeClass = `edge${edge.inferred ? " inferred" : ""}${isSelected ? " selected" : ""}${isRelated ? " related" : ""}`;
         const hitPath = document.createElementNS("http://www.w3.org/2000/svg", "path");
         hitPath.setAttribute("d", pathData);
         hitPath.setAttribute("class", "edge-hit");
@@ -2510,10 +2452,6 @@
       clearCategoryFilter.hidden = !state.categoryFilter;
       statusFilterCategory.hidden = filterCategory.hidden;
       statusClearCategoryFilter.hidden = clearCategoryFilter.hidden;
-      for (const button of document.querySelectorAll("[data-confidence-value]")) {
-        button.classList.toggle("active", confidence.value === button.dataset.confidenceValue);
-      }
-      setText("confidenceDescription", confidence.value ? `現在: ${confidence.value} の関係だけ表示` : "現在: すべて表示");
       const scopedDiagnostics = visibleDiagnostics();
       setText("activeDiagnostics", `${scopedDiagnostics.length} in scope`);
       renderRelationFocusPanel(selected, edges);
@@ -2544,10 +2482,6 @@
         <strong>${escapeHtml(edgeSummary(edge))}</strong>
         <span class="description">${escapeHtml(relationReason(edge))}</span>
       `;
-    }
-
-    function edgeConfidenceClass(edge) {
-      return String(edge.confidence || "").replace(/[^A-Za-z0-9_-]+/g, "-");
     }
 
     function diagnosticItemHtml(diag) {
@@ -2606,7 +2540,6 @@
       if (filter.clusterId) parts.push(`cluster ${filter.clusterId}`);
       if (filter.suggestedCategory) parts.push(`category ${filter.suggestedCategory}`);
       if (Array.isArray(filter.roleTags) && filter.roleTags.length) parts.push(`roles ${filter.roleTags.join(", ")}`);
-      if (filter.confidence) parts.push(`confidence ${filter.confidence}`);
       if (filter.origin) parts.push(`origin ${filter.origin}`);
       if (filter.query) parts.push(`query ${filter.query}`);
       return parts.join(" / ") || "No filter";
@@ -3035,15 +2968,9 @@
       return String(value ?? "").replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" }[char]));
     }
 
-    for (const input of [confidence, origin, search, showDirectEdges, showInferredEdges, showDiagnostics]) {
+    for (const input of [origin, search, showDirectEdges, showInferredEdges, showDiagnostics]) {
       input.addEventListener("input", draw);
       input.addEventListener("change", draw);
-    }
-    for (const button of document.querySelectorAll("[data-confidence-value]")) {
-      button.addEventListener("click", () => {
-        confidence.value = confidence.value === button.dataset.confidenceValue ? "" : button.dataset.confidenceValue;
-        draw();
-      });
     }
     for (const button of document.querySelectorAll("[data-purpose-query]")) {
       button.addEventListener("click", () => {

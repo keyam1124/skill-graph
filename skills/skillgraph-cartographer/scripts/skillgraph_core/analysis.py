@@ -18,7 +18,6 @@ from .shared import (
     iter_markdown_skill_links,
     iter_skill_path_references,
     markdown_headings,
-    normalize_confidence,
     parse_frontmatter,
     read_text,
     rel_path,
@@ -74,17 +73,14 @@ def make_edge(
     target: str,
     relation_type: str,
     origin: str,
-    confidence: str,
     evidence_items: list[dict[str, Any]],
     legacy_type: str | None = None,
 ) -> Edge:
-    confidence_label, _ = normalize_confidence(confidence, "high")
     return Edge(
         source=source,
         target=target,
         type=relation_type,
         origin=origin,
-        confidence=confidence_label,
         evidence=evidence_items,
         legacy_type=legacy_type,
     )
@@ -112,7 +108,6 @@ def markdown_link_edges(
                     target,
                     "direct_reference",
                     "link",
-                    "high",
                     [
                         evidence(
                             path,
@@ -173,7 +168,6 @@ def skill_path_reference_edges(
                 target,
                 "direct_reference",
                 "path_reference",
-                "high",
                 [
                     evidence(
                         rel_path(source_file, root),
@@ -247,7 +241,6 @@ def assign_edge_ids(edges: list[Edge]) -> list[dict[str, Any]]:
                 "type": edge.type,
                 **({"legacyType": edge.legacy_type} if edge.legacy_type else {}),
                 "origin": edge.origin,
-                "confidence": edge.confidence,
                 "evidence": edge.evidence,
             }
         )
@@ -267,11 +260,6 @@ def skill_path_map(skills: dict[str, dict[str, Any]]) -> dict[str, str]:
     return path_to_skill
 
 
-def confidence_rank(value: str) -> int:
-    label, _ = normalize_confidence(value)
-    return {"low": 0, "medium": 1, "high": 2}.get(label, 1)
-
-
 def merge_dependency_edges(edges: list[Edge]) -> list[Edge]:
     merged: dict[tuple[str, str, str, str], Edge] = {}
     for edge in edges:
@@ -283,8 +271,6 @@ def merge_dependency_edges(edges: list[Edge]) -> list[Edge]:
             merged[key] = edge
             continue
         current.origin = ", ".join(unique([*current.origin.split(", "), edge.origin]))
-        if confidence_rank(edge.confidence) > confidence_rank(current.confidence):
-            current.confidence = edge.confidence
         seen_evidence = {
             (item.get("path", ""), item.get("section", ""), item.get("startLine", ""), item.get("text", ""))
             for item in current.evidence
