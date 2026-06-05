@@ -183,7 +183,7 @@ Add these top-level fields to the collected graph when useful:
 - Do not encode relationship strength. Add inferred edges only when a
   meaningful relation can be explained with short evidence or a rationale.
 - If an inferred edge has no evidence, include a rationale that makes the
-  interpretation clear.
+  interpretation clear. Do not add numeric or tiered certainty fields.
 
 ## Output Guidance
 

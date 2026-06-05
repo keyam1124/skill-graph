@@ -1,60 +1,54 @@
 <!doctype html>
-<html lang="en">
+<html lang="ja">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>SkillGraph Viewer</title>
+  <title>SkillGraph Cartographer</title>
   <style>
     :root {
       color-scheme: light;
-      --bg: oklch(98% 0.005 250);
-      --surface: oklch(100% 0 0);
-      --surface-2: oklch(96% 0.006 250);
-      --surface-3: oklch(93% 0.01 250);
-      --fg: oklch(22% 0.02 240);
-      --muted: oklch(50% 0.018 240);
-      --border: oklch(88% 0.01 240);
-      --accent: oklch(58% 0.16 145);
-      --accent-strong: oklch(47% 0.15 145);
-      --accent-soft: oklch(93% 0.035 145);
-      --secondary: oklch(58% 0.16 255);
-      --secondary-soft: oklch(93% 0.04 255);
-      --relation: oklch(64% 0.17 35);
-      --warning: oklch(70% 0.16 75);
-      --warning-soft: oklch(95% 0.05 75);
-      --danger: oklch(58% 0.18 28);
-      --danger-soft: oklch(94% 0.05 28);
-      --shadow: 0 18px 50px rgba(20, 30, 50, 0.10);
-      --navigator-width: 284px;
-      --inspector-width: 360px;
-      --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", system-ui, sans-serif;
-      --font-body: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
-      --font-mono: "SF Mono", "JetBrains Mono", "IBM Plex Mono", ui-monospace, Menlo, monospace;
+      --bg: #f6f8fb;
+      --surface: #ffffff;
+      --surface-soft: #f8fafc;
+      --surface-strong: #eef3f8;
+      --text: #111827;
+      --muted: #526173;
+      --faint: #7a8796;
+      --border: #dbe3ec;
+      --blue: #2368d8;
+      --blue-soft: #edf5ff;
+      --green: #1f9d57;
+      --green-soft: #edf9f1;
+      --violet: #7b4ce2;
+      --violet-soft: #f3edff;
+      --red: #d92d3a;
+      --red-soft: #fff0f1;
+      --orange: #e06a1b;
+      --orange-soft: #fff3e8;
+      --shadow: 0 12px 30px rgba(15, 23, 42, .08);
+      --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+      --mono: "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
     }
 
     * { box-sizing: border-box; }
 
     html,
     body {
-      height: 100%;
-      overflow: hidden;
+      min-height: 100%;
+      margin: 0;
     }
 
     body {
-      margin: 0;
-      background:
-        linear-gradient(180deg, oklch(96% 0.012 248), var(--bg) 42%),
-        var(--bg);
-      color: var(--fg);
-      font-family: var(--font-body);
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
       font-size: 14px;
-      line-height: 1.45;
+      line-height: 1.55;
       -webkit-font-smoothing: antialiased;
     }
 
     button,
-    input,
-    select {
+    input {
       font: inherit;
     }
 
@@ -63,435 +57,605 @@
     }
 
     .app {
-      height: 100vh;
       min-height: 100vh;
       display: grid;
       grid-template-rows: auto 1fr;
-      gap: 18px;
-      padding: 16px 18px 18px;
-      overflow: hidden;
+      background: var(--bg);
     }
 
     .topbar {
-      min-height: 64px;
+      min-height: 76px;
       display: grid;
-      grid-template-columns: minmax(300px, 380px) minmax(300px, 1fr) auto;
+      grid-template-columns: minmax(270px, 420px) minmax(260px, 1fr) auto;
+      gap: 18px;
       align-items: center;
-      gap: 14px;
-      padding: 10px 18px;
+      padding: 14px 20px;
       border-bottom: 1px solid var(--border);
-      border: 1px solid var(--border);
-      border-radius: 18px;
-      background: color-mix(in oklch, var(--surface) 92%, transparent);
-      box-shadow: 0 12px 40px rgba(35, 52, 90, .10);
-      backdrop-filter: blur(16px);
-      position: relative;
-      z-index: 20;
+      background: rgba(255, 255, 255, .92);
+      backdrop-filter: blur(12px);
+      position: sticky;
+      top: 0;
+      z-index: 10;
     }
 
     .brand {
+      min-width: 0;
       display: flex;
       align-items: center;
       gap: 12px;
-      min-width: 0;
     }
 
     .brand-mark {
-      width: 44px;
-      height: 44px;
+      width: 46px;
+      height: 46px;
+      flex: 0 0 auto;
       display: grid;
       place-items: center;
-      border: 1px solid color-mix(in oklch, var(--accent) 40%, var(--border));
+      border: 1px solid var(--border);
       border-radius: 8px;
-      background:
-        radial-gradient(circle at 60% 38%, var(--accent) 0 9%, transparent 10%),
-        radial-gradient(circle at 35% 62%, var(--secondary) 0 8%, transparent 9%),
-        var(--surface);
-      box-shadow: inset 0 0 0 4px color-mix(in oklch, var(--accent-soft) 55%, transparent);
-      flex: 0 0 auto;
+      background: var(--surface);
+      position: relative;
+    }
+
+    .brand-mark::before,
+    .brand-mark::after {
+      content: "";
+      position: absolute;
+      border-radius: 999px;
+      background: var(--blue);
+    }
+
+    .brand-mark::before {
+      width: 8px;
+      height: 8px;
+      box-shadow: 20px -16px 0 var(--green), 9px -7px 0 1px transparent;
+      left: 13px;
+      top: 25px;
+    }
+
+    .brand-mark::after {
+      width: 28px;
+      height: 3px;
+      left: 12px;
+      top: 22px;
+      background: linear-gradient(110deg, var(--blue), var(--green));
+      transform: rotate(-39deg);
+      transform-origin: left center;
     }
 
     .brand h1 {
       margin: 0;
-      font-family: var(--font-display);
-      font-size: 23px;
-      line-height: 1.15;
-      font-weight: 760;
+      font-size: 24px;
+      line-height: 1.1;
+      letter-spacing: 0;
     }
 
     .brand p {
-      margin: 2px 0 0;
+      margin: 3px 0 0;
       color: var(--muted);
       font-size: 13px;
+      white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
-      white-space: nowrap;
     }
 
-    .command {
+    .search-box {
+      min-width: 0;
       height: 44px;
       display: flex;
       align-items: center;
       gap: 10px;
-      padding: 0 12px;
       border: 1px solid var(--border);
-      border-radius: 16px;
+      border-radius: 8px;
+      padding: 0 13px;
       background: var(--surface);
-      box-shadow: 0 1px 0 rgba(10, 20, 40, 0.03);
     }
 
-    .command span {
-      color: var(--muted);
-      font-family: var(--font-mono);
-      font-size: 12px;
+    .search-box:focus-within {
+      border-color: var(--blue);
+      box-shadow: 0 0 0 3px rgba(35, 104, 216, .14);
     }
 
-    .command input {
+    .search-icon {
+      width: 18px;
+      height: 18px;
+      border: 2px solid var(--muted);
+      border-radius: 999px;
+      position: relative;
+      flex: 0 0 auto;
+    }
+
+    .search-icon::after {
+      content: "";
+      position: absolute;
+      width: 8px;
+      height: 2px;
+      right: -7px;
+      bottom: -4px;
+      border-radius: 999px;
+      background: var(--muted);
+      transform: rotate(45deg);
+    }
+
+    .search-box input {
       width: 100%;
       min-width: 0;
       border: 0;
       outline: 0;
       background: transparent;
-      color: var(--fg);
+      color: var(--text);
     }
 
-    .command:focus-within,
-    .field select:focus {
-      border-color: color-mix(in oklch, var(--accent) 68%, var(--border));
-      box-shadow: 0 0 0 3px color-mix(in oklch, var(--accent-soft) 70%, transparent);
-    }
-
-    .command kbd {
-      border: 1px solid var(--border);
-      border-bottom-color: color-mix(in oklch, var(--border) 70%, var(--fg));
-      border-radius: 6px;
-      padding: 3px 6px;
-      color: var(--muted);
-      background: var(--surface-2);
-      font: 11px/1 var(--font-mono);
-    }
-
-    .top-actions,
-    .graph-actions {
+    .stats {
       display: flex;
       align-items: center;
       justify-content: flex-end;
-      gap: 8px;
-      flex-wrap: wrap;
-    }
-
-    .icon-button,
-    .text-button,
-    .item,
-    .summary-card button {
-      border: 1px solid transparent;
-      border-radius: 7px;
-      min-height: 34px;
-      background: transparent;
-      color: var(--muted);
-    }
-
-    .icon-button {
-      width: 36px;
-      display: grid;
-      place-items: center;
-      padding: 0;
-      border-color: var(--border);
-      background: var(--surface);
-      color: var(--fg);
-    }
-
-    .text-button,
-    .summary-card button {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      padding: 0 12px;
-      border-color: var(--border);
-      background: var(--surface);
-      color: var(--fg);
-      font-weight: 680;
-    }
-
-    .text-button.primary {
-      background: var(--fg);
-      color: #fff;
-      border-color: var(--fg);
-    }
-
-    .clear-category[hidden] {
-      display: none;
-    }
-
-    .workspace {
-      position: relative;
-      display: grid;
-      grid-template-columns: minmax(248px, 292px) minmax(0, 1fr);
-      gap: 14px;
-      min-height: 0;
-      overflow: hidden;
-    }
-
-    aside,
-    main {
-      min-width: 0;
-      min-height: 0;
-    }
-
-    .panel {
-      min-width: 0;
-      background: color-mix(in oklch, var(--surface) 92%, var(--bg));
-      border: 1px solid var(--border);
-      border-radius: 18px;
-      box-shadow: 0 12px 36px rgba(35, 52, 90, .08);
-      display: flex;
-      flex-direction: column;
-      overflow: hidden;
-    }
-
-    .details {
-      position: absolute;
-      top: 12px;
-      right: 12px;
-      bottom: 12px;
-      z-index: 8;
-      width: min(390px, calc(100% - 34px));
-      min-width: 300px;
-      background: color-mix(in oklch, var(--surface) 96%, transparent);
-    }
-
-    .details[hidden] {
-      display: none;
-    }
-
-    .panel-scroll {
-      min-height: 0;
-      overflow: auto;
-      padding: 14px;
-    }
-
-    .section-title {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-      margin: 0 0 10px;
-    }
-
-    .section-title h2,
-    .section-title h3 {
-      margin: 0;
-      font-size: 12px;
-      line-height: 1.1;
-      color: color-mix(in oklch, var(--fg) 76%, var(--muted));
-      text-transform: uppercase;
-      font-weight: 760;
-    }
-
-    .count,
-    .view-state {
-      color: var(--muted);
-      font: 12px/1 var(--font-mono);
+      gap: 9px;
       white-space: nowrap;
     }
 
-    .view-state {
-      min-width: 42px;
-      text-align: center;
-    }
-
-    .top-actions .badge {
-      min-height: 28px;
-      padding: 0 12px;
-      font-size: 12px;
-    }
-
-    .coverage-badge {
-      display: inline-grid;
-      align-content: center;
-      min-height: 44px;
-      min-width: 188px;
-      padding: 4px 12px;
-      border: 1px solid color-mix(in oklch, var(--warning) 70%, var(--border));
-      border-radius: 14px;
-      background: color-mix(in oklch, var(--warning-soft) 76%, var(--surface));
-      color: color-mix(in oklch, var(--relation) 82%, var(--danger));
-      font: 700 12px/1.15 var(--font-body);
-    }
-
-    .coverage-badge strong {
-      font-size: 13px;
-    }
-
-    .purpose-list {
-      display: grid;
-      gap: 12px;
-      margin: 8px 0 24px;
-    }
-
-    .purpose-card {
-      width: 100%;
-      display: block;
-      min-height: 72px;
-      padding: 13px 14px;
-      border: 1px solid var(--border);
-      border-radius: 13px;
-      background: color-mix(in oklch, var(--surface-2) 42%, var(--surface));
-      text-align: left;
-      color: var(--fg);
-    }
-
-    .purpose-card.active {
-      border-color: color-mix(in oklch, var(--secondary) 82%, var(--border));
-      background: color-mix(in oklch, var(--secondary-soft) 44%, var(--surface));
-      box-shadow: inset 3px 0 0 var(--secondary);
-    }
-
-    .purpose-card strong,
-    .purpose-card span {
-      display: block;
-      overflow-wrap: anywhere;
-    }
-
-    .purpose-card strong {
-      font-weight: 760;
-    }
-
-    .purpose-card span {
-      margin-top: 5px;
-      color: var(--muted);
-      font-size: 12px;
-    }
-
-    .field {
-      position: relative;
-      margin-bottom: 12px;
-    }
-
-    .field label {
-      display: block;
-      margin: 0 0 5px;
-      color: var(--muted);
-      font-size: 12px;
-      font-weight: 650;
-    }
-
-    .field select {
-      width: 100%;
-      min-height: 42px;
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      background: var(--surface);
-      color: var(--fg);
-      outline: 0;
-      padding: 0 12px;
-    }
-
-    .metric-grid {
-      display: grid;
-      grid-template-columns: 1fr;
-      gap: 0;
-      margin: 10px 0 16px;
-      border: 1px solid color-mix(in oklch, var(--border) 72%, transparent);
-      border-radius: 8px;
-      background: color-mix(in oklch, var(--surface-2) 58%, transparent);
-      overflow: hidden;
-    }
-
-    .metric {
-      min-width: 0;
-      min-height: 30px;
-      display: flex;
+    .stat {
+      min-height: 38px;
+      display: inline-flex;
       align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-      border-bottom: 1px solid color-mix(in oklch, var(--border) 64%, transparent);
-      padding: 6px 10px;
+      gap: 8px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0 13px;
+      background: var(--surface);
+      color: var(--muted);
+      font-weight: 700;
     }
 
-    .metric:last-child {
-      border-bottom: 0;
-    }
-
-    .metric strong {
-      order: 2;
-      color: color-mix(in oklch, var(--fg) 78%, var(--muted));
-      font-family: var(--font-mono);
-      font-size: 12px;
-      font-weight: 720;
+    .stat strong {
+      color: var(--text);
+      font-size: 20px;
       line-height: 1;
       font-variant-numeric: tabular-nums;
     }
 
-    .metric span {
-      order: 1;
+    .stat.issue {
+      border-color: #f4b7bd;
+      background: var(--red-soft);
+      color: var(--red);
+    }
+
+    .layout {
+      min-height: 0;
+      display: grid;
+      grid-template-columns: minmax(236px, 310px) minmax(0, 1fr) minmax(280px, 370px);
+    }
+
+    .nav,
+    .side {
+      min-width: 0;
+      border-right: 1px solid var(--border);
+      background: rgba(255, 255, 255, .78);
+    }
+
+    .side {
+      border-right: 0;
+      border-left: 1px solid var(--border);
+    }
+
+    .scroll {
+      height: calc(100vh - 77px);
+      overflow: auto;
+      padding: 20px;
+    }
+
+    .main {
+      min-width: 0;
+      min-height: 0;
+    }
+
+    .main .scroll {
+      padding: 20px 24px 28px;
+    }
+
+    h2,
+    h3,
+    p {
+      margin-top: 0;
+    }
+
+    .section-title {
+      margin: 0 0 14px;
+      font-size: 18px;
+      line-height: 1.25;
+      letter-spacing: 0;
+    }
+
+    .sub-title {
+      margin: 0 0 12px;
+      color: var(--text);
+      font-size: 15px;
+      line-height: 1.3;
+    }
+
+    .muted {
+      color: var(--muted);
+    }
+
+    .tiny {
+      color: var(--faint);
+      font-size: 12px;
+    }
+
+    .nav-title {
+      margin: 0 0 14px;
+      font-size: 15px;
+      line-height: 1.25;
+    }
+
+    .page-nav {
+      display: grid;
+      gap: 10px;
+    }
+
+    .nav-card {
+      width: 100%;
+      min-height: 68px;
+      display: grid;
+      grid-template-columns: 34px minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 12px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--surface);
+      color: var(--text);
+      padding: 10px 12px;
+      text-align: left;
+    }
+
+    .nav-card:hover,
+    .nav-card.active {
+      border-color: #8bb8ff;
+      background: var(--blue-soft);
+    }
+
+    .nav-card.active {
+      box-shadow: inset 3px 0 0 var(--blue);
+    }
+
+    .nav-card strong,
+    .nav-card span {
+      display: block;
+      overflow-wrap: anywhere;
+    }
+
+    .nav-card strong {
+      color: var(--blue);
+      font-weight: 800;
+      line-height: 1.2;
+    }
+
+    .nav-card span {
+      margin-top: 3px;
       color: var(--muted);
       font-size: 12px;
     }
 
-    .check {
+    .nav-badge {
+      min-width: 24px;
+      height: 24px;
+      display: inline-grid;
+      place-items: center;
+      border-radius: 999px;
+      background: var(--red);
+      color: white;
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .nav-icon {
+      width: 34px;
+      height: 34px;
+      display: grid;
+      place-items: center;
+      border-radius: 8px;
+      background: var(--surface-strong);
+      color: var(--blue);
+      font-weight: 900;
+    }
+
+    .hint,
+    .control-box,
+    .plain-box {
+      margin-top: 22px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--surface);
+      padding: 14px;
+    }
+
+    .hint {
+      background: var(--blue-soft);
+      border-color: #b7d4ff;
+    }
+
+    .hint h3,
+    .control-box h3,
+    .plain-box h3 {
+      margin: 0 0 10px;
+      font-size: 14px;
+    }
+
+    .hint ul,
+    .issue-body ul {
+      margin: 0;
+      padding-left: 18px;
+    }
+
+    .hint li + li,
+    .issue-body li + li {
+      margin-top: 7px;
+    }
+
+    .check-row {
       display: flex;
       align-items: center;
       gap: 8px;
-      min-height: 34px;
-      margin: 2px 0 16px;
-      color: var(--fg);
-      font-weight: 650;
+      min-height: 30px;
+      color: var(--text);
+      font-size: 13px;
     }
 
-    .filter-actions {
+    .summary-grid {
       display: grid;
-      grid-template-columns: 1fr;
-      gap: 8px;
-      margin: 0 0 16px;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 14px;
+      margin-bottom: 20px;
     }
 
-    .filter-actions .text-button {
-      justify-content: center;
-      width: 100%;
-    }
-
-    .list {
-      display: grid;
-      gap: 9px;
-    }
-
-    .item {
-      width: 100%;
-      display: block;
-      text-align: left;
-      border-color: var(--border);
+    .metric-card,
+    .recommend-card,
+    .skill-card,
+    .issue-card,
+    .detail-card {
+      border: 1px solid var(--border);
+      border-radius: 8px;
       background: var(--surface);
-      padding: 10px;
-      color: var(--fg);
+      padding: 14px;
+      box-shadow: 0 1px 0 rgba(15, 23, 42, .03);
+    }
+
+    .metric-card {
+      min-height: 92px;
+      display: grid;
+      gap: 4px;
+      align-content: center;
+    }
+
+    .metric-card.blue { border-color: #bdd8ff; background: var(--blue-soft); }
+    .metric-card.green { border-color: #b9e4c8; background: var(--green-soft); }
+    .metric-card.violet { border-color: #d7c6ff; background: var(--violet-soft); }
+    .metric-card.red { border-color: #f4b7bd; background: var(--red-soft); }
+
+    .metric-card span {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .metric-card strong {
+      font-size: 26px;
+      line-height: 1;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .metric-card small {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .map-panel,
+    .list-panel {
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--surface);
+      overflow: hidden;
+    }
+
+    .panel-head {
+      min-height: 54px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      flex-wrap: wrap;
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+    }
+
+    .panel-head h2 {
+      flex: 1 0 190px;
+      margin: 0;
+      font-size: 18px;
+      line-height: 1.25;
+    }
+
+    .tools,
+    .legend {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .tool-button,
+    .text-button,
+    .tab-button {
+      min-height: 34px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--surface);
+      color: var(--text);
+      padding: 0 11px;
+      font-weight: 700;
+    }
+
+    .tool-button {
+      width: 34px;
+      padding: 0;
+    }
+
+    .text-button.primary,
+    .tab-button.active {
+      border-color: #8bb8ff;
+      background: var(--blue-soft);
+      color: var(--blue);
+    }
+
+    .legend-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      min-height: 28px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0 10px;
+      background: var(--surface);
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .line-sample {
+      width: 26px;
+      height: 0;
+      border-top: 2px solid var(--blue);
+    }
+
+    .line-sample.ai {
+      border-top-color: var(--violet);
+      border-top-style: dashed;
+    }
+
+    .map-stage {
+      height: min(54vh, 560px);
+      min-height: 360px;
+      position: relative;
+      background:
+        linear-gradient(var(--surface-strong) 1px, transparent 1px),
+        linear-gradient(90deg, var(--surface-strong) 1px, transparent 1px),
+        var(--surface-soft);
+      background-size: 30px 30px;
+    }
+
+    #skillMap {
+      width: 100%;
+      height: 100%;
+      display: block;
+      touch-action: none;
+    }
+
+    .map-empty {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      color: var(--muted);
+      pointer-events: none;
+    }
+
+    .map-empty[hidden] {
+      display: none;
+    }
+
+    .category-frame {
+      fill: rgba(35, 104, 216, .05);
+      stroke: rgba(35, 104, 216, .18);
+      stroke-width: 1;
+    }
+
+    .category-label {
+      fill: var(--blue);
+      font-size: 12px;
+      font-weight: 800;
+      paint-order: stroke;
+      stroke: white;
+      stroke-width: 3px;
+    }
+
+    .relation-path {
+      fill: none;
+      stroke: var(--blue);
+      stroke-width: 1.6;
+      opacity: .72;
       cursor: pointer;
     }
 
-    .item:hover,
-    .icon-button:hover,
-    .text-button:hover,
-    .summary-card button:hover {
-      border-color: color-mix(in oklch, var(--secondary) 42%, var(--border));
-      box-shadow: 0 6px 18px rgba(30, 65, 110, 0.08);
+    .relation-path.ai {
+      stroke: var(--violet);
+      stroke-dasharray: 7 5;
     }
 
-    .item.selected {
-      border-color: color-mix(in oklch, var(--accent) 54%, var(--border));
-      box-shadow: inset 3px 0 0 var(--accent);
+    .relation-path.selected {
+      stroke: var(--red);
+      stroke-width: 2.4;
+      opacity: 1;
     }
 
-    .item.suggestion {
-      border-color: color-mix(in oklch, var(--secondary) 28%, var(--border));
+    .relation-hit {
+      fill: none;
+      stroke: transparent;
+      stroke-width: 18;
+      cursor: pointer;
+      pointer-events: stroke;
     }
 
-    .item strong {
+    .skill-node {
+      cursor: pointer;
+    }
+
+    .skill-node rect {
+      fill: white;
+      stroke: #8bb8ff;
+      stroke-width: 1.4;
+    }
+
+    .skill-node.ai rect {
+      stroke: #b99dff;
+    }
+
+    .skill-node.selected rect {
+      fill: var(--blue-soft);
+      stroke: var(--blue);
+      stroke-width: 2.2;
+    }
+
+    .skill-node text {
+      fill: var(--text);
+      font-size: 12px;
+      font-weight: 800;
+      pointer-events: none;
+    }
+
+    .recommend-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 18px;
+    }
+
+    .recommend-card {
+      min-height: 76px;
+      text-align: left;
+    }
+
+    .recommend-card strong,
+    .skill-card strong,
+    .issue-card strong {
       display: block;
-      font-weight: 760;
       line-height: 1.25;
       overflow-wrap: anywhere;
     }
 
-    .item span {
+    .recommend-card span,
+    .skill-card span,
+    .issue-card span {
       display: block;
       margin-top: 4px;
       color: var(--muted);
@@ -499,776 +663,305 @@
       overflow-wrap: anywhere;
     }
 
-    .item .item-meta {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 6px;
-      margin-bottom: 7px;
-    }
-
-    .item .item-meta span {
-      margin-top: 0;
-    }
-
-    .group {
-      display: grid;
-      gap: 9px;
-    }
-
-    .group + .group {
-      margin-top: 14px;
-    }
-
-    .group-title {
+    .filter-row {
       display: flex;
       align-items: center;
-      justify-content: space-between;
-      gap: 8px;
-      color: var(--muted);
-      font-size: 12px;
-      font-weight: 760;
-      text-transform: uppercase;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 16px;
     }
 
-    .badge {
+    .filter-input {
+      min-height: 40px;
+      min-width: 240px;
+      flex: 1 1 260px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--surface);
+      padding: 0 12px;
+      outline: 0;
+    }
+
+    .filter-input:focus {
+      border-color: var(--blue);
+      box-shadow: 0 0 0 3px rgba(35, 104, 216, .14);
+    }
+
+    .skill-grid,
+    .issue-grid {
+      display: grid;
+      gap: 12px;
+    }
+
+    .skill-grid {
+      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    }
+
+    .skill-card,
+    .issue-card {
+      width: 100%;
+      text-align: left;
+    }
+
+    .skill-card:hover,
+    .issue-card:hover,
+    .recommend-card:hover,
+    .tool-button:hover,
+    .text-button:hover,
+    .tab-button:hover {
+      border-color: #8bb8ff;
+      box-shadow: var(--shadow);
+    }
+
+    .skill-card.selected,
+    .issue-card.selected {
+      border-color: var(--blue);
+      box-shadow: inset 3px 0 0 var(--blue);
+    }
+
+    .pill-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin: 8px 0 0;
+    }
+
+    .pill {
       display: inline-flex;
       align-items: center;
       min-height: 22px;
-      padding: 0 7px;
       border-radius: 999px;
-      background: var(--surface-2);
+      background: var(--surface-strong);
       color: var(--muted);
-      font: 650 11px/1 var(--font-body);
+      padding: 0 8px;
+      font-size: 11px;
+      font-weight: 800;
     }
 
-    .badge.file {
-      color: var(--muted);
-      background: var(--surface-3);
+    .pill.direct { background: var(--green-soft); color: var(--green); }
+    .pill.ai { background: var(--violet-soft); color: var(--violet); }
+    .pill.issue { background: var(--red-soft); color: var(--red); }
+
+    .issue-summary {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 16px;
     }
 
-    .badge.inferred,
-    .badge.info {
-      color: oklch(43% 0.15 255);
-      background: var(--secondary-soft);
-    }
-
-    .badge.warning {
-      color: oklch(45% 0.12 70);
-      background: var(--warning-soft);
-    }
-
-    .badge.error {
-      color: var(--danger);
-      background: var(--danger-soft);
-    }
-
-    .summary-card {
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      background: color-mix(in oklch, var(--surface) 96%, var(--bg));
-      padding: 11px;
-    }
-
-    .summary-card + .summary-card {
+    .issue-body {
+      display: grid;
+      gap: 10px;
       margin-top: 12px;
     }
 
-    .summary-card h2 {
-      margin: 0 0 10px;
-      color: color-mix(in oklch, var(--fg) 76%, var(--muted));
-      font-size: 12px;
-      text-transform: uppercase;
-    }
-
-    .summary-card p {
-      margin: 8px 0;
-    }
-
-    .meta-grid {
-      display: grid;
-      grid-template-columns: 78px minmax(0, 1fr);
-      gap: 9px;
-      margin: 12px 0 16px;
+    .issue-body h4 {
+      margin: 0 0 3px;
       font-size: 13px;
     }
 
-    .meta-grid dt {
-      color: var(--muted);
-      font-weight: 650;
-    }
-
-    .meta-grid dd {
+    .issue-body p {
       margin: 0;
-      overflow-wrap: anywhere;
+      color: var(--muted);
     }
 
-    .description {
-      color: var(--fg);
-      line-height: 1.5;
+    .detail-header {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      margin-bottom: 16px;
     }
 
-    .detail-lede {
-      margin: 10px 0 12px;
-      color: var(--fg);
-      line-height: 1.5;
-    }
-
-    .compact-metrics {
+    .detail-icon {
+      width: 48px;
+      height: 48px;
+      flex: 0 0 auto;
       display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
+      place-items: center;
+      border-radius: 999px;
+      background: var(--blue);
+      color: white;
+      font-weight: 900;
+    }
+
+    .detail-header h2 {
+      margin: 0;
+      font-size: 18px;
+      line-height: 1.25;
+    }
+
+    .detail-header p {
+      margin: 4px 0 0;
+      color: var(--muted);
+    }
+
+    .file-row {
+      display: flex;
+      align-items: center;
       gap: 8px;
-      margin: 12px 0 14px;
-    }
-
-    .compact-metric {
       min-width: 0;
-      border: 1px solid color-mix(in oklch, var(--border) 72%, transparent);
+      border: 1px solid var(--border);
       border-radius: 8px;
-      padding: 8px 9px;
-      background: color-mix(in oklch, var(--surface-2) 58%, transparent);
-    }
-
-    .compact-metric span,
-    .reason-label {
-      display: block;
+      background: var(--surface-soft);
+      padding: 8px 10px;
       color: var(--muted);
-      font-size: 11px;
-      font-weight: 720;
-      line-height: 1.1;
-      text-transform: uppercase;
-    }
-
-    .compact-metric strong {
-      display: block;
-      margin-top: 5px;
-      color: var(--fg);
-      font: 740 17px/1 var(--font-display);
-    }
-
-    .reason-block {
-      display: grid;
-      gap: 5px;
-      margin: 12px 0;
-      padding: 10px;
-      border: 1px solid color-mix(in oklch, var(--secondary) 28%, var(--border));
-      border-radius: 8px;
-      background: color-mix(in oklch, var(--secondary-soft) 42%, var(--surface));
-    }
-
-    .reason-block p {
-      margin: 0;
+      font-family: var(--mono);
+      font-size: 12px;
       overflow-wrap: anywhere;
     }
 
-    .relation-section {
-      margin: 14px 0;
+    .tabs {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      border-bottom: 1px solid var(--border);
+      margin: 16px -20px 0;
+      padding: 0 20px;
     }
 
-    .relation-section h3 {
-      margin: 0 0 7px;
-      color: color-mix(in oklch, var(--fg) 76%, var(--muted));
-      font-size: 12px;
-      text-transform: uppercase;
+    .tabs button {
+      min-height: 42px;
+      border: 0;
+      border-bottom: 3px solid transparent;
+      background: transparent;
+      color: var(--muted);
+      font-weight: 800;
+    }
+
+    .tabs button.active {
+      border-bottom-color: var(--blue);
+      color: var(--blue);
+    }
+
+    .detail-section {
+      margin-top: 16px;
+    }
+
+    .detail-section h3 {
+      margin: 0 0 9px;
+      font-size: 14px;
     }
 
     .relation-list {
-      border-top: 1px solid color-mix(in oklch, var(--border) 70%, transparent);
+      display: grid;
+      gap: 8px;
     }
 
     .relation-row {
       width: 100%;
-      display: grid;
-      gap: 6px;
-      min-height: 0;
-      padding: 9px 0;
-      border: 0;
-      border-bottom: 1px solid color-mix(in oklch, var(--border) 70%, transparent);
-      border-radius: 0;
-      background: transparent;
-      color: var(--fg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--surface);
+      padding: 9px 10px;
       text-align: left;
-    }
-
-    .summary-card button.relation-row {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr);
-      align-items: start;
-      justify-content: stretch;
-    }
-
-    .relation-row:hover {
-      color: var(--fg);
-      box-shadow: none;
     }
 
     .relation-row strong,
     .relation-row span {
+      display: block;
       overflow-wrap: anywhere;
     }
 
-    .relation-row strong {
-      font-weight: 740;
-      line-height: 1.25;
-    }
-
-    .relation-row .description {
-      margin: 0;
+    .relation-row span {
+      margin-top: 3px;
       color: var(--muted);
       font-size: 12px;
     }
 
-    .edge-list .item strong {
-      font-family: var(--font-mono);
-      font-size: 12px;
-      line-height: 1.35;
-    }
-
-    .edge-list .description,
-    .relation-row .description {
-      display: -webkit-box;
-      -webkit-line-clamp: 3;
-      -webkit-box-orient: vertical;
-      overflow: hidden;
-    }
-
-    details.raw-json {
-      margin-top: 10px;
+    details.dev {
+      margin-top: 14px;
       border: 1px solid var(--border);
       border-radius: 8px;
+      background: var(--surface-soft);
       overflow: hidden;
     }
 
-    details.raw-json summary {
+    details.dev summary {
       cursor: pointer;
       padding: 10px 12px;
-      color: var(--fg);
-      font-weight: 760;
+      font-weight: 800;
     }
 
-    details.raw-json .meta-grid {
+    details.dev pre {
       margin: 0;
-      padding: 12px;
-      border-top: 1px solid var(--border);
-      background: var(--surface-2);
-    }
-
-    pre {
-      margin: 0;
-      padding: 12px;
-      max-height: 240px;
+      max-height: 260px;
       overflow: auto;
       border-top: 1px solid var(--border);
-      background: var(--surface-2);
-      color: var(--fg);
+      padding: 12px;
+      color: var(--muted);
+      font: 12px/1.5 var(--mono);
       white-space: pre-wrap;
       overflow-wrap: anywhere;
-      font: 12px/1.55 var(--font-mono);
     }
 
-    .graph-workspace {
-      position: relative;
-      min-width: 0;
-      min-height: 0;
-      height: 100%;
-      container-type: inline-size;
-      border: 1px solid var(--border);
-      border-radius: 18px;
-      background:
-        linear-gradient(var(--border) 1px, transparent 1px),
-        linear-gradient(90deg, var(--border) 1px, transparent 1px),
-        var(--surface-2);
-      background-size: 34px 34px;
-      background-position: -1px -1px;
-      overflow: hidden;
-      box-shadow: 0 12px 36px rgba(35, 52, 90, .08);
-    }
-
-    .graph-toolbar {
-      position: absolute;
-      top: 12px;
-      left: 12px;
-      right: 12px;
-      z-index: 7;
-      min-width: 0;
-      min-height: 86px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 10px;
-      padding: 14px 16px;
-      border: 1px solid var(--border);
-      border-radius: 16px;
-      background: color-mix(in oklch, var(--surface) 90%, transparent);
-      box-shadow: 0 8px 28px rgba(20, 30, 50, 0.08);
-      backdrop-filter: blur(12px);
-    }
-
-    .graph-title {
-      min-width: 0;
-      flex: 1 1 160px;
-    }
-
-    .graph-title h2 {
-      margin: 0;
-      font-size: 22px;
-      line-height: 1.1;
-    }
-
-    .graph-title p {
-      margin: 2px 0 0;
-      color: var(--muted);
-      font: 12px/1.35 var(--font-mono);
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-
-    .graph-actions {
-      flex: 0 0 auto;
-      flex-wrap: nowrap;
-    }
-
-    #graph {
-      display: block;
-      min-width: 0;
-      max-width: 100%;
-      width: 100%;
-      height: 100%;
-      min-height: 0;
-      touch-action: none;
-      filter: drop-shadow(0 14px 32px rgba(20, 30, 60, 0.08));
-    }
-
-    .map-shell {
-      position: absolute;
-      left: 20px;
-      right: 20px;
-      top: 118px;
-      bottom: 70px;
-      z-index: 5;
-      border: 1px solid color-mix(in oklch, var(--border) 76%, transparent);
-      border-radius: 14px;
-      overflow: hidden;
-      background:
-        linear-gradient(var(--border) 1px, transparent 1px),
-        linear-gradient(90deg, var(--border) 1px, transparent 1px),
-        color-mix(in oklch, var(--surface-2) 88%, var(--surface));
-      background-size: 34px 34px;
-    }
-
-    .map-tabs {
-      position: absolute;
-      top: 128px;
-      left: 32px;
-      right: 32px;
-      z-index: 8;
-      min-height: 42px;
-      display: flex;
-      align-items: center;
-      gap: 18px;
-      padding: 6px 10px;
-      border: 1px solid color-mix(in oklch, var(--border) 78%, transparent);
-      border-radius: 12px;
-      background: color-mix(in oklch, var(--surface) 92%, transparent);
-      color: var(--muted);
-      font-weight: 650;
-    }
-
-    .map-tabs button {
-      min-height: 28px;
-      border: 0;
-      background: transparent;
-      color: var(--muted);
-      font-weight: 720;
-    }
-
-    .map-tabs button.active {
-      color: var(--secondary);
-    }
-
-    .map-legend {
-      margin-left: auto;
-      display: flex;
-      gap: 8px;
-      flex-wrap: wrap;
-      justify-content: flex-end;
-    }
-
-    .relation-focus {
-      position: absolute;
-      left: 20px;
-      right: 20px;
-      bottom: 70px;
-      z-index: 8;
-      min-height: 140px;
-      padding: 14px 16px;
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      background: color-mix(in oklch, var(--surface) 94%, transparent);
-      box-shadow: 0 8px 28px rgba(20, 30, 50, 0.07);
-      overflow: auto;
-    }
-
-    .relation-focus[hidden] {
-      display: none;
-    }
-
-    .relation-focus h3 {
-      margin: 0 0 8px;
-      font-size: 16px;
-    }
-
-    .relation-focus .evidence-grid {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 12px;
-      margin-top: 10px;
-    }
-
-    .graph-layer {
-      transform-origin: 0 0;
-    }
-
-    .category-frame rect {
-      pointer-events: none;
-      stroke-width: .8;
-      stroke-dasharray: 7 7;
-      opacity: .72;
-      vector-effect: non-scaling-stroke;
-    }
-
-    .category-frame.selected rect {
-      stroke-width: 1.6;
-      opacity: .9;
-      stroke-dasharray: none;
-    }
-
-    .category-frame text {
-      pointer-events: none;
-      font: 700 12px/1 var(--font-mono);
-      letter-spacing: 0;
-      paint-order: stroke;
-      stroke: color-mix(in oklch, var(--surface-2) 88%, transparent);
-      stroke-width: 3px;
-      stroke-linejoin: round;
-    }
-
-    .category-frame-hit {
-      cursor: pointer;
-      fill: none;
-      pointer-events: stroke;
-      stroke: transparent;
-      stroke-width: 18;
-      vector-effect: non-scaling-stroke;
-    }
-
-    .node {
-      cursor: grab;
-      transition: opacity 140ms ease;
-    }
-
-    .node:active {
-      cursor: grabbing;
-    }
-
-    .node circle {
-      fill: var(--surface);
-      stroke: var(--secondary);
-      stroke-width: 1.5;
-      vector-effect: non-scaling-stroke;
-    }
-
-    .node:hover circle {
-      fill: color-mix(in oklch, var(--secondary-soft) 55%, var(--surface));
-    }
-
-    .node.related circle {
-      fill: color-mix(in oklch, var(--warning-soft) 70%, var(--surface));
-      stroke: var(--relation);
-    }
-
-    .node.selected circle {
-      fill: color-mix(in oklch, var(--accent-soft) 70%, var(--surface));
-      stroke: var(--accent-strong);
-      stroke-width: 2.5;
-    }
-
-    .node text {
-      fill: var(--fg);
-      font: 650 13px/1 var(--font-body);
-      text-anchor: middle;
-      paint-order: stroke;
-      stroke: color-mix(in oklch, var(--surface) 88%, transparent);
-      stroke-width: 3.5px;
-      stroke-linejoin: round;
-      pointer-events: none;
-    }
-
-    .edge {
-      fill: none;
-      stroke: var(--relation);
-      stroke-width: 1.15;
-      stroke-linecap: round;
-      cursor: pointer;
-      opacity: .48;
-      vector-effect: non-scaling-stroke;
-    }
-
-    .edge.inferred {
-      stroke: var(--secondary);
-      stroke-dasharray: 8 4;
-    }
-
-    .edge.related {
-      stroke: var(--accent-strong);
-      stroke-width: 2.1;
-      opacity: .78;
-    }
-
-    .edge.selected {
-      stroke: var(--danger);
-      stroke-width: 2.1;
-      opacity: .84;
-    }
-
-    .edge-hit {
-      fill: none;
-      stroke: transparent;
-      stroke-width: 18;
-      cursor: pointer;
-      pointer-events: stroke;
-      vector-effect: non-scaling-stroke;
-    }
-
-    .edge-label {
-      pointer-events: none;
-    }
-
-    .edge-label rect {
-      fill: color-mix(in oklch, var(--surface) 94%, transparent);
-      stroke: color-mix(in oklch, var(--relation) 42%, var(--border));
-      stroke-width: 1;
-      vector-effect: non-scaling-stroke;
-    }
-
-    .edge-label.inferred rect {
-      stroke-color: color-mix(in oklch, var(--secondary) 46%, var(--border));
-      fill: color-mix(in oklch, var(--secondary-soft) 62%, var(--surface));
-    }
-
-    .edge-label.selected rect {
-      stroke-color: var(--danger);
-      fill: color-mix(in oklch, var(--danger-soft) 64%, var(--surface));
-    }
-
-    .edge-label text {
-      fill: color-mix(in oklch, var(--fg) 82%, var(--muted));
-      font: 720 11px/1 var(--font-body);
-      text-anchor: middle;
-      paint-order: normal;
-      stroke: none;
-    }
-
-    .graph-status {
-      position: absolute;
-      left: 12px;
-      right: calc(var(--inspector-width) + 24px);
-      bottom: 12px;
-      z-index: 7;
-      min-width: 0;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-      padding: 8px 10px;
-      border: 1px solid var(--border);
+    .empty {
+      border: 1px dashed var(--border);
       border-radius: 8px;
-      background: color-mix(in oklch, var(--surface) 90%, transparent);
+      padding: 24px;
+      background: var(--surface);
       color: var(--muted);
-      font: 12px/1.35 var(--font-mono);
-      overflow: hidden;
-      box-shadow: 0 8px 28px rgba(20, 30, 50, 0.08);
-      backdrop-filter: blur(12px);
-    }
-
-    .graph-workspace.inspector-hidden .graph-toolbar,
-    .graph-workspace.inspector-hidden .graph-status {
-      right: 12px;
-    }
-
-    .status-points {
-      min-width: 0;
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      flex-wrap: wrap;
-    }
-
-    .status-chip {
-      min-height: 28px;
-      display: inline-flex;
-      align-items: center;
-      gap: 7px;
-      padding: 0 9px;
-      border: 1px solid color-mix(in oklch, var(--border) 68%, transparent);
-      border-radius: 999px;
-      background: color-mix(in oklch, var(--surface) 86%, transparent);
-    }
-
-    .status-label {
-      color: var(--muted);
-      font-family: var(--font-body);
-      font-weight: 720;
-      letter-spacing: 0;
-      text-transform: uppercase;
-    }
-
-    #status {
-      min-width: 0;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-
-    .dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: var(--accent);
-      display: inline-block;
-      margin-right: 6px;
-    }
-
-    .dot.warn {
-      background: var(--warning);
+      text-align: center;
     }
 
     @media (max-width: 1180px) {
-      html,
-      body {
-        height: auto;
-        overflow: auto;
-      }
-
       .topbar {
-        grid-template-columns: 1fr auto;
+        grid-template-columns: minmax(260px, 1fr) auto;
       }
 
-      .command {
+      .search-box {
         grid-column: 1 / -1;
       }
 
-      .workspace {
-        grid-template-columns: minmax(236px, var(--navigator-width)) minmax(0, 1fr);
-        overflow: visible;
+      .layout {
+        grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
       }
 
-      .details {
-        position: static;
-        width: auto;
-        min-width: 0;
+      .side {
         grid-column: 1 / -1;
-        border-right: 0;
-        border-radius: 0;
         border-left: 0;
         border-top: 1px solid var(--border);
-        box-shadow: none;
       }
 
-      .graph-workspace {
-        height: 640px;
-        min-height: 640px;
-      }
-
-      .graph-toolbar,
-      .graph-status {
-        right: 12px;
+      .side .scroll {
+        height: auto;
       }
     }
 
-    @media (max-width: 760px) {
-      body {
-        font-size: 13px;
-      }
-
-      .app {
-        height: auto;
-        overflow: visible;
-      }
-
+    @media (max-width: 780px) {
       .topbar {
         position: static;
         grid-template-columns: 1fr;
-        gap: 10px;
         padding: 12px;
       }
 
-      .brand p {
-        white-space: normal;
-      }
-
-      .top-actions {
+      .stats {
         justify-content: stretch;
         overflow-x: auto;
-        padding-bottom: 2px;
       }
 
-      .workspace {
+      .layout {
         display: block;
       }
 
-      .panel {
-        border-right: 0;
+      .scroll {
+        height: auto;
+        padding: 16px;
+      }
+
+      .nav,
+      .side {
+        border: 0;
         border-bottom: 1px solid var(--border);
-        overflow: visible;
       }
 
-      .panel-scroll {
-        max-height: none;
-        overflow: visible;
-        padding: 14px;
+      .summary-grid,
+      .issue-summary,
+      .recommend-grid {
+        grid-template-columns: 1fr;
       }
 
-      .graph-workspace {
-        height: 620px;
-        min-height: 620px;
-      }
-
-      .graph-toolbar {
-        left: 10px;
-        right: 10px;
-      }
-
-      .graph-status {
-        align-items: flex-start;
-        flex-direction: column;
-        left: 10px;
-        right: 10px;
-      }
-
-      .graph-actions {
-        flex-wrap: wrap;
-        justify-content: flex-start;
-      }
-
-      .metric-grid {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
-      }
-
-      .metric {
-        border-right: 1px solid color-mix(in oklch, var(--border) 64%, transparent);
-      }
-
-      .metric:nth-child(2n) {
-        border-right: 0;
-      }
-
-      .metric:nth-last-child(-n + 2) {
-        border-bottom: 0;
-      }
-
-      .meta-grid {
-        grid-template-columns: 74px minmax(0, 1fr);
+      .map-stage {
+        height: 440px;
       }
     }
   </style>
@@ -1280,168 +973,56 @@
         <div class="brand-mark" aria-hidden="true"></div>
         <div>
           <h1>SkillGraph Cartographer</h1>
-          <p>read-only base graph + agent enrichment viewer</p>
+          <p>スキルの関係を、わかりやすく確認するツール</p>
         </div>
       </div>
 
-      <label class="command" for="search">
-        <span>&#8984;K</span>
-        <input id="search" type="search" placeholder="何を確認しますか？ skill / relation / drift / evidence" autocomplete="off">
-        <kbd>/</kbd>
+      <label class="search-box" for="globalSearch">
+        <span class="search-icon" aria-hidden="true"></span>
+        <input id="globalSearch" type="search" autocomplete="off" placeholder="スキル名・目的・説明・ファイル名で検索...">
       </label>
 
-      <div class="top-actions" aria-label="Graph summary">
-        <span class="badge file" id="skillBadge">0 skills</span>
-        <span class="badge inferred" id="relationBadge">0 relations</span>
-        <span class="badge">local only</span>
-        <span class="coverage-badge" id="coverageBadge">Agent coverage<br><strong>N/A</strong></span>
+      <div class="stats" aria-label="全体の件数">
+        <span class="stat"><strong id="totalSkills">0</strong> スキル</span>
+        <span class="stat"><strong id="totalRelations">0</strong> つながり</span>
+        <span class="stat issue"><strong id="totalIssues">0</strong> 確認が必要</span>
       </div>
     </header>
 
-    <main class="workspace">
-      <aside class="panel navigator" aria-label="Graph navigator">
-        <div class="panel-scroll">
-          <div class="section-title">
-            <h2>見る目的</h2>
-            <span class="count">View</span>
-          </div>
+    <div class="layout">
+      <nav class="nav" aria-label="見る内容">
+        <div class="scroll">
+          <h2 class="nav-title">見る内容を選ぶ</h2>
+          <div class="page-nav" id="pageNav"></div>
 
-          <div class="purpose-list">
-            <button class="purpose-card active" type="button" data-purpose-query="">
-              <strong>概要サマリー</strong>
-              <span>全体像・入口・リスクを先に確認</span>
-            </button>
-            <button class="purpose-card" type="button" data-purpose-query="agent_inferred inferred">
-              <strong>推論関係</strong>
-              <span>agent inferred edge と根拠を見る</span>
-            </button>
-            <button class="purpose-card" type="button" data-purpose-query="dangling duplicate drift">
-              <strong>診断・Drift</strong>
-              <span>dangling / duplicate / copy drift</span>
-            </button>
-          </div>
+          <section class="hint">
+            <h3>使い方のヒント</h3>
+            <ul>
+              <li>迷ったら「全体を把握する」から始めましょう</li>
+              <li>リンクが書かれた関係と、AI の読み取り結果は見分けて確認できます</li>
+              <li>気になる点は、どこを直せばよいかまで説明しています</li>
+            </ul>
+          </section>
 
-          <div class="section-title">
-            <h3>Agent suggested views</h3>
-            <span class="count" id="suggestionCount">0</span>
-          </div>
-          <div id="suggestions" class="list"></div>
-
-          <div class="field">
-            <label for="origin">Origin</label>
-            <select id="origin"><option value="">All</option></select>
-          </div>
-
-          <div class="section-title" style="margin-top: 18px;">
-            <h3>表示レイヤー</h3>
-          </div>
-          <label class="check"><input id="showDirectEdges" type="checkbox" checked> Base references（直接参照）</label>
-          <label class="check"><input id="showInferredEdges" type="checkbox" checked> Agent inferred（推論）</label>
-          <label class="check"><input id="showDiagnostics" type="checkbox" checked> Diagnostics / Drift</label>
-          <label class="check"><input id="categoryFrames" type="checkbox"> Category frames</label>
-
-          <div class="filter-actions">
-            <button id="filterCategory" class="text-button" type="button" hidden>Filter selected category</button>
-            <button id="clearCategoryFilter" class="text-button" type="button" hidden>Clear category filter</button>
-          </div>
-
-          <div class="metric-grid" aria-label="Graph metrics">
-            <div class="metric">
-              <strong id="metricNodes">0</strong>
-              <span>nodes</span>
-            </div>
-            <div class="metric">
-              <strong id="metricEdges">0</strong>
-              <span>edges</span>
-            </div>
-            <div class="metric">
-              <strong id="metricDiagnostics">0</strong>
-              <span>diagnostics</span>
-            </div>
-            <div class="metric">
-              <strong id="metricVisible">0</strong>
-              <span>visible</span>
-            </div>
-          </div>
-
-          <div class="section-title">
-            <h3>Diagnostics</h3>
-            <span class="count" id="diagnosticCount">0</span>
-          </div>
-          <div id="diagnostics" class="list"></div>
-
-          <div class="section-title" style="margin-top: 18px;">
-            <h3>Edges</h3>
-            <span class="count" id="edgeCount">0</span>
-          </div>
-          <div id="edges" class="list edge-list"></div>
-
-          <div class="section-title" style="margin-top: 18px;">
-            <h3>Nodes</h3>
-            <span class="count" id="nodeCount">0</span>
-          </div>
-          <div id="nodes" class="list"></div>
+          <section class="control-box" id="displayControls">
+            <h3>表示を調整</h3>
+            <label class="check-row"><input id="showDirectRelations" type="checkbox" checked> 直接書かれている関係を表示</label>
+            <label class="check-row"><input id="showAiRelations" type="checkbox" checked> AI が読み取った関係を表示</label>
+            <label class="check-row"><input id="showGroupFrames" type="checkbox"> グループの枠を表示</label>
+          </section>
         </div>
+      </nav>
+
+      <main class="main">
+        <div class="scroll" id="mainContent"></div>
+      </main>
+
+      <aside class="side" aria-label="詳細">
+        <div class="scroll" id="detailPanel"></div>
       </aside>
-
-      <section class="graph-workspace" aria-label="Skill graph">
-        <div class="graph-toolbar">
-          <div class="graph-title">
-            <h2 id="graphHeading">Skill graph</h2>
-            <p id="graphSubtitle">Generated graph</p>
-          </div>
-          <div class="graph-actions" aria-label="Canvas controls">
-            <button id="zoomOut" class="icon-button" type="button" title="Zoom out">-</button>
-            <span id="viewState" class="view-state">100%</span>
-            <button id="zoomIn" class="icon-button" type="button" title="Zoom in">+</button>
-            <button id="panUp" class="icon-button" type="button" title="Pan up">&uarr;</button>
-            <button id="panLeft" class="icon-button" type="button" title="Pan left">&larr;</button>
-            <button id="panRight" class="icon-button" type="button" title="Pan right">&rarr;</button>
-            <button id="panDown" class="icon-button" type="button" title="Pan down">&darr;</button>
-            <button id="resetView" class="text-button" type="button" title="Fit graph">Fit</button>
-            <button id="resetLayout" class="text-button" type="button">Layout</button>
-          </div>
-        </div>
-
-        <div class="map-tabs" aria-label="Map views">
-          <button class="active" type="button">Map</button>
-          <button type="button">Matrix</button>
-          <button type="button">Evidence</button>
-          <div class="map-legend">
-            <span class="badge info">Direct = solid</span>
-            <span class="badge inferred">Inferred = dashed</span>
-          </div>
-        </div>
-
-        <div class="map-shell">
-          <svg id="graph" role="img" aria-labelledby="graphHeading graphSubtitle"></svg>
-        </div>
-
-        <section id="relationFocus" class="relation-focus" aria-label="Selected relation evidence" hidden></section>
-
-        <footer class="graph-status">
-          <div class="status-points">
-            <span class="status-chip"><span class="status-label">Selection</span><strong id="activeSelection">None</strong></span>
-            <button id="clearCategory" class="text-button clear-category" type="button" hidden>Clear category</button>
-            <button id="statusFilterCategory" class="text-button clear-category" type="button" hidden>Filter category</button>
-            <button id="statusClearCategoryFilter" class="text-button clear-category" type="button" hidden>Clear category filter</button>
-            <span class="status-chip"><span class="status-label">Diagnostics</span><span id="activeDiagnostics">0 in scope</span></span>
-          </div>
-          <span id="status"></span>
-        </footer>
-      </section>
-
-      <aside id="inspectorPanel" class="panel details" aria-label="Selection inspector" hidden>
-        <div class="panel-scroll">
-          <div class="section-title">
-            <h2>Inspector</h2>
-            <span class="count">Selection</span>
-          </div>
-          <div id="details"></div>
-        </div>
-      </aside>
-    </main>
+    </div>
   </div>
+
   <script>
     let graph = __GRAPH_JSON__;
     if (!graph) {
@@ -1450,1561 +1031,974 @@
       request.send(null);
       graph = JSON.parse(request.responseText);
     }
-    const categoryFramesDefault = true;
-    const state = {
-      selected: null,
-      positions: {},
-      layoutKey: "",
-      layoutBounds: { width: 0, height: 0 },
-      pendingViewFit: true,
-      selectedCategory: "",
-      categoryFilter: "",
-      suggestionFilter: null,
-      activeSuggestionName: "",
-      dragging: null,
-      panning: null,
-      view: { x: 0, y: 0, scale: 1 },
+
+    const pages = {
+      overview: "全体を把握する",
+      relations: "つながりを確認する",
+      issues: "気になる点を確認する",
+      skills: "スキルを探す",
     };
+
+    const pageDescriptions = {
+      overview: "スキルの全体像と状態を確認",
+      relations: "スキル同士の関係を見る",
+      issues: "問題や不整合を見つける",
+      skills: "スキルを検索して詳細を見る",
+    };
+
+    const pageIcons = {
+      overview: "H",
+      relations: "R",
+      issues: "!",
+      skills: "S",
+    };
+
+    const state = {
+      activePage: "overview",
+      selected: null,
+      searchQuery: "",
+      localSkillSearch: "",
+      selectedCategory: "すべて",
+      showDirectRelations: true,
+      showAiRelations: true,
+      showGroupFrames: false,
+      positions: {},
+      view: { x: 0, y: 0, scale: 1 },
+      pendingFit: true,
+    };
+
+    graph.nodes = Array.isArray(graph.nodes) ? graph.nodes : [];
+    graph.edges = Array.isArray(graph.edges) ? graph.edges : [];
+    graph.diagnostics = Array.isArray(graph.diagnostics) ? graph.diagnostics : [];
+    graph.nodeAnnotations = Array.isArray(graph.nodeAnnotations) ? graph.nodeAnnotations : [];
+    graph.inferredEdges = Array.isArray(graph.inferredEdges) ? graph.inferredEdges : [];
+    graph.viewSuggestions = Array.isArray(graph.viewSuggestions) ? graph.viewSuggestions : [];
+
     const nodeIndex = new Map(graph.nodes.map(node => [node.id, node]));
     const edgeIndex = new Map(graph.edges.map(edge => [edge.id, edge]));
-    const graphDisplayNodes = graph.nodes;
-    const graphDisplayNodeIds = new Set(graphDisplayNodes.map(node => node.id));
-    const graphDisplayEdges = graph.edges.filter(edgeConnectsDisplayNodes);
-    const origin = document.getElementById("origin");
-    const search = document.getElementById("search");
-    const categoryFrames = document.getElementById("categoryFrames");
-    const showDirectEdges = document.getElementById("showDirectEdges");
-    const showInferredEdges = document.getElementById("showInferredEdges");
-    const showDiagnostics = document.getElementById("showDiagnostics");
-    const clearCategory = document.getElementById("clearCategory");
-    const filterCategory = document.getElementById("filterCategory");
-    const clearCategoryFilter = document.getElementById("clearCategoryFilter");
-    const statusFilterCategory = document.getElementById("statusFilterCategory");
-    const statusClearCategoryFilter = document.getElementById("statusClearCategoryFilter");
-    const resetLayout = document.getElementById("resetLayout");
-    const resetView = document.getElementById("resetView");
-    const zoomIn = document.getElementById("zoomIn");
-    const zoomOut = document.getElementById("zoomOut");
-    const panUp = document.getElementById("panUp");
-    const panDown = document.getElementById("panDown");
-    const panLeft = document.getElementById("panLeft");
-    const panRight = document.getElementById("panRight");
-    const inspectorPanel = document.getElementById("inspectorPanel");
-    const graphWorkspace = document.querySelector(".graph-workspace");
-    categoryFrames.checked = categoryFramesDefault;
 
-    for (const value of [...new Set(graphDisplayEdges.map(edgeOriginValue))].filter(Boolean).sort()) {
-      const option = document.createElement("option");
-      option.value = value;
-      option.textContent = value;
-      origin.append(option);
-    }
-
-    function edgeConnectsDisplayNodes(edge) {
-      return graphDisplayNodeIds.has(edge.source) && graphDisplayNodeIds.has(edge.target);
-    }
-
-    function edgeOriginValue(edge) {
-      return edge.inferred || edge.origin === "agent_inferred" ? "agent_inferred" : String(edge.origin || "direct");
-    }
-
-    function suggestionFilter() {
-      return state.suggestionFilter && typeof state.suggestionFilter === "object" ? state.suggestionFilter : {};
-    }
-
-    function nodePassesSuggestion(node) {
-      const filter = suggestionFilter();
-      if (Array.isArray(filter.nodeIds) && filter.nodeIds.length && !filter.nodeIds.includes(node.id)) return false;
-      const annotation = node.annotation || {};
-      if (filter.clusterId && annotation.clusterId !== filter.clusterId) return false;
-      if (filter.suggestedCategory && categoryKeyForNode(node) !== filter.suggestedCategory && annotation.suggestedCategory !== filter.suggestedCategory) return false;
-      if (Array.isArray(filter.roleTags) && filter.roleTags.length) {
-        const roleTags = Array.isArray(annotation.roleTags) ? annotation.roleTags : [];
-        if (!filter.roleTags.some(tag => roleTags.includes(tag))) return false;
-      }
-      return true;
-    }
-
-    function edgePassesSuggestion(edge) {
-      const filter = suggestionFilter();
-      if (filter.origin && edgeOriginValue(edge) !== String(filter.origin)) return false;
-      return true;
-    }
-
-    function nodeRelationSearchValues(node) {
-      const values = [];
-      for (const edge of graph.edges) {
-        if (edge.source !== node.id && edge.target !== node.id) continue;
-        values.push(edge.type, edge.origin, edge.rationale, relationReason(edge), relationEvidenceText(edge));
-        values.push(nodeDisplay(edge.source), nodeDisplay(edge.target));
-      }
-      return values;
-    }
-
-    function nodePassesControls(node, keepSelected = false) {
-      if (keepSelected && state.selected?.kind === "node" && node.id === state.selected.value.id) return true;
-      if (state.categoryFilter && categoryKeyForNode(node) !== state.categoryFilter) return false;
-      if (!nodePassesSuggestion(node)) return false;
-      const q = search.value.trim().toLowerCase();
-      if (!q) return true;
-      const annotation = node.annotation || {};
-      return [node.id, node.label, node.path, node.description, annotation.label, annotation.summary, annotation.suggestedCategory, annotation.clusterId, ...(annotation.roleTags || []), ...(node.aliases || []), ...nodeRelationSearchValues(node)]
-        .filter(Boolean)
-        .some(value => String(value).toLowerCase().includes(q));
-    }
-
-    function edgePassesControls(edge) {
-      if (!edgeConnectsDisplayNodes(edge)) return false;
-      const inferred = edge.inferred || edge.origin === "agent_inferred";
-      if (inferred && !showInferredEdges.checked) return false;
-      if (!inferred && !showDirectEdges.checked) return false;
-      if (origin.value && edgeOriginValue(edge) !== origin.value) return false;
-      if (!edgePassesSuggestion(edge)) return false;
-      return true;
-    }
-
-    function visibleNodes() {
-      if (state.selected?.kind === "node") {
-        const selectedId = state.selected.value.id;
-        const relatedIds = new Set([selectedId]);
-        for (const edge of graph.edges) {
-          if (!edgePassesControls(edge)) continue;
-          if (edge.source === selectedId || edge.target === selectedId) {
-            relatedIds.add(edge.source);
-            relatedIds.add(edge.target);
-          }
-        }
-        return graphDisplayNodes.filter(node => relatedIds.has(node.id) && nodePassesControls(node, true));
-      }
-      return graphDisplayNodes.filter(node => nodePassesControls(node));
-    }
-
-    function visibleEdges(nodes) {
-      const nodeIds = new Set(nodes.map(node => node.id));
-      return graph.edges.filter(edge => {
-        if (!edgePassesControls(edge)) return false;
-        if (state.selected?.kind === "node") {
-          const selectedId = state.selected.value.id;
-          if (edge.source !== selectedId && edge.target !== selectedId) return false;
-        }
-        if (state.selected?.kind === "edge" && edge.id === state.selected.value.id) return true;
-        return nodeIds.has(edge.source) && nodeIds.has(edge.target);
-      });
-    }
-
-    function diagnosticMatchesNode(diag, node) {
-      if (!node) return true;
-      const id = node.id;
-      const paths = [node.path, node.dir].filter(Boolean);
-      if (diag.skill === id || diag.target === id) return true;
-      if (paths.some(path => diag.path === path || String(diag.path || "").startsWith(`${path}/`))) return true;
-      const evidenceSkills = diag.evidence && Array.isArray(diag.evidence.skills) ? diag.evidence.skills : [];
-      return evidenceSkills.includes(id);
-    }
-
-    function visibleDiagnostics() {
-      if (!showDiagnostics.checked) return [];
-      if (state.selected?.kind !== "node") return graph.diagnostics;
-      return graph.diagnostics.filter(diag => diagnosticMatchesNode(diag, state.selected.value));
-    }
-
-    function selectionKey(kind, value) {
-      if (!value) return "";
-      if (kind === "node" || kind === "edge") return value.id || "";
-      return [value.type, value.path, value.skill, value.target, value.message].filter(Boolean).join("|");
-    }
-
-    function nodeDisplay(id) {
-      const node = nodeIndex.get(id);
-      return node?.annotation?.label || node?.label || id;
-    }
-
-    function nodePath(node) {
-      return node.path || node.id || "";
-    }
-
-    function nodeRadius(node) {
-      return 26;
-    }
-
-    function firstNonBlank(values, fallback) {
-      for (const value of values) {
-        const text = String(value || "").trim();
-        if (text) return text;
-      }
-      return fallback;
-    }
-
-    function categoryKeyForNode(node) {
-      const annotation = node.annotation || {};
-      return firstNonBlank(
-        [annotation.suggestedCategory, annotation.clusterId, node.category],
-        "Uncategorized",
-      );
-    }
-
-    function toggleCategorySelection(key) {
-      state.selectedCategory = state.selectedCategory === key ? "" : key;
-      state.selected = null;
-      draw();
-    }
-
-    function clearCategorySelection() {
-      if (!state.selectedCategory) return false;
-      state.selectedCategory = "";
-      draw();
-      return true;
-    }
-
-    function filterSelectedCategory() {
-      if (!state.selectedCategory) return false;
-      state.categoryFilter = state.selectedCategory;
-      state.selected = null;
-      resetGraphViewState();
-      draw();
-      return true;
-    }
-
-    function clearCategoryFilterSelection() {
-      if (!state.categoryFilter) return false;
-      state.categoryFilter = "";
-      resetGraphViewState();
-      draw();
-      return true;
-    }
-
-    function applyViewSuggestion(suggestion) {
-      const filter = suggestion.filter && typeof suggestion.filter === "object" ? suggestion.filter : {};
-      state.suggestionFilter = filter;
-      state.activeSuggestionName = suggestion.name || "";
-      state.selected = null;
-      if (filter.query) {
-        search.value = filter.query;
-      }
-      if (filter.origin) {
-        origin.value = String(filter.origin);
-      }
-      if (filter.suggestedCategory) {
-        state.selectedCategory = String(filter.suggestedCategory);
-        state.categoryFilter = state.selectedCategory;
-      } else if (filter.clusterId) {
-        state.selectedCategory = String(filter.clusterId);
-        state.categoryFilter = "";
-      }
-      resetGraphViewState();
-      draw();
-    }
-
-    function clearViewSuggestion() {
-      if (!state.suggestionFilter && !state.activeSuggestionName) return false;
-      state.suggestionFilter = null;
-      state.activeSuggestionName = "";
-      resetGraphViewState();
-      draw();
-      return true;
-    }
-
-    function categoryColor(key) {
-      let hash = 0;
-      for (const char of String(key)) {
-        hash = ((hash << 5) - hash + char.charCodeAt(0)) | 0;
-      }
-      const hue = Math.abs(hash) % 360;
-      return {
-        fill: `hsl(${hue} 70% 95% / 0.62)`,
-        stroke: `hsl(${hue} 54% 44% / 0.72)`,
-        text: `hsl(${hue} 44% 28%)`,
-      };
-    }
-
-    function compactCategoryLabel(key, count, frameWidth) {
-      const full = `${key} (${count})`;
-      const maxChars = Math.max(10, Math.floor((frameWidth * state.view.scale - 12) / 5));
-      if (full.length <= maxChars || state.view.scale >= .55) return full;
-      const suffix = ` (${count})`;
-      const available = Math.max(4, maxChars - suffix.length - 3);
-      return `${String(key).slice(0, available).trim()}...${suffix}`;
-    }
-
-    function layoutGroupForNode(node) {
-      return categoryKeyForNode(node);
-    }
-
-    function sortedLayoutGroups(nodes) {
-      return [...groupBy(nodes, layoutGroupForNode).entries()]
-        .sort((a, b) => b[1].length - a[1].length || String(a[0]).localeCompare(String(b[0])));
-    }
-
-    function layoutGroupBoxes(nodes, width, height) {
-      const groups = sortedLayoutGroups(nodes);
-      const columns = Math.max(1, Math.ceil(Math.sqrt(groups.length)));
-      const rows = Math.max(1, Math.ceil(groups.length / columns));
-      const marginX = Math.min(120, Math.max(72, width * .06));
-      const marginY = Math.min(120, Math.max(82, height * .07));
-      const gap = Math.min(72, Math.max(40, Math.min(width, height) * .04));
-      const cellWidth = (width - marginX * 2 - gap * Math.max(0, columns - 1)) / columns;
-      const cellHeight = (height - marginY * 2 - gap * Math.max(0, rows - 1)) / rows;
-      const boxes = new Map();
-      groups.forEach(([key, values], index) => {
-        const col = index % columns;
-        const row = Math.floor(index / columns);
-        boxes.set(key, {
-          key,
-          values,
-          x: marginX + col * (cellWidth + gap),
-          y: marginY + row * (cellHeight + gap),
-          width: cellWidth,
-          height: cellHeight,
-          centerX: marginX + col * (cellWidth + gap) + cellWidth / 2,
-          centerY: marginY + row * (cellHeight + gap) + cellHeight / 2,
-        });
-      });
-      return boxes;
-    }
-
-    function layoutBoxFrame(box) {
-      const insetX = Math.min(30, Math.max(18, box.width * .04));
-      const insetY = Math.min(32, Math.max(20, box.height * .05));
-      return {
-        key: box.key,
-        count: box.values.length,
-        x: box.x + insetX,
-        y: box.y + insetY,
-        width: Math.max(140, box.width - insetX * 2),
-        height: Math.max(106, box.height - insetY * 2),
-      };
-    }
-
-    function categoryFrameGroups(nodes, width, height) {
-      return [...layoutGroupBoxes(nodes, width, height).values()]
-        .map(layoutBoxFrame)
-        .sort((a, b) => (b.width * b.height) - (a.width * a.height));
-    }
-
-    function nodeAnchorMap(nodes, width, height) {
-      const boxes = layoutGroupBoxes(nodes, width, height);
-      const anchors = new Map();
-      for (const box of boxes.values()) {
-        const values = box.values;
-        const columns = Math.max(1, Math.ceil(Math.sqrt(values.length)));
-        const rows = Math.max(1, Math.ceil(values.length / columns));
-        const innerX = Math.min(94, Math.max(62, box.width * .15));
-        const innerTop = Math.min(116, Math.max(78, box.height * .22));
-        const innerBottom = Math.min(84, Math.max(58, box.height * .16));
-        const usableWidth = Math.max(80, box.width - innerX * 2);
-        const usableHeight = Math.max(80, box.height - innerTop - innerBottom);
-        values.forEach((node, index) => {
-          const col = index % columns;
-          const row = Math.floor(index / columns);
-          anchors.set(node.id, {
-            x: box.x + innerX + ((col + 1) / (columns + 1)) * usableWidth,
-            y: box.y + innerTop + ((row + 1) / (rows + 1)) * usableHeight,
-            groupX: box.centerX,
-            groupY: box.centerY,
-            minX: box.x + innerX * .72,
-            maxX: box.x + box.width - innerX * .72,
-            minY: box.y + innerTop * .72,
-            maxY: box.y + box.height - innerBottom * .72,
-          });
-        });
-      }
-      return anchors;
-    }
-
-    function drawCategoryFrames(layer, nodes, width, height) {
-      if (!categoryFrames.checked) return;
-      const frameLayer = document.createElementNS("http://www.w3.org/2000/svg", "g");
-      frameLayer.setAttribute("class", "category-frame-layer");
-      for (const frame of categoryFrameGroups(nodes, width, height)) {
-        const colors = categoryColor(frame.key);
-        const group = document.createElementNS("http://www.w3.org/2000/svg", "g");
-        const isSelected = state.selectedCategory === frame.key;
-        group.setAttribute("class", `category-frame${isSelected ? " selected" : ""}`);
-
-        const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
-        rect.setAttribute("x", String(frame.x));
-        rect.setAttribute("y", String(frame.y));
-        rect.setAttribute("width", String(frame.width));
-        rect.setAttribute("height", String(frame.height));
-        rect.setAttribute("rx", "8");
-        rect.setAttribute("fill", colors.fill);
-        rect.setAttribute("stroke", colors.stroke);
-
-        const label = document.createElementNS("http://www.w3.org/2000/svg", "text");
-        label.setAttribute("x", String(frame.x + 14));
-        label.setAttribute("y", String(frame.y + 22));
-        label.setAttribute("fill", colors.text);
-        label.style.fontSize = `${Math.min(34, Math.max(10, 10 / state.view.scale))}px`;
-        label.textContent = compactCategoryLabel(frame.key, frame.count, frame.width);
-
-        group.append(rect, label);
-        frameLayer.append(group);
-      }
-      layer.append(frameLayer);
-    }
-
-    function drawCategoryFrameHits(layer, nodes, width, height) {
-      if (!categoryFrames.checked) return;
-      const hitLayer = document.createElementNS("http://www.w3.org/2000/svg", "g");
-      hitLayer.setAttribute("class", "category-frame-hit-layer");
-      for (const frame of categoryFrameGroups(nodes, width, height)) {
-        const hit = document.createElementNS("http://www.w3.org/2000/svg", "rect");
-        hit.setAttribute("class", "category-frame-hit");
-        hit.setAttribute("x", String(frame.x));
-        hit.setAttribute("y", String(frame.y));
-        hit.setAttribute("width", String(frame.width));
-        hit.setAttribute("height", String(frame.height));
-        hit.setAttribute("rx", "8");
-        hit.addEventListener("click", event => {
-          event.stopPropagation();
-          if (event.altKey) {
-            state.selectedCategory = frame.key;
-            state.categoryFilter = frame.key;
-            state.selected = null;
-            resetGraphViewState();
-            draw();
-            return;
-          }
-          toggleCategorySelection(frame.key);
-        });
-        hitLayer.append(hit);
-      }
-      layer.append(hitLayer);
-    }
-
-    function edgeMarker(isSelected, isRelated) {
-      if (isSelected) return "url(#arrow-selected)";
-      if (isRelated) return "url(#arrow-related)";
-      return "url(#arrow-default)";
-    }
-
-    function setText(id, value) {
-      const element = document.getElementById(id);
-      if (element) element.textContent = value;
-    }
-
-    function edgeSummary(edge) {
-      return `${nodeDisplay(edge.source)} -> ${nodeDisplay(edge.target)}`;
-    }
-
-    function relationTypeLabel(edge) {
-      return String(edge.type || "related_to").replaceAll("_", " ");
-    }
-
-    function relationOriginLabel(edge) {
-      if (edge.inferred || edge.origin === "agent_inferred") return "interpreted";
-      return edge.origin || "direct";
-    }
-
-    function relationEvidenceItems(edge) {
-      return Array.isArray(edge.evidence) ? edge.evidence : [];
-    }
-
-    function compactText(value, maxLength = 150) {
-      const text = String(value || "").replace(/\s+/g, " ").trim();
-      if (text.length <= maxLength) return text;
-      return `${text.slice(0, Math.max(0, maxLength - 3)).trim()}...`;
-    }
-
-    function evidenceLabel(item) {
-      if (!item || typeof item !== "object") return "";
-      const where = item.path || item.section || "";
-      const lineRange = item.startLine ? ` L${item.startLine}${item.endLine && item.endLine !== item.startLine ? `-L${item.endLine}` : ""}` : "";
-      const text = item.text || item.value || "";
-      if (where && text) return `${where}${lineRange}: "${compactText(text, 84)}"`;
-      return where || compactText(text, 110);
-    }
-
-    function relationEvidenceText(edge) {
-      return relationEvidenceItems(edge)
-        .map(evidenceLabel)
-        .filter(Boolean)
-        .join("; ");
-    }
-
-    function relationReasonKind(edge) {
-      if (edge.inferred || edge.origin === "agent_inferred") return "Agent reason";
-      return "Reference reason";
-    }
-
-    function relationReason(edge) {
-      const rationale = String(edge.rationale || "").trim();
-      if (rationale) return rationale;
-      const origin = String(edge.origin || "");
-      const evidenceText = relationEvidenceText(edge);
-      if (origin.includes("link")) {
-        return `Markdown link evidence connects ${nodeDisplay(edge.source)} to ${nodeDisplay(edge.target)}${evidenceText ? ` (${evidenceText})` : ""}.`;
-      }
-      if (origin.includes("path_reference")) {
-        return `SKILL.md path reference connects ${nodeDisplay(edge.source)} to ${nodeDisplay(edge.target)}${evidenceText ? ` (${evidenceText})` : ""}.`;
-      }
-      if (edge.inferred || origin === "agent_inferred") {
-        return evidenceText
-          ? `Host-agent inferred this relation from the cited skill text (${evidenceText}).`
-          : "Host-agent inferred this relation, but no rationale was provided.";
-      }
-      return evidenceText || "No rationale provided.";
-    }
-
-    function graphDiagnosticStatus() {
-      const diagnostics = Array.isArray(graph.diagnostics) ? graph.diagnostics : [];
-      const invalidAnnotations = diagnostics.filter(diag => diag.type === "invalid_agent_annotation").length;
-      return { invalidAnnotations };
-    }
-
-    function coverageLabel() {
-      const coverage = graph.enrichmentCoverage;
-      if (coverage && typeof coverage === "object") {
-        const nodeCount = coverage.nodeCount || graphDisplayNodes.length;
-        const read = coverage.nodesRead ?? graph.nodeAnnotations?.length ?? 0;
-        const status = coverage.partial ? "partial" : "complete";
-        return `Agent coverage<br><strong>${read}/${nodeCount} read · ${status}</strong>`;
-      }
-      const annotated = Array.isArray(graph.nodeAnnotations) ? graph.nodeAnnotations.length : 0;
-      if (!annotated) return "Agent coverage<br><strong>N/A</strong>";
-      return `Agent coverage<br><strong>${annotated}/${graphDisplayNodes.length} annotated</strong>`;
-    }
-
-    function updateTopSummary() {
-      setText("skillBadge", `${graphDisplayNodes.length} skills`);
-      setText("relationBadge", `${graphDisplayEdges.length} relations`);
-      document.getElementById("coverageBadge").innerHTML = coverageLabel();
-    }
-
-    function edgeBadgeHtml(edge) {
-      return `
-        <span class="badge ${edge.inferred ? "inferred" : ""}">${escapeHtml(relationOriginLabel(edge))}</span>
-        <span class="badge file">${escapeHtml(relationTypeLabel(edge))}</span>
-      `;
-    }
-
-    function evidenceLedgerHtml(edge) {
-      const items = relationEvidenceItems(edge);
-      if (!items.length) return `<p class="description">No evidence was provided for this relation.</p>`;
-      return `
-        <div class="relation-section">
-          <h3>Evidence ledger</h3>
-          <div class="relation-list">
-            ${items.map((item, index) => `
-              <div class="relation-row">
-                <span class="item-meta">
-                  <span class="badge file">根拠 ${index + 1}</span>
-                  ${item.path ? `<span class="badge">${escapeHtml(item.path)}</span>` : ""}
-                  ${item.startLine ? `<span class="badge inferred">L${escapeHtml(item.startLine)}${item.endLine && item.endLine !== item.startLine ? `-L${escapeHtml(item.endLine)}` : ""}</span>` : ""}
-                </span>
-                <span class="description">${escapeHtml(item.text || item.raw || item.value || "")}</span>
-              </div>
-            `).join("")}
-          </div>
-        </div>
-      `;
-    }
-
-    function sortedRelations(edges) {
-      return [...edges].sort((a, b) => {
-        const aLabel = `${relationTypeLabel(a)} ${nodeDisplay(a.source)} ${nodeDisplay(a.target)}`;
-        const bLabel = `${relationTypeLabel(b)} ${nodeDisplay(b.source)} ${nodeDisplay(b.target)}`;
-        return aLabel.localeCompare(bLabel);
-      });
-    }
-
-    function relationRowHtml(edge, direction) {
-      const otherId = direction === "outgoing" ? edge.target : edge.source;
-      const prefix = direction === "outgoing" ? "To" : "From";
-      const rationale = relationReason(edge);
-      return `
-        <button class="relation-row" type="button" data-edge-id="${escapeHtml(edge.id)}">
-          <span class="item-meta">
-            ${edgeBadgeHtml(edge)}
-          </span>
-          <strong>${escapeHtml(prefix)} ${escapeHtml(nodeDisplay(otherId))}</strong>
-          <span class="description">${escapeHtml(rationale)}</span>
-        </button>
-      `;
-    }
-
-    function renderRelationGroup(title, edges, direction) {
-      const values = sortedRelations(edges);
-      if (!values.length) {
-        return `
-          <section class="relation-section">
-            <h3>${escapeHtml(title)}</h3>
-            <p class="description">No relation in this direction.</p>
-          </section>
-        `;
-      }
-      return `
-        <section class="relation-section">
-          <h3>${escapeHtml(title)}</h3>
-          <div class="relation-list">
-            ${values.map(edge => relationRowHtml(edge, direction)).join("")}
-          </div>
-        </section>
-      `;
-    }
-
-    function diagnosticLabel(type) {
-      return String(type || "diagnostic").replaceAll("_", " ");
-    }
-
-    function scopeStatus(nodes, edges) {
-      const parts = [
-        `${nodes.length}/${graphDisplayNodes.length} nodes`,
-        `${edges.length}/${graphDisplayEdges.length} edges`,
-      ];
-      const q = search.value.trim();
-      if (q) parts.push(`search: ${q}`);
-      if (origin.value) parts.push(`origin: ${origin.value}`);
-      if (state.categoryFilter) parts.push(`category: ${state.categoryFilter}`);
-      if (state.activeSuggestionName) parts.push(`view: ${state.activeSuggestionName}`);
-      if (graph.enrichmentCoverage?.partial) {
-        parts.push(`partial enrichment: ${graph.enrichmentCoverage.nodesRead || 0}/${graph.enrichmentCoverage.nodeCount || graphDisplayNodes.length}`);
-      }
-      return parts.join(" / ");
-    }
-
-    function groupBy(values, keyFn) {
-      const groups = new Map();
-      for (const value of values) {
-        const key = keyFn(value);
-        if (!groups.has(key)) groups.set(key, []);
-        groups.get(key).push(value);
-      }
-      return groups;
-    }
-
-    function clampZoom(scale) {
-      return Math.min(3, Math.max(.18, scale));
-    }
-
-    function viewTransform() {
-      return `translate(${state.view.x}, ${state.view.y}) scale(${state.view.scale})`;
-    }
-
-    function resetGraphViewState() {
-      state.pendingViewFit = true;
-    }
-
-    function fitGraphView(bounds, viewportWidth, viewportHeight) {
-      const padding = 36;
-      const scale = clampZoom(Math.min(
-        1,
-        (viewportWidth - padding * 2) / Math.max(1, bounds.width),
-        (viewportHeight - padding * 2) / Math.max(1, bounds.height),
-      ));
-      return {
-        x: (viewportWidth - bounds.width * scale) / 2,
-        y: (viewportHeight - bounds.height * scale) / 2,
-        scale,
-      };
-    }
-
-    function zoomGraphAt(origin, nextScale) {
-      const scale = clampZoom(nextScale);
-      const graphX = (origin.x - state.view.x) / state.view.scale;
-      const graphY = (origin.y - state.view.y) / state.view.scale;
-      state.view = {
-        x: origin.x - graphX * scale,
-        y: origin.y - graphY * scale,
-        scale,
-      };
-      draw();
-    }
-
-    function zoomGraphBy(factor) {
-      const svg = document.getElementById("graph");
-      zoomGraphAt(
-        { x: svg.clientWidth / 2, y: svg.clientHeight / 2 },
-        state.view.scale * factor,
-      );
-    }
-
-    function panGraphBy(dx, dy) {
-      state.view = { ...state.view, x: state.view.x + dx, y: state.view.y + dy };
-      draw();
-    }
-
-    function layoutBoundsFor(nodes, viewportWidth, viewportHeight) {
-      const count = Math.max(1, nodes.length);
-      const groups = sortedLayoutGroups(nodes);
-      const groupCount = Math.max(1, groups.length);
-      const groupColumns = Math.max(1, Math.ceil(Math.sqrt(groupCount)));
-      const groupRows = Math.max(1, Math.ceil(groupCount / groupColumns));
-      const maxGroupSize = Math.max(1, ...groups.map(([, values]) => values.length));
-      const localColumns = Math.max(1, Math.ceil(Math.sqrt(maxGroupSize)));
-      const localRows = Math.max(1, Math.ceil(maxGroupSize / localColumns));
-      const cellWidth = Math.max(count >= 36 ? 520 : 420, localColumns * 170);
-      const cellHeight = Math.max(count >= 36 ? 420 : 330, localRows * 145);
-      return {
-        width: Math.max(viewportWidth, 180 + groupColumns * cellWidth),
-        height: Math.max(viewportHeight, 190 + groupRows * cellHeight),
-      };
-    }
-
-    function layoutKey(nodes, edges, bounds) {
-      return [
-        Math.round(bounds.width),
-        Math.round(bounds.height),
-        nodes.map(node => node.id).join("|"),
-        edges.map(edge => edge.id).join("|"),
-      ].join("::");
-    }
-
-    function initialPosition(index, count, width, height) {
-      const columns = Math.max(1, Math.ceil(Math.sqrt(count)));
-      const rows = Math.max(1, Math.ceil(count / columns));
-      const col = index % columns;
-      const row = Math.floor(index / columns);
-      const x = ((col + 1) / (columns + 1)) * width;
-      const y = 72 + ((row + 1) / (rows + 1)) * Math.max(220, height - 144);
-      return clampPosition({ x, y }, width, height);
-    }
-
-    function clampPosition(point, width, height, bounds = null) {
-      const padding = 42;
-      const minX = bounds ? Math.max(padding, bounds.minX) : padding;
-      const maxX = bounds ? Math.min(width - padding, bounds.maxX) : width - padding;
-      const minY = bounds ? Math.max(padding, bounds.minY) : padding;
-      const maxY = bounds ? Math.min(height - padding, bounds.maxY) : height - padding;
-      return {
-        x: Math.min(maxX, Math.max(minX, point.x)),
-        y: Math.min(maxY, Math.max(minY, point.y)),
-      };
-    }
-
-    function ensureLayout(nodes, edges, viewportWidth, viewportHeight) {
-      const bounds = layoutBoundsFor(nodes, viewportWidth, viewportHeight);
-      const anchors = nodeAnchorMap(nodes, bounds.width, bounds.height);
-      nodes.forEach((node, index) => {
-        if (!state.positions[node.id]) {
-          const anchor = anchors.get(node.id);
-          state.positions[node.id] = clampPosition(anchor || initialPosition(index, nodes.length, bounds.width, bounds.height), bounds.width, bounds.height, anchor);
-        }
-      });
-      const key = layoutKey(nodes, edges, bounds);
-      if (state.layoutKey !== key && !state.dragging) {
-        runForceLayout(nodes, edges, bounds.width, bounds.height);
-        state.layoutKey = key;
-        state.layoutBounds = bounds;
-      }
-      if (state.pendingViewFit) {
-        state.view = fitGraphView(bounds, viewportWidth, viewportHeight);
-        state.pendingViewFit = false;
-      }
-      return new Map(nodes.map(node => [node.id, state.positions[node.id]]));
-    }
-
-    function runForceLayout(nodes, edges, width, height) {
-      const ids = new Set(nodes.map(node => node.id));
-      const anchors = nodeAnchorMap(nodes, width, height);
-      const centerX = width / 2;
-      const centerY = height / 2;
-      const visibleEdges = edges.filter(edge => ids.has(edge.source) && ids.has(edge.target));
-      const edgeDistance = Math.min(300, 150 + Math.sqrt(Math.max(1, nodes.length)) * 18);
-      const steps = largeGraphMode(nodes) ? 56 : 150;
-      for (let step = 0; step < steps; step += 1) {
-        const velocity = new Map(nodes.map(node => [node.id, { x: 0, y: 0 }]));
-        for (let i = 0; i < nodes.length; i += 1) {
-          for (let j = i + 1; j < nodes.length; j += 1) {
-            const a = state.positions[nodes[i].id];
-            const b = state.positions[nodes[j].id];
-            const dx = a.x - b.x || .01;
-            const dy = a.y - b.y || .01;
-            const distance = Math.max(24, Math.hypot(dx, dy));
-            const force = Math.min(150, 13600 / (distance * distance));
-            const fx = (dx / distance) * force;
-            const fy = (dy / distance) * force;
-            velocity.get(nodes[i].id).x += fx;
-            velocity.get(nodes[i].id).y += fy;
-            velocity.get(nodes[j].id).x -= fx;
-            velocity.get(nodes[j].id).y -= fy;
-          }
-        }
-        for (const edge of visibleEdges) {
-          const source = state.positions[edge.source];
-          const target = state.positions[edge.target];
-          const dx = target.x - source.x || .01;
-          const dy = target.y - source.y || .01;
-          const distance = Math.max(1, Math.hypot(dx, dy));
-          const sourceNode = nodeIndex.get(edge.source);
-          const targetNode = nodeIndex.get(edge.target);
-          const sameGroup = sourceNode && targetNode && layoutGroupForNode(sourceNode) === layoutGroupForNode(targetNode);
-          const desired = sameGroup ? Math.max(120, edgeDistance * .78) : Math.max(280, edgeDistance * 1.32);
-          const force = (distance - desired) * (sameGroup ? .012 : .004);
-          const fx = (dx / distance) * force;
-          const fy = (dy / distance) * force;
-          velocity.get(edge.source).x += fx;
-          velocity.get(edge.source).y += fy;
-          velocity.get(edge.target).x -= fx;
-          velocity.get(edge.target).y -= fy;
-        }
-        for (const node of nodes) {
-          const point = state.positions[node.id];
-          const v = velocity.get(node.id);
-          const anchor = anchors.get(node.id) || { x: centerX, y: centerY, groupX: centerX, groupY: centerY };
-          const anchorForce = .052;
-          v.x += (anchor.x - point.x) * anchorForce + (anchor.groupX - point.x) * .001;
-          v.y += (anchor.y - point.y) * anchorForce + (anchor.groupY - point.y) * .001;
-          state.positions[node.id] = clampPosition(
-            {
-              x: point.x + Math.max(-16, Math.min(16, v.x)),
-              y: point.y + Math.max(-16, Math.min(16, v.y)),
-            },
-            width,
-            height,
-            anchor,
-          );
-        }
-      }
-    }
-
-    function edgePath(source, target, index = 0, sourceRadius = 18, targetRadius = 18) {
-      return edgeGeometry(source, target, index, sourceRadius, targetRadius).path;
-    }
-
-    function edgeGeometry(source, target, index = 0, sourceRadius = 18, targetRadius = 18) {
-      const dx = target.x - source.x;
-      const dy = target.y - source.y;
-      const distance = Math.max(1, Math.hypot(dx, dy));
-      const available = Math.max(0, distance - 12);
-      const sourceOffset = Math.min(sourceRadius + 8, available / 2);
-      const targetOffset = Math.min(targetRadius + 16, available / 2);
-      const start = {
-        x: source.x + (dx / distance) * sourceOffset,
-        y: source.y + (dy / distance) * sourceOffset,
-      };
-      const end = {
-        x: target.x - (dx / distance) * targetOffset,
-        y: target.y - (dy / distance) * targetOffset,
-      };
-      const curve = ((index % 5) - 2) * 16;
-      const mx = (start.x + end.x) / 2 - (dy / distance) * curve;
-      const my = (start.y + end.y) / 2 + (dx / distance) * curve;
-      return {
-        path: `M ${start.x} ${start.y} Q ${mx} ${my} ${end.x} ${end.y}`,
-        labelX: mx,
-        labelY: my,
-      };
-    }
-
-    function edgeLabelText(edge) {
-      return compactText(relationTypeLabel(edge), 32);
-    }
-
-    function shouldShowEdgeLabel(isSelected, isRelated, edgeCount) {
-      if (largeGraphMode(visibleNodes()) && !isSelected && !isRelated) return false;
-      return isSelected || isRelated || (edgeCount <= 12 && state.view.scale >= .58);
-    }
-
-    function largeGraphMode(nodes) {
-      return nodes.length >= 120;
-    }
-
-    function drawEdgeLabel(layer, edge, geometry, isSelected, isRelated, edgeCount) {
-      if (!shouldShowEdgeLabel(isSelected, isRelated, edgeCount)) return;
-      const text = edgeLabelText(edge);
-      const width = Math.max(54, Math.min(230, text.length * 6.7 + 18));
-      const group = document.createElementNS("http://www.w3.org/2000/svg", "g");
-      group.setAttribute("class", `edge-label${edge.inferred ? " inferred" : ""}${isSelected ? " selected" : ""}`);
-      group.setAttribute("transform", `translate(${geometry.labelX}, ${geometry.labelY})`);
-
-      const title = document.createElementNS("http://www.w3.org/2000/svg", "title");
-      title.textContent = `${edgeSummary(edge)}: ${relationReason(edge)}`;
-
-      const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
-      rect.setAttribute("x", String(-width / 2));
-      rect.setAttribute("y", "-13");
-      rect.setAttribute("width", String(width));
-      rect.setAttribute("height", "25");
-      rect.setAttribute("rx", "7");
-
-      const label = document.createElementNS("http://www.w3.org/2000/svg", "text");
-      label.setAttribute("y", "4");
-      label.textContent = text;
-
-      group.append(title, rect, label);
-      layer.append(group);
-    }
-
-    function draw() {
-      const svg = document.getElementById("graph");
-      const width = Math.max(svg.clientWidth, 360);
-      const height = Math.max(svg.clientHeight, 420);
-      svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
-      svg.innerHTML = `<defs>
-        <marker id="arrow-default" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto" markerUnits="userSpaceOnUse"><path d="M0,0 L0,8 L8,4 z" fill="#d87537"></path></marker>
-        <marker id="arrow-related" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto" markerUnits="userSpaceOnUse"><path d="M0,0 L0,8 L8,4 z" fill="#2f9860"></path></marker>
-        <marker id="arrow-selected" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto" markerUnits="userSpaceOnUse"><path d="M0,0 L0,8 L8,4 z" fill="#c63f33"></path></marker>
-      </defs>`;
-      const layer = document.createElementNS("http://www.w3.org/2000/svg", "g");
-      layer.setAttribute("class", "graph-layer");
-      svg.append(layer);
-      const nodes = visibleNodes();
-      const edges = visibleEdges(nodes);
-      const positions = ensureLayout(nodes, edges, width, height);
-      layer.setAttribute("transform", viewTransform());
-      const showNodeText = state.view.scale >= .42 || nodes.length <= 18;
-      const selected = state.selected;
-      const selectedKey = selected?.key || "";
-      const selectedNodeId = selected?.kind === "node" ? selected.value.id : "";
-      const selectedEdge = selected?.kind === "edge" ? selected.value : null;
-      const selectedEdgeNodes = selectedEdge ? new Set([selectedEdge.source, selectedEdge.target]) : new Set();
-      inspectorPanel.hidden = !selected;
-      graphWorkspace.classList.toggle("inspector-hidden", !selected);
-      if (!selected) {
-        document.getElementById("details").innerHTML = "";
-      }
-      drawCategoryFrames(layer, nodes, state.layoutBounds.width || width, state.layoutBounds.height || height);
-      drawCategoryFrameHits(layer, nodes, state.layoutBounds.width || width, state.layoutBounds.height || height);
-      const edgeOccurrences = new Map();
-      for (const edge of edges) {
-        const source = positions.get(edge.source);
-        const target = positions.get(edge.target);
-        if (!source || !target) continue;
-        const occurrenceKey = `${edge.source}->${edge.target}`;
-        const occurrenceIndex = edgeOccurrences.get(occurrenceKey) || 0;
-        edgeOccurrences.set(occurrenceKey, occurrenceIndex + 1);
-        const sourceNode = nodeIndex.get(edge.source);
-        const targetNode = nodeIndex.get(edge.target);
-        const geometry = edgeGeometry(source, target, occurrenceIndex, nodeRadius(sourceNode), nodeRadius(targetNode));
-        const pathData = geometry.path;
-        const isSelected = selected?.kind === "edge" && edge.id === selectedKey;
-        const isRelated = selectedNodeId && (edge.source === selectedNodeId || edge.target === selectedNodeId);
-        const edgeClass = `edge${edge.inferred ? " inferred" : ""}${isSelected ? " selected" : ""}${isRelated ? " related" : ""}`;
-        const hitPath = document.createElementNS("http://www.w3.org/2000/svg", "path");
-        hitPath.setAttribute("d", pathData);
-        hitPath.setAttribute("class", "edge-hit");
-        hitPath.addEventListener("click", event => {
-          event.stopPropagation();
-          select(edge, "edge");
-        });
-        layer.append(hitPath);
-        const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
-        path.setAttribute("d", pathData);
-        path.setAttribute("class", edgeClass);
-        path.setAttribute("marker-end", edgeMarker(isSelected, isRelated));
-        const title = document.createElementNS("http://www.w3.org/2000/svg", "title");
-        title.textContent = `${edgeSummary(edge)}: ${relationReason(edge)}`;
-        path.append(title);
-        path.addEventListener("click", event => {
-          event.stopPropagation();
-          select(edge, "edge");
-        });
-        layer.append(path);
-        drawEdgeLabel(layer, edge, geometry, isSelected, isRelated, edges.length);
-      }
-      for (const node of nodes) {
-        const point = positions.get(node.id);
-        if (!point) continue;
-        const group = document.createElementNS("http://www.w3.org/2000/svg", "g");
-        const isSelected = selected?.kind === "node" && node.id === selectedKey;
-        const isRelated = selectedEdgeNodes.has(node.id);
-        group.setAttribute("class", `node${isSelected ? " selected" : ""}${isRelated ? " related" : ""}`);
-        group.setAttribute("transform", `translate(${point.x}, ${point.y})`);
-        group.addEventListener("pointerdown", event => beginNodeDrag(event, node));
-        const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-        const radius = nodeRadius(node);
-        circle.setAttribute("r", String(radius));
-        const labelText = document.createElementNS("http://www.w3.org/2000/svg", "text");
-        labelText.setAttribute("text-anchor", "middle");
-        labelText.setAttribute("y", String(radius + 30));
-        labelText.textContent = node.annotation?.label || node.label || node.id;
-        group.append(circle);
-        if (showNodeText || isSelected || isRelated) {
-          group.append(labelText);
-        }
-        layer.append(group);
-      }
-      updateTopSummary();
-      setText("graphHeading", state.categoryFilter || state.selectedCategory || state.activeSuggestionName || "Skill graph");
-      setText("graphSubtitle", `Generated ${graph.generatedAt} from ${graph.root}`);
-      setText("viewState", `${Math.round(state.view.scale * 100)}%`);
-      setText("status", scopeStatus(nodes, edges));
-      setText("scopeCount", `${nodes.length} nodes`);
-      setText("metricNodes", String(graphDisplayNodes.length));
-      setText("metricEdges", String(graphDisplayEdges.length));
-      setText("metricDiagnostics", String(graph.diagnostics.length));
-      setText("metricVisible", String(nodes.length));
-      const activeLabel = selected?.kind === "node"
-        ? nodeDisplay(selected.value.id)
-        : selected?.kind === "edge"
-          ? edgeSummary(selected.value)
-          : selected?.kind === "diagnostic"
-            ? diagnosticLabel(selected.value.type)
-            : state.selectedCategory
-              ? `Category: ${state.selectedCategory}`
-              : state.categoryFilter
-                ? `Filtered: ${state.categoryFilter}`
-              : "None";
-      setText("activeSelection", activeLabel);
-      clearCategory.hidden = !state.selectedCategory;
-      filterCategory.hidden = !state.selectedCategory || state.categoryFilter === state.selectedCategory;
-      clearCategoryFilter.hidden = !state.categoryFilter;
-      statusFilterCategory.hidden = filterCategory.hidden;
-      statusClearCategoryFilter.hidden = clearCategoryFilter.hidden;
-      const scopedDiagnostics = visibleDiagnostics();
-      setText("activeDiagnostics", `${scopedDiagnostics.length} in scope`);
-      renderRelationFocusPanel(selected, edges);
-      renderLists(nodes, edges);
-    }
-
-    function nodeItemHtml(node) {
-      const annotation = node.annotation || {};
-      const description = annotation.summary || node.description ? `<span>${escapeHtml(annotation.summary || node.description)}</span>` : "";
-      const roleTags = Array.isArray(annotation.roleTags) ? annotation.roleTags : [];
-      return `
-        <div class="item-meta">
-          ${annotation.suggestedCategory ? `<span class="badge inferred">${escapeHtml(annotation.suggestedCategory)}</span>` : node.category ? `<span class="badge">${escapeHtml(node.category)}</span>` : ""}
-          ${annotation.clusterId ? `<span class="badge inferred">${escapeHtml(annotation.clusterId)}</span>` : ""}
-        </div>
-        <strong>${escapeHtml(annotation.label || node.label || node.id)}</strong>
-        <span>${escapeHtml(nodePath(node))}</span>
-        ${roleTags.length ? `<span>${roleTags.map(escapeHtml).join(", ")}</span>` : ""}
-        ${description}
-      `;
-    }
-
-    function edgeItemHtml(edge) {
-      return `
-        <div class="item-meta">
-          ${edgeBadgeHtml(edge)}
-        </div>
-        <strong>${escapeHtml(edgeSummary(edge))}</strong>
-        <span class="description">${escapeHtml(relationReason(edge))}</span>
-      `;
-    }
-
-    function diagnosticItemHtml(diag) {
-      const severity = diag.severity || "info";
-      const where = diag.skill || diag.path || diag.target || "";
-      return `
-        <div class="item-meta">
-          <span class="badge ${escapeHtml(severity)}">${escapeHtml(severity)}</span>
-          <span class="badge file">${escapeHtml(diagnosticLabel(diag.type))}</span>
-        </div>
-        <strong>${escapeHtml(diag.message || diag.type)}</strong>
-        ${where ? `<span>${escapeHtml(where)}</span>` : ""}
-      `;
-    }
-
-    function appendGroup(container, title, items, renderItem) {
-      const group = document.createElement("section");
-      group.className = "group";
-      group.innerHTML = `<div class="group-title"><span>${escapeHtml(title)}</span><span>${items.length}</span></div>`;
-      for (const itemValue of items) {
-        group.append(renderItem(itemValue));
-      }
-      container.append(group);
-    }
-
-    function renderNodeGroups(nodeBox, nodes) {
-      const groups = groupBy(nodes, categoryKeyForNode);
-      for (const [title, values] of groups) {
-        appendGroup(nodeBox, title, values, node => {
-          const item = document.createElement("div");
-          item.className = `item ${state.selected?.kind === "node" && node.id === state.selected.key ? "selected" : ""}`;
-          item.innerHTML = nodeItemHtml(node);
-          item.addEventListener("click", () => select(node, "node"));
-          return item;
-        });
-      }
-    }
-
-    function renderEdgeGroups(edgeBox, edges) {
-      const groups = groupBy(edges, edge => edge.inferred || edge.origin === "agent_inferred" ? "Agent-inferred edges" : "Direct references");
-      for (const [title, values] of groups) {
-        appendGroup(edgeBox, title, sortedRelations(values), edge => {
-          const item = document.createElement("div");
-          item.className = `item ${state.selected?.kind === "edge" && edge.id === state.selected.key ? "selected" : ""}`;
-          item.innerHTML = edgeItemHtml(edge);
-          item.addEventListener("click", () => select(edge, "edge"));
-          return item;
-        });
-      }
-    }
-
-    function suggestionFilterSummary(suggestion) {
-      const filter = suggestion.filter && typeof suggestion.filter === "object" ? suggestion.filter : {};
-      const parts = [];
-      if (Array.isArray(filter.nodeIds) && filter.nodeIds.length) parts.push(`${filter.nodeIds.length} nodes`);
-      if (filter.clusterId) parts.push(`cluster ${filter.clusterId}`);
-      if (filter.suggestedCategory) parts.push(`category ${filter.suggestedCategory}`);
-      if (Array.isArray(filter.roleTags) && filter.roleTags.length) parts.push(`roles ${filter.roleTags.join(", ")}`);
-      if (filter.origin) parts.push(`origin ${filter.origin}`);
-      if (filter.query) parts.push(`query ${filter.query}`);
-      return parts.join(" / ") || "No filter";
-    }
-
-    function renderSuggestions() {
-      const box = document.getElementById("suggestions");
-      const suggestions = Array.isArray(graph.viewSuggestions) ? graph.viewSuggestions : [];
-      setText("suggestionCount", String(suggestions.length));
-      box.innerHTML = "";
-      if (!suggestions.length) return;
-      if (state.activeSuggestionName) {
-        const clear = document.createElement("button");
-        clear.className = "item suggestion";
-        clear.type = "button";
-        clear.innerHTML = "<strong>Clear suggested view</strong><span>Return to manual filters.</span>";
-        clear.addEventListener("click", clearViewSuggestion);
-        box.append(clear);
-      }
-      for (const suggestion of suggestions) {
-        const item = document.createElement("button");
-        item.className = `item suggestion ${state.activeSuggestionName === suggestion.name ? "selected" : ""}`;
-        item.type = "button";
-        const description = suggestion.description || suggestionFilterSummary(suggestion);
-        item.innerHTML = `
-          <strong>${escapeHtml(suggestion.name || "Suggested view")}</strong>
-          <span>${escapeHtml(description)}</span>
-          <span>${escapeHtml(suggestionFilterSummary(suggestion))}</span>
-        `;
-        item.addEventListener("click", () => applyViewSuggestion(suggestion));
-        box.append(item);
-      }
-    }
-
-    function renderLists(nodes, edges) {
-      const nodeBox = document.getElementById("nodes");
-      const edgeBox = document.getElementById("edges");
-      nodeBox.innerHTML = "";
-      edgeBox.innerHTML = "";
-      renderEdgeGroups(edgeBox, edges);
-      renderNodeGroups(nodeBox, nodes);
-      renderSuggestions();
-      renderDiagnostics();
-      setText("nodeCount", String(nodes.length));
-      setText("edgeCount", String(edges.length));
-    }
-
-    function renderDiagnostics() {
-      const box = document.getElementById("diagnostics");
-      box.innerHTML = "";
-      const diagnostics = visibleDiagnostics();
-      setText("diagnosticCount", String(diagnostics.length));
-      for (const [title, values] of groupBy(diagnostics, diag => `${diag.severity || "info"} / ${diagnosticLabel(diag.type)}`)) {
-        appendGroup(box, title, values, diag => {
-          const item = document.createElement("div");
-          item.className = `item ${state.selected?.kind === "diagnostic" && selectionKey("diagnostic", diag) === state.selected.key ? "selected" : ""}`;
-          item.innerHTML = diagnosticItemHtml(diag);
-          item.addEventListener("click", () => select(diag, "diagnostic"));
-          return item;
-        });
-      }
-    }
-
-    function select(value, kind) {
-      state.selected = { kind, value, key: selectionKey(kind, value) };
-      const details = document.getElementById("details");
-      inspectorPanel.hidden = false;
-      graphWorkspace.classList.remove("inspector-hidden");
-      details.innerHTML = renderDetails(value, kind);
-      bindDetailActions();
-      draw();
-    }
-
-    function bindDetailActions() {
-      const clearButton = document.getElementById("clearSelection");
-      if (clearButton) clearButton.addEventListener("click", clearSelection);
-      for (const row of document.querySelectorAll("#details .relation-row[data-edge-id]")) {
-        row.addEventListener("click", () => {
-          const edge = edgeIndex.get(row.dataset.edgeId || "");
-          if (edge) select(edge, "edge");
-        });
-      }
-      for (const row of document.querySelectorAll("#details .relation-row[data-category]")) {
-        row.addEventListener("click", () => {
-          state.selectedCategory = row.dataset.category || "";
-          state.categoryFilter = state.selectedCategory;
-          resetGraphViewState();
-          draw();
-        });
-      }
-    }
-
-    function renderDetails(value, kind) {
-      if (kind === "node") return renderNodeDetails(value);
-      if (kind === "edge") return renderEdgeDetails(value);
-      return renderDiagnosticDetails(value);
-    }
-
-    function renderOverviewDetails(nodes, edges) {
-      const diagnostics = graphDiagnosticStatus();
-      const direct = edges.filter(edge => !(edge.inferred || edge.origin === "agent_inferred")).length;
-      const inferred = edges.length - direct;
-      const categories = [...groupBy(nodes, categoryKeyForNode).entries()]
-        .sort((a, b) => b[1].length - a[1].length)
-        .slice(0, 5);
-      return `
-        <section class="summary-card">
-          <h2>Overview</h2>
-          <p><strong>${escapeHtml(state.categoryFilter || state.activeSuggestionName || "Context Map Design")}</strong></p>
-          <p class="detail-lede">Current scope shows ${nodes.length} skills and ${edges.length} relations. Agent annotations are advisory and not the source of truth.</p>
-          <div class="compact-metrics">
-            <div class="compact-metric"><span>Direct</span><strong>${direct}</strong></div>
-            <div class="compact-metric"><span>Inferred</span><strong>${inferred}</strong></div>
-            <div class="compact-metric"><span>Warnings</span><strong>${visibleDiagnostics().length}</strong></div>
-            <div class="compact-metric"><span>Invalid</span><strong>${diagnostics.invalidAnnotations}</strong></div>
-          </div>
-        </section>
-        <section class="summary-card">
-          <h2>Why this is shown</h2>
-          <div class="item-meta">
-            ${state.activeSuggestionName ? `<span class="badge inferred">viewSuggestions</span>` : `<span class="badge">manual filters</span>`}
-            ${graph.enrichmentCoverage?.partial ? `<span class="badge warning">coverage partial</span>` : `<span class="badge info">coverage available</span>`}
-          </div>
-          <p class="description">${escapeHtml(scopeStatus(nodes, edges))}</p>
-        </section>
-        <section class="summary-card">
-          <h2>Diagnostics</h2>
-          <div class="item-meta">
-            <span class="badge warning">${visibleDiagnostics().length} diagnostics</span>
-            <span class="badge file">copy drift checked</span>
-          </div>
-          <div class="relation-list">
-            ${categories.map(([name, values]) => `
-              <button class="relation-row" type="button" data-category="${escapeHtml(name)}">
-                <strong>${escapeHtml(name)}</strong>
-                <span class="description">${values.length} skills</span>
-              </button>
-            `).join("")}
-          </div>
-        </section>
-      `;
-    }
-
-    function renderRelationFocusPanel(selected, edges) {
-      const panel = document.getElementById("relationFocus");
-      if (selected?.kind !== "edge") {
-        panel.hidden = true;
-        panel.innerHTML = "";
-        return;
-      }
-      panel.hidden = false;
-      panel.innerHTML = renderRelationFocus(selected, edges);
-    }
-
-    function renderRelationFocus(selected, edges) {
-      const edge = selected?.kind === "edge"
-        ? selected.value
-        : edges.find(candidate => candidate.inferred || candidate.origin === "agent_inferred") || edges[0];
-      if (!edge) {
-        return `
-          <h3>選択中の関係と根拠</h3>
-          <p class="description">No relation is visible in the current scope.</p>
-        `;
-      }
-      const evidence = relationEvidenceItems(edge).slice(0, 2);
-      return `
-        <h3>選択中の関係と根拠</h3>
-        <p><strong>${escapeHtml(edgeSummary(edge))}</strong></p>
-        <div class="item-meta">
-          ${edgeBadgeHtml(edge)}
-        </div>
-        <p class="description">${escapeHtml(relationReason(edge))}</p>
-        <div class="evidence-grid">
-          ${evidence.length ? evidence.map(item => `
-            <div class="summary-card">
-              <span class="badge file">${escapeHtml(item.path || "evidence")}</span>
-              ${item.startLine ? `<span class="badge inferred">L${escapeHtml(item.startLine)}${item.endLine && item.endLine !== item.startLine ? `-L${escapeHtml(item.endLine)}` : ""}</span>` : ""}
-              <p class="description">${escapeHtml(item.text || item.raw || "")}</p>
-            </div>
-          `).join("") : `<div class="summary-card"><p class="description">No cited evidence.</p></div>`}
-        </div>
-      `;
-    }
-
-    function renderNodeDetails(node) {
-      const outgoing = graph.edges.filter(edge => edge.source === node.id);
-      const incoming = graph.edges.filter(edge => edge.target === node.id);
-      const annotation = node.annotation || {};
-      const roleTags = Array.isArray(annotation.roleTags) ? annotation.roleTags : [];
-      const triggers = Array.isArray(annotation.triggerPhrases) ? annotation.triggerPhrases : [];
-      const aliases = Array.isArray(node.aliases) ? node.aliases : [];
-      const summary = annotation.summary || node.description || "";
-      return `
-        <section class="summary-card">
-          <h2>Node</h2>
-          <div class="item-meta">
-            ${annotation.suggestedCategory ? `<span class="badge inferred">${escapeHtml(annotation.suggestedCategory)}</span>` : node.category ? `<span class="badge">${escapeHtml(node.category)}</span>` : ""}
-            ${annotation.clusterId ? `<span class="badge inferred">${escapeHtml(annotation.clusterId)}</span>` : ""}
-          </div>
-          <p><strong>${escapeHtml(annotation.label || node.label || node.id)}</strong></p>
-          ${summary ? `<p class="detail-lede">${escapeHtml(summary)}</p>` : ""}
-          <div class="compact-metrics" aria-label="Node relation counts">
-            <div class="compact-metric"><span>Outgoing</span><strong>${outgoing.length}</strong></div>
-            <div class="compact-metric"><span>Incoming</span><strong>${incoming.length}</strong></div>
-            <div class="compact-metric"><span>Warnings</span><strong>${graph.diagnostics.filter(diag => diagnosticMatchesNode(diag, node)).length}</strong></div>
-            <div class="compact-metric"><span>Invalid</span><strong>${graphDiagnosticStatus().invalidAnnotations}</strong></div>
-          </div>
-          <div class="reason-block">
-            <span class="reason-label">なぜ今これが見えている？</span>
-            <p>${escapeHtml(state.activeSuggestionName ? `${state.activeSuggestionName} viewSuggestion が適用中です。` : "Current manual filters define this scope.")}</p>
-          </div>
-          ${renderRelationGroup("Outgoing relations", outgoing, "outgoing")}
-          ${renderRelationGroup("Incoming relations", incoming, "incoming")}
-          <button id="clearSelection" type="button">Clear selection</button>
-          <details class="raw-json">
-            <summary>Source details</summary>
-            <dl class="meta-grid">
-              <dt>ID</dt><dd>${escapeHtml(node.id)}</dd>
-              <dt>Path</dt><dd>${escapeHtml(nodePath(node))}</dd>
-              ${roleTags.length ? `<dt>Role tags</dt><dd>${roleTags.map(escapeHtml).join(", ")}</dd>` : ""}
-              ${triggers.length ? `<dt>Triggers</dt><dd>${triggers.map(escapeHtml).join(", ")}</dd>` : ""}
-              ${aliases.length ? `<dt>Aliases</dt><dd>${aliases.map(escapeHtml).join(", ")}</dd>` : ""}
-            </dl>
-          </details>
-        </section>
-      `;
-    }
-
-    function edgeDetailsJson(edge) {
-      const { id, type, ...payload } = edge;
-      return rawJson(payload);
-    }
-
-    function renderEdgeDetails(edge) {
-      const evidenceText = relationEvidenceText(edge);
-      return `
-        <section class="summary-card">
-          <h2>Edge</h2>
-          <div class="item-meta">
-            ${edgeBadgeHtml(edge)}
-          </div>
-          <p><strong>${escapeHtml(edgeSummary(edge))}</strong></p>
-          <div class="reason-block">
-            <span class="reason-label">${escapeHtml(relationReasonKind(edge))}</span>
-            <p>${escapeHtml(relationReason(edge))}</p>
-          </div>
-          <dl class="meta-grid">
-            <dt>From</dt><dd>${escapeHtml(nodeDisplay(edge.source))}<br>${escapeHtml(edge.source)}</dd>
-            <dt>To</dt><dd>${escapeHtml(nodeDisplay(edge.target))}<br>${escapeHtml(edge.target)}</dd>
-            ${evidenceText ? `<dt>Evidence</dt><dd>${escapeHtml(evidenceText)}</dd>` : ""}
-          </dl>
-          ${evidenceLedgerHtml(edge)}
-          <button id="clearSelection" type="button">Clear selection</button>
-          ${edgeDetailsJson(edge)}
-        </section>
-      `;
-    }
-
-    function renderDiagnosticDetails(diag) {
-      const severity = diag.severity || "info";
-      return `
-        <section class="summary-card">
-          <h2>Diagnostic</h2>
-          <div class="item-meta">
-            <span class="badge ${escapeHtml(severity)}">${escapeHtml(severity)}</span>
-            <span class="badge file">${escapeHtml(diagnosticLabel(diag.type))}</span>
-          </div>
-          <p class="description">${escapeHtml(diag.message || "")}</p>
-          <dl class="meta-grid">
-            ${diag.skill ? `<dt>Skill</dt><dd>${escapeHtml(diag.skill)}</dd>` : ""}
-            ${diag.path ? `<dt>Path</dt><dd>${escapeHtml(diag.path)}</dd>` : ""}
-            ${diag.target ? `<dt>Target</dt><dd>${escapeHtml(diag.target)}</dd>` : ""}
-          </dl>
-          <button id="clearSelection" type="button">Clear selection</button>
-          ${rawJson(diag)}
-        </section>
-      `;
-    }
-
-    function rawJson(value) {
-      return `<details class="raw-json"><summary>Raw JSON</summary><pre>${escapeHtml(JSON.stringify(value, null, 2))}</pre></details>`;
-    }
-
-    function clearSelection() {
-      state.selected = null;
-      draw();
-    }
-
-    function clearGraphSelection() {
-      if (!state.selected && !state.selectedCategory) return false;
-      state.selected = null;
-      state.selectedCategory = "";
-      draw();
-      return true;
-    }
-
-    function resetGraphLayout() {
-      state.positions = {};
-      state.layoutKey = "";
-      resetGraphViewState();
-      draw();
-    }
-
-    function svgPoint(svg, event) {
-      const point = svg.createSVGPoint();
-      point.x = event.clientX;
-      point.y = event.clientY;
-      return point.matrixTransform(svg.getScreenCTM().inverse());
-    }
-
-    function graphPoint(svg, event) {
-      const point = svgPoint(svg, event);
-      return {
-        x: (point.x - state.view.x) / state.view.scale,
-        y: (point.y - state.view.y) / state.view.scale,
-      };
-    }
-
-    function beginGraphPan(event) {
-      if (event.button !== 0 || event.target !== event.currentTarget) return;
-      event.preventDefault();
-      const svg = document.getElementById("graph");
-      const point = svgPoint(svg, event);
-      state.panning = {
-        startX: point.x,
-        startY: point.y,
-        viewX: state.view.x,
-        viewY: state.view.y,
-        moved: false,
-      };
-      window.addEventListener("pointermove", panGraph);
-      window.addEventListener("pointerup", endGraphPan);
-      window.addEventListener("pointercancel", endGraphPan);
-    }
-
-    function panGraph(event) {
-      if (!state.panning) return;
-      const svg = document.getElementById("graph");
-      const point = svgPoint(svg, event);
-      state.view = {
-        ...state.view,
-        x: state.panning.viewX + point.x - state.panning.startX,
-        y: state.panning.viewY + point.y - state.panning.startY,
-      };
-      if (Math.hypot(point.x - state.panning.startX, point.y - state.panning.startY) > 3) {
-        state.panning.moved = true;
-      }
-      draw();
-    }
-
-    function endGraphPan() {
-      const panning = state.panning;
-      window.removeEventListener("pointermove", panGraph);
-      window.removeEventListener("pointerup", endGraphPan);
-      window.removeEventListener("pointercancel", endGraphPan);
-      state.panning = null;
-      if (panning && !panning.moved) {
-        clearGraphSelection();
-      }
-    }
-
-    function wheelZoomGraph(event) {
-      event.preventDefault();
-      const svg = document.getElementById("graph");
-      const origin = svgPoint(svg, event);
-      const factor = event.deltaY < 0 ? 1.12 : 1 / 1.12;
-      zoomGraphAt(origin, state.view.scale * factor);
-    }
-
-    function beginNodeDrag(event, node) {
-      event.preventDefault();
-      event.stopPropagation();
-      const svg = document.getElementById("graph");
-      const current = state.positions[node.id] || { x: 0, y: 0 };
-      const point = graphPoint(svg, event);
-      state.dragging = {
-        id: node.id,
-        node,
-        startX: point.x,
-        startY: point.y,
-        offsetX: current.x - point.x,
-        offsetY: current.y - point.y,
-        moved: false,
-      };
-      window.addEventListener("pointermove", dragNode);
-      window.addEventListener("pointerup", endNodeDrag);
-      window.addEventListener("pointercancel", endNodeDrag);
-    }
-
-    function dragNode(event) {
-      if (!state.dragging) return;
-      const svg = document.getElementById("graph");
-      const bounds = state.layoutBounds.width && state.layoutBounds.height
-        ? state.layoutBounds
-        : { width: Math.max(svg.clientWidth, 360), height: Math.max(svg.clientHeight, 420) };
-      const anchor = nodeAnchorMap(visibleNodes(), bounds.width, bounds.height).get(state.dragging.id);
-      const point = graphPoint(svg, event);
-      const distance = Math.hypot(point.x - state.dragging.startX, point.y - state.dragging.startY);
-      if (!state.dragging.moved && distance <= 3) return;
-      state.dragging.moved = true;
-      state.positions[state.dragging.id] = clampPosition(
-        {
-          x: point.x + state.dragging.offsetX,
-          y: point.y + state.dragging.offsetY,
-        },
-        bounds.width,
-        bounds.height,
-        anchor,
-      );
-      draw();
-    }
-
-    function endNodeDrag() {
-      const dragging = state.dragging;
-      window.removeEventListener("pointermove", dragNode);
-      window.removeEventListener("pointerup", endNodeDrag);
-      window.removeEventListener("pointercancel", endNodeDrag);
-      state.dragging = null;
-      if (dragging && !dragging.moved) {
-        select(dragging.node, "node");
-      }
-    }
+    const issueCopy = {
+      dangling_reference: {
+        title: "参照先が見つかりません",
+        what: "このスキルは別の SKILL.md を参照していますが、参照先のファイルが見つかりません。",
+        why: "このスキルを読んだ人や AI が、次に読むべきスキルを開けない可能性があります。",
+        action: ["パスが間違っていないか確認する", "参照先のスキルを追加する", "不要な参照なら削除する"],
+      },
+      duplicate_alias: {
+        title: "同じ呼び名のスキルがあります",
+        what: "同じ呼び名で複数のスキルが見つかります。",
+        why: "人や AI が、どちらのスキルを使えばよいか判断しにくくなります。",
+        action: ["用途が分かる具体的な名前にする", "似た名前が必要な場合は説明で違いを明確にする"],
+      },
+      skill_copy_drift: {
+        title: "置き場所ごとにスキル内容が違います",
+        what: "同じスキルとして扱われる SKILL.md が複数ありますが、ファイルの中身が一致していません。",
+        why: "人が見ているスキルと、Codex や Claude Code が読んでいるスキルの内容が違う可能性があります。",
+        action: ["どちらを正しい内容にするか決める", "意図しない違いなら片方を更新する", "意図的な違いなら、その理由を SKILL.md に書く"],
+      },
+      invalid_agent_annotation: {
+        title: "AI が読み取った情報に不整合があります",
+        what: "AI が追加した補足情報が、収集済みのスキルと対応していません。",
+        why: "存在しないスキルへの補足が混ざると、関係の確認で誤解が起きる可能性があります。",
+        action: ["補足情報の対象スキルを確認する", "不要な補足なら削除する", "対象名が変わっている場合は合わせる"],
+      },
+    };
 
     function escapeHtml(value) {
       return String(value ?? "").replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "'": "&#39;" }[char]));
     }
 
-    for (const input of [origin, search, showDirectEdges, showInferredEdges, showDiagnostics]) {
-      input.addEventListener("input", draw);
-      input.addEventListener("change", draw);
+    function compactText(value, maxLength = 120) {
+      const text = String(value || "").replace(/\s+/g, " ").trim();
+      if (text.length <= maxLength) return text;
+      return `${text.slice(0, Math.max(0, maxLength - 3)).trim()}...`;
     }
-    for (const button of document.querySelectorAll("[data-purpose-query]")) {
-      button.addEventListener("click", () => {
-        document.querySelectorAll("[data-purpose-query]").forEach(item => item.classList.remove("active"));
-        button.classList.add("active");
-        search.value = button.dataset.purposeQuery || "";
-        if (search.value.includes("agent_inferred")) {
-          origin.value = "agent_inferred";
-        }
-        resetGraphViewState();
-        draw();
+
+    function isAiRelation(edge) {
+      return edge.inferred || edge.origin === "agent_inferred";
+    }
+
+    function relationKindLabel(edge) {
+      return isAiRelation(edge) ? "AI が読み取った関係" : "直接書かれている関係";
+    }
+
+    function relationTypeText(edge) {
+      const value = String(edge.type || "related_to");
+      if (value === "direct_reference") return "直接参照";
+      if (value === "related_to") return "関連";
+      if (value === "depends_on") return "参考にしている";
+      return value.replaceAll("_", " ");
+    }
+
+    function relationSourceText(edge) {
+      if (isAiRelation(edge)) {
+        const reason = String(edge.rationale || "").trim();
+        if (reason) return reason;
+        return "SKILL.md の本文から、一緒に確認するとよい関係として読み取られています。";
+      }
+      const evidence = relationSourceItems(edge)[0];
+      if (evidence?.path) {
+        return `${skillName(edge.source)} の SKILL.md に、${skillName(edge.target)} へのリンクやパスが書かれています。`;
+      }
+      return "SKILL.md のリンクやパスから見つかった関係です。";
+    }
+
+    function relationSourceItems(edge) {
+      return Array.isArray(edge.evidence) ? edge.evidence : [];
+    }
+
+    function evidenceText(item) {
+      if (!item || typeof item !== "object") return "";
+      const path = item.path || item.section || "";
+      const line = item.startLine ? `${item.startLine}行目${item.endLine && item.endLine !== item.startLine ? `-${item.endLine}行目` : ""}` : "";
+      const text = item.text || item.raw || item.value || "";
+      return [path, line, text ? `「${compactText(text, 80)}」` : ""].filter(Boolean).join(" ");
+    }
+
+    function issueLabel(type) {
+      return issueCopy[type]?.title || "確認が必要な項目";
+    }
+
+    function issueActionList(diag) {
+      const actions = issueCopy[diag.type]?.action || ["内容を確認し、必要なら SKILL.md を更新する"];
+      return actions.map(item => `<li>${escapeHtml(item)}</li>`).join("");
+    }
+
+    function skillName(id) {
+      const node = nodeIndex.get(id);
+      if (!node) return id || "";
+      return node.annotation?.label || node.label || node.name || node.id;
+    }
+
+    function skillSummary(node) {
+      return node.annotation?.summary || node.description || "説明はまだ追加されていません。";
+    }
+
+    function skillPath(node) {
+      return node.path || (Array.isArray(node.paths) ? node.paths[0] : "") || "";
+    }
+
+    function categoryFor(node) {
+      return node.annotation?.suggestedCategory || node.annotation?.clusterId || node.category || "未分類";
+    }
+
+    function categoryLabel(value) {
+      const labels = {
+        ddd_tactical: "ドメインモデリング",
+        "ddd-tactical": "ドメインモデリング",
+        architecture: "アーキテクチャ",
+        quality: "品質・改善",
+        Uncategorized: "未分類",
+      };
+      return labels[value] || value || "未分類";
+    }
+
+    function allCategories() {
+      const values = [...new Set(graph.nodes.map(node => categoryFor(node)))].sort((a, b) => String(a).localeCompare(String(b), "ja"));
+      return ["すべて", ...values];
+    }
+
+    function relationsForSkill(id) {
+      return graph.edges.filter(edge => edge.source === id || edge.target === id);
+    }
+
+    function issuesForSkill(node) {
+      const paths = [node.path, node.dir, ...(node.paths || []), ...(node.dirs || [])].filter(Boolean);
+      return graph.diagnostics.filter(diag => {
+        if (diag.skill === node.id || diag.target === node.id) return true;
+        if (paths.some(path => diag.path === path || String(diag.path || "").startsWith(`${path}/`))) return true;
+        const skills = diag.evidence && Array.isArray(diag.evidence.skills) ? diag.evidence.skills : [];
+        return skills.includes(node.id);
       });
     }
-    categoryFrames.addEventListener("change", () => {
-      if (!categoryFrames.checked) {
-        state.selectedCategory = "";
+
+    function visibleRelations() {
+      return graph.edges.filter(edge => {
+        if (isAiRelation(edge) && !state.showAiRelations) return false;
+        if (!isAiRelation(edge) && !state.showDirectRelations) return false;
+        const source = nodeIndex.get(edge.source);
+        const target = nodeIndex.get(edge.target);
+        if (!source || !target) return false;
+        const q = state.searchQuery.trim().toLowerCase();
+        if (!q) return true;
+        return [
+          skillName(edge.source),
+          skillName(edge.target),
+          skillPath(source),
+          skillPath(target),
+          relationTypeText(edge),
+          relationSourceText(edge),
+        ].some(value => String(value || "").toLowerCase().includes(q));
+      });
+    }
+
+    function visibleSkills() {
+      const query = (state.activePage === "skills" ? state.localSkillSearch : state.searchQuery).trim().toLowerCase();
+      return graph.nodes.filter(node => {
+        if (state.activePage === "skills" && state.selectedCategory !== "すべて" && categoryFor(node) !== state.selectedCategory) return false;
+        if (!query) return true;
+        const values = [
+          node.id,
+          node.label,
+          node.name,
+          node.description,
+          node.path,
+          ...(node.aliases || []),
+          node.annotation?.label,
+          node.annotation?.summary,
+          categoryFor(node),
+        ];
+        return values.some(value => String(value || "").toLowerCase().includes(query));
+      });
+    }
+
+    function issueCounts() {
+      const counts = { dangling_reference: 0, duplicate_alias: 0, skill_copy_drift: 0, other: 0 };
+      for (const diag of graph.diagnostics) {
+        if (diag.type in counts) counts[diag.type] += 1;
+        else counts.other += 1;
       }
-      draw();
-    });
-    clearCategory.addEventListener("click", clearCategorySelection);
-    filterCategory.addEventListener("click", filterSelectedCategory);
-    clearCategoryFilter.addEventListener("click", clearCategoryFilterSelection);
-    statusFilterCategory.addEventListener("click", filterSelectedCategory);
-    statusClearCategoryFilter.addEventListener("click", clearCategoryFilterSelection);
-    document.addEventListener("keydown", event => {
-      if ((event.key === "/" || ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k")) && document.activeElement !== search) {
+      return counts;
+    }
+
+    function directRelationCount() {
+      return graph.edges.filter(edge => !isAiRelation(edge)).length;
+    }
+
+    function aiRelationCount() {
+      return graph.edges.filter(isAiRelation).length;
+    }
+
+    function setSelection(kind, value) {
+      state.selected = { kind, value };
+      render();
+    }
+
+    function clearSelection() {
+      state.selected = null;
+      render();
+    }
+
+    function setPage(page) {
+      state.activePage = page;
+      state.pendingFit = true;
+      if (page === "overview") {
+        state.selected = null;
+      }
+      render();
+    }
+
+    function render() {
+      renderHeader();
+      renderNavigation();
+      renderMain();
+      renderDetails();
+      const map = document.getElementById("skillMap");
+      if (map) drawMap(map);
+    }
+
+    function renderHeader() {
+      document.getElementById("totalSkills").textContent = String(graph.nodes.length);
+      document.getElementById("totalRelations").textContent = String(graph.edges.length);
+      document.getElementById("totalIssues").textContent = String(graph.diagnostics.length);
+      document.getElementById("globalSearch").value = state.searchQuery;
+      document.getElementById("displayControls").hidden = !["overview", "relations"].includes(state.activePage);
+      document.getElementById("showDirectRelations").checked = state.showDirectRelations;
+      document.getElementById("showAiRelations").checked = state.showAiRelations;
+      document.getElementById("showGroupFrames").checked = state.showGroupFrames;
+    }
+
+    function renderNavigation() {
+      const nav = document.getElementById("pageNav");
+      nav.innerHTML = Object.entries(pages).map(([key, label]) => `
+        <button class="nav-card ${state.activePage === key ? "active" : ""}" type="button" data-page="${escapeHtml(key)}">
+          <span class="nav-icon" aria-hidden="true">${escapeHtml(pageIcons[key])}</span>
+          <span>
+            <strong>${escapeHtml(label)}</strong>
+            <span>${escapeHtml(pageDescriptions[key])}</span>
+          </span>
+          ${key === "issues" && graph.diagnostics.length ? `<span class="nav-badge">${graph.diagnostics.length}</span>` : ""}
+        </button>
+      `).join("");
+      for (const button of nav.querySelectorAll("[data-page]")) {
+        button.addEventListener("click", () => setPage(button.dataset.page));
+      }
+    }
+
+    function renderMain() {
+      const main = document.getElementById("mainContent");
+      if (state.activePage === "overview") main.innerHTML = overviewHtml();
+      if (state.activePage === "relations") main.innerHTML = relationsHtml();
+      if (state.activePage === "issues") main.innerHTML = issuesHtml();
+      if (state.activePage === "skills") main.innerHTML = skillsHtml();
+      bindMainActions(main);
+    }
+
+    function overviewHtml() {
+      return `
+        <h2 class="section-title">全体のまとめ</h2>
+        <section class="summary-grid" aria-label="全体のまとめ">
+          <div class="metric-card blue">
+            <span>スキルの数</span>
+            <strong>${graph.nodes.length}</strong>
+            <small>このリポジトリ内の SKILL.md</small>
+          </div>
+          <div class="metric-card green">
+            <span>直接書かれている関係</span>
+            <strong>${directRelationCount()}</strong>
+            <small>SKILL.md のリンクやパス</small>
+          </div>
+          <div class="metric-card violet">
+            <span>AI が読み取った関係</span>
+            <strong>${aiRelationCount()}</strong>
+            <small>本文から判断した関係</small>
+          </div>
+          <div class="metric-card red">
+            <span>確認が必要</span>
+            <strong>${graph.diagnostics.length}</strong>
+            <small>見ておきたい項目</small>
+          </div>
+        </section>
+        ${mapPanelHtml("スキルのつながり（地図）", true)}
+        <section class="recommend-grid" aria-label="まず見るおすすめ">
+          <button class="recommend-card" type="button" data-recommend="entry">
+            <strong>入口になりそうなスキル</strong>
+            <span>最初に読むと理解が進みます</span>
+          </button>
+          <button class="recommend-card" type="button" data-recommend="groups">
+            <strong>まとまりを見たいとき</strong>
+            <span>関連するスキルをまとめて確認</span>
+          </button>
+          <button class="recommend-card" type="button" data-recommend="issues">
+            <strong>気になる点を先に確認</strong>
+            <span>問題を見つけて整理しましょう</span>
+          </button>
+        </section>
+      `;
+    }
+
+    function relationsHtml() {
+      return `
+        <h2 class="section-title">つながりを確認する</h2>
+        <div class="filter-row">
+          <label class="check-row"><input id="mainDirectRelations" type="checkbox" ${state.showDirectRelations ? "checked" : ""}> 直接書かれている関係</label>
+          <label class="check-row"><input id="mainAiRelations" type="checkbox" ${state.showAiRelations ? "checked" : ""}> AI が読み取った関係</label>
+        </div>
+        ${mapPanelHtml("スキルのつながり（地図）", false)}
+        <section class="list-panel" style="margin-top:16px;">
+          <div class="panel-head">
+            <h2>つながりの一覧</h2>
+            <span class="tiny">${visibleRelations().length} 件</span>
+          </div>
+          <div class="skill-grid" style="padding:14px;">
+            ${visibleRelations().map(edge => relationCardHtml(edge)).join("") || `<div class="empty">表示できるつながりがありません。</div>`}
+          </div>
+        </section>
+      `;
+    }
+
+    function issuesHtml() {
+      const counts = issueCounts();
+      return `
+        <h2 class="section-title">気になる点</h2>
+        <section class="issue-summary" aria-label="気になる点の概要">
+          <div class="metric-card red"><span>確認が必要</span><strong>${graph.diagnostics.length}</strong><small>件</small></div>
+          <div class="metric-card blue"><span>参照先が見つからない</span><strong>${counts.dangling_reference}</strong><small>件</small></div>
+          <div class="metric-card violet"><span>同じ呼び名のスキルがあります</span><strong>${counts.duplicate_alias}</strong><small>件</small></div>
+          <div class="metric-card green"><span>置き場所ごとにスキル内容が違います</span><strong>${counts.skill_copy_drift}</strong><small>件</small></div>
+        </section>
+        <section class="issue-grid">
+          ${graph.diagnostics.map(diag => issueCardHtml(diag)).join("") || `<div class="empty">気になる点は見つかっていません。</div>`}
+        </section>
+      `;
+    }
+
+    function skillsHtml() {
+      const categories = allCategories();
+      const skills = visibleSkills();
+      return `
+        <h2 class="section-title">スキルを探す</h2>
+        <div class="filter-row">
+          <input id="localSkillSearch" class="filter-input" type="search" value="${escapeHtml(state.localSkillSearch)}" placeholder="検索: DDD, review, repository...">
+          <div class="tools" aria-label="カテゴリ">
+            ${categories.map(category => `
+              <button class="tab-button ${state.selectedCategory === category ? "active" : ""}" type="button" data-category="${escapeHtml(category)}">
+                ${escapeHtml(categoryLabel(category))}
+              </button>
+            `).join("")}
+          </div>
+        </div>
+        <section class="skill-grid">
+          ${skills.map(node => skillCardHtml(node)).join("") || `<div class="empty">条件に合うスキルがありません。</div>`}
+        </section>
+      `;
+    }
+
+    function mapPanelHtml(title, showRecommendations) {
+      return `
+        <section class="map-panel">
+          <div class="panel-head">
+            <h2>${escapeHtml(title)}</h2>
+            <div class="tools" aria-label="地図の操作">
+              <div class="legend">
+                <span class="legend-item"><span class="line-sample"></span>直接書かれている関係</span>
+                <span class="legend-item"><span class="line-sample ai"></span>AI が読み取った関係</span>
+              </div>
+              <button id="zoomOut" class="tool-button" type="button" title="縮小">-</button>
+              <button id="zoomIn" class="tool-button" type="button" title="拡大">+</button>
+              <button id="fitMap" class="text-button" type="button">全体表示</button>
+            </div>
+          </div>
+          <div class="map-stage">
+            <svg id="skillMap" role="img" aria-label="スキルのつながり"></svg>
+            <div class="map-empty" id="mapEmpty" hidden>表示できるスキルがありません。</div>
+          </div>
+        </section>
+      `;
+    }
+
+    function relationCardHtml(edge) {
+      return `
+        <button class="skill-card ${state.selected?.kind === "relation" && state.selected.value.id === edge.id ? "selected" : ""}" type="button" data-relation-id="${escapeHtml(edge.id)}">
+          <strong>${escapeHtml(skillName(edge.source))} → ${escapeHtml(skillName(edge.target))}</strong>
+          <span>${escapeHtml(relationSourceText(edge))}</span>
+          <span class="pill-row">
+            <span class="pill ${isAiRelation(edge) ? "ai" : "direct"}">${escapeHtml(relationKindLabel(edge))}</span>
+            <span class="pill">${escapeHtml(relationTypeText(edge))}</span>
+          </span>
+        </button>
+      `;
+    }
+
+    function skillCardHtml(node) {
+      const relationCount = relationsForSkill(node.id).length;
+      const issueCount = issuesForSkill(node).length;
+      return `
+        <button class="skill-card ${state.selected?.kind === "skill" && state.selected.value.id === node.id ? "selected" : ""}" type="button" data-skill-id="${escapeHtml(node.id)}">
+          <strong>${escapeHtml(skillName(node.id))}</strong>
+          <span>${escapeHtml(skillSummary(node))}</span>
+          <span class="pill-row">
+            <span class="pill">${escapeHtml(categoryLabel(categoryFor(node)))}</span>
+            <span class="pill direct">関係: ${relationCount} 件</span>
+            <span class="pill ${issueCount ? "issue" : ""}">気になる点: ${issueCount} 件</span>
+          </span>
+        </button>
+      `;
+    }
+
+    function issueCardHtml(diag) {
+      const copy = issueCopy[diag.type] || issueCopy.invalid_agent_annotation;
+      return `
+        <button class="issue-card ${state.selected?.kind === "issue" && state.selected.value === diag ? "selected" : ""}" type="button" data-issue-key="${escapeHtml(issueKey(diag))}">
+          <strong>${escapeHtml(copy.title)}</strong>
+          <span>${escapeHtml(copy.what)}</span>
+          <span class="pill-row">
+            <span class="pill issue">確認が必要</span>
+            ${diag.path ? `<span class="pill">${escapeHtml(diag.path)}</span>` : ""}
+            ${diag.skill ? `<span class="pill">${escapeHtml(skillName(diag.skill))}</span>` : ""}
+          </span>
+        </button>
+      `;
+    }
+
+    function issueKey(diag) {
+      return [diag.type, diag.path, diag.skill, diag.target, diag.message].filter(Boolean).join("|");
+    }
+
+    function bindMainActions(root) {
+      for (const button of root.querySelectorAll("[data-skill-id]")) {
+        button.addEventListener("click", () => {
+          const node = nodeIndex.get(button.dataset.skillId);
+          if (node) setSelection("skill", node);
+        });
+      }
+      for (const button of root.querySelectorAll("[data-relation-id]")) {
+        button.addEventListener("click", () => {
+          const edge = edgeIndex.get(button.dataset.relationId);
+          if (edge) setSelection("relation", edge);
+        });
+      }
+      for (const button of root.querySelectorAll("[data-issue-key]")) {
+        button.addEventListener("click", () => {
+          const diag = graph.diagnostics.find(item => issueKey(item) === button.dataset.issueKey);
+          if (diag) setSelection("issue", diag);
+        });
+      }
+      for (const button of root.querySelectorAll("[data-category]")) {
+        button.addEventListener("click", () => {
+          state.selectedCategory = button.dataset.category || "すべて";
+          render();
+        });
+      }
+      const localSearch = root.querySelector("#localSkillSearch");
+      if (localSearch) {
+        localSearch.addEventListener("input", event => {
+          state.localSkillSearch = event.target.value;
+          render();
+        });
+      }
+      const direct = root.querySelector("#mainDirectRelations");
+      if (direct) direct.addEventListener("change", event => {
+        state.showDirectRelations = event.target.checked;
+        render();
+      });
+      const ai = root.querySelector("#mainAiRelations");
+      if (ai) ai.addEventListener("change", event => {
+        state.showAiRelations = event.target.checked;
+        render();
+      });
+      const zoomIn = root.querySelector("#zoomIn");
+      const zoomOut = root.querySelector("#zoomOut");
+      const fitMap = root.querySelector("#fitMap");
+      if (zoomIn) zoomIn.addEventListener("click", () => zoomMap(1.15));
+      if (zoomOut) zoomOut.addEventListener("click", () => zoomMap(1 / 1.15));
+      if (fitMap) fitMap.addEventListener("click", () => {
+        state.pendingFit = true;
+        render();
+      });
+      for (const button of root.querySelectorAll("[data-recommend]")) {
+        button.addEventListener("click", () => applyRecommendation(button.dataset.recommend));
+      }
+    }
+
+    function applyRecommendation(value) {
+      if (value === "issues") {
+        setPage("issues");
+        return;
+      }
+      if (value === "groups") {
+        state.showGroupFrames = true;
+        setPage("relations");
+        return;
+      }
+      const entry = graph.nodes.find(node => Array.isArray(node.annotation?.roleTags) && node.annotation.roleTags.includes("entry")) || graph.nodes[0];
+      if (entry) {
+        state.activePage = "skills";
+        setSelection("skill", entry);
+      }
+    }
+
+    function renderDetails() {
+      const panel = document.getElementById("detailPanel");
+      if (!state.selected) {
+        panel.innerHTML = overallDetailsHtml();
+      } else if (state.selected.kind === "skill") {
+        panel.innerHTML = skillDetailsHtml(state.selected.value);
+      } else if (state.selected.kind === "relation") {
+        panel.innerHTML = relationDetailsHtml(state.selected.value);
+      } else {
+        panel.innerHTML = issueDetailsHtml(state.selected.value);
+      }
+      bindDetailActions(panel);
+    }
+
+    function overallDetailsHtml() {
+      return `
+        <h2 class="section-title">全体について</h2>
+        <section class="detail-card">
+          <p class="muted">このビューアでは、リポジトリ内の SKILL.md と、スキル同士のつながり、確認が必要な項目を確認できます。</p>
+          <div class="detail-section">
+            <h3>見ておくとよい順番</h3>
+            <div class="relation-list">
+              <button class="relation-row" type="button" data-detail-page="overview"><strong>全体を把握する</strong><span>件数と地図から全体像を見る</span></button>
+              <button class="relation-row" type="button" data-detail-page="relations"><strong>つながりを確認する</strong><span>直接の参照と AI の読み取りを見分ける</span></button>
+              <button class="relation-row" type="button" data-detail-page="issues"><strong>気になる点を確認する</strong><span>修正候補を確認する</span></button>
+            </div>
+          </div>
+        </section>
+      `;
+    }
+
+    function skillDetailsHtml(node) {
+      const incoming = graph.edges.filter(edge => edge.target === node.id);
+      const outgoing = graph.edges.filter(edge => edge.source === node.id);
+      const issues = issuesForSkill(node);
+      return `
+        <h2 class="section-title">選択中のスキル</h2>
+        <section class="detail-card">
+          <div class="detail-header">
+            <span class="detail-icon">S</span>
+            <div>
+              <h2>${escapeHtml(skillName(node.id))}</h2>
+              <p>${escapeHtml(skillSummary(node))}</p>
+            </div>
+          </div>
+          <div class="file-row">${escapeHtml(skillPath(node))}</div>
+          <div class="tabs" aria-label="詳細タブ">
+            <button class="active" type="button">概要</button>
+            <button type="button">関係</button>
+            <button type="button">補足情報</button>
+          </div>
+          <div class="detail-section">
+            <h3>このスキルについて</h3>
+            <p class="muted">${escapeHtml(skillSummary(node))}</p>
+          </div>
+          <div class="detail-section">
+            <h3>関係しているスキル</h3>
+            ${renderRelationList("参考にしている（入ってくる）", incoming, "source")}
+            ${renderRelationList("関連している（出ていく）", outgoing, "target")}
+          </div>
+          <div class="detail-section">
+            <h3>気になる点</h3>
+            ${issues.length ? `<ul>${issues.map(issue => `<li>${escapeHtml(issueLabel(issue.type))}</li>`).join("")}</ul>` : `<p class="muted">このスキルに紐づく項目はありません。</p>`}
+          </div>
+          <button class="text-button primary" type="button" data-open-skill="${escapeHtml(skillPath(node))}">このスキルを開く</button>
+          ${devDetails({ id: node.id, path: skillPath(node), category: categoryFor(node), aliases: node.aliases || [] })}
+        </section>
+      `;
+    }
+
+    function renderRelationList(title, relations, otherKey) {
+      if (!relations.length) {
+        return `
+          <div class="detail-section">
+            <h3>${escapeHtml(title)}</h3>
+            <p class="muted">該当するつながりはありません。</p>
+          </div>
+        `;
+      }
+      return `
+        <div class="detail-section">
+          <h3>${escapeHtml(title)}</h3>
+          <div class="relation-list">
+            ${relations.map(edge => `
+              <button class="relation-row" type="button" data-relation-id="${escapeHtml(edge.id)}">
+                <strong>${escapeHtml(skillName(edge[otherKey]))}</strong>
+                <span>${escapeHtml(relationKindLabel(edge))}</span>
+              </button>
+            `).join("")}
+          </div>
+        </div>
+      `;
+    }
+
+    function relationDetailsHtml(edge) {
+      const evidence = relationSourceItems(edge);
+      return `
+        <h2 class="section-title">つながりの詳細</h2>
+        <section class="detail-card">
+          <p><strong>${escapeHtml(skillName(edge.source))}</strong><br>→ ${escapeHtml(skillName(edge.target))}</p>
+          <div class="detail-section">
+            <h3>関係の種類</h3>
+            <p class="muted">${escapeHtml(relationKindLabel(edge))}</p>
+          </div>
+          <div class="detail-section">
+            <h3>なぜ表示されているか</h3>
+            <p class="muted">${escapeHtml(relationSourceText(edge))}</p>
+          </div>
+          <div class="detail-section">
+            <h3>根拠</h3>
+            ${evidence.length ? `<div class="relation-list">${evidence.map(item => `<div class="relation-row"><strong>${escapeHtml(evidenceText(item) || "根拠")}</strong></div>`).join("")}</div>` : `<p class="muted">根拠は追加されていません。</p>`}
+          </div>
+          ${isAiRelation(edge) ? `<div class="detail-section"><h3>注意</h3><p class="muted">これは SKILL.md に直接リンクが書かれている関係ではありません。AI が本文から読み取った補足情報です。</p></div>` : ""}
+          ${devDetails({ id: edge.id, type: edge.type, origin: edge.origin, inferred: Boolean(edge.inferred) })}
+        </section>
+      `;
+    }
+
+    function issueDetailsHtml(diag) {
+      const copy = issueCopy[diag.type] || issueCopy.invalid_agent_annotation;
+      const evidence = diag.evidence || {};
+      const evidenceLines = issueSourceLines(diag);
+      return `
+        <h2 class="section-title">気になる点の詳細</h2>
+        <section class="detail-card">
+          <div class="detail-header">
+            <span class="detail-icon" style="background:var(--red);">!</span>
+            <div>
+              <h2>${escapeHtml(copy.title)}</h2>
+              <p>${escapeHtml(diag.path || diag.skill || diag.target || "")}</p>
+            </div>
+          </div>
+          <div class="issue-body">
+            <section>
+              <h4>何が起きているか</h4>
+              <p>${escapeHtml(copy.what)}</p>
+            </section>
+            <section>
+              <h4>なぜ困るか</h4>
+              <p>${escapeHtml(copy.why)}</p>
+            </section>
+            <section>
+              <h4>根拠</h4>
+              ${evidenceLines.length ? `<ul>${evidenceLines.map(line => `<li>${escapeHtml(line)}</li>`).join("")}</ul>` : `<p>追加の根拠はありません。</p>`}
+            </section>
+            <section>
+              <h4>次にすること</h4>
+              <ul>${issueActionList(diag)}</ul>
+            </section>
+          </div>
+          ${devDetails({ internalName: diag.type, message: diag.message, evidence })}
+        </section>
+      `;
+    }
+
+    function issueSourceLines(diag) {
+      const lines = [];
+      if (diag.path) lines.push(diag.path);
+      if (diag.skill) lines.push(`対象のスキル: ${skillName(diag.skill)}`);
+      if (diag.target) lines.push(`参照している先: ${diag.target}`);
+      const evidence = diag.evidence;
+      if (evidence && typeof evidence === "object") {
+        if (evidence.path || evidence.text || evidence.raw) lines.push(evidenceText(evidence));
+        if (Array.isArray(evidence.skills)) lines.push(`該当するスキル: ${evidence.skills.map(skillName).join(", ")}`);
+        if (Array.isArray(evidence.aliases)) {
+          for (const item of evidence.aliases) {
+            lines.push(`${skillName(item.skill)} / ${item.path || ""} / ${item.source || ""}`);
+          }
+        }
+        if (Array.isArray(evidence.copies)) {
+          for (const item of evidence.copies) {
+            lines.push(`${item.host || "unknown"}: ${item.path || ""}`);
+          }
+        }
+      }
+      return lines.filter(Boolean);
+    }
+
+    function devDetails(value) {
+      return `
+        <details class="dev">
+          <summary>開発者向け情報</summary>
+          <pre>${escapeHtml(JSON.stringify(value, null, 2))}</pre>
+        </details>
+      `;
+    }
+
+    function bindDetailActions(root) {
+      for (const button of root.querySelectorAll("[data-relation-id]")) {
+        button.addEventListener("click", () => {
+          const edge = edgeIndex.get(button.dataset.relationId);
+          if (edge) setSelection("relation", edge);
+        });
+      }
+      for (const button of root.querySelectorAll("[data-detail-page]")) {
+        button.addEventListener("click", () => setPage(button.dataset.detailPage));
+      }
+      for (const button of root.querySelectorAll("[data-open-skill]")) {
+        button.addEventListener("click", () => {
+          const path = button.dataset.openSkill || "";
+          if (!path || !graph.root) return;
+          const url = `file://${String(graph.root).replace(/\/$/, "")}/${path}`;
+          window.open(url, "_blank", "noopener");
+        });
+      }
+    }
+
+    function mapNodes() {
+      const relatedIds = new Set();
+      const relations = visibleRelations();
+      for (const edge of relations) {
+        relatedIds.add(edge.source);
+        relatedIds.add(edge.target);
+      }
+      const searched = visibleSkills();
+      if (state.searchQuery.trim()) {
+        return searched.filter(node => relatedIds.has(node.id) || relations.length === 0);
+      }
+      return graph.nodes;
+    }
+
+    function drawMap(svg) {
+      const width = Math.max(360, svg.clientWidth || svg.parentElement.clientWidth || 720);
+      const height = Math.max(320, svg.clientHeight || svg.parentElement.clientHeight || 420);
+      const nodes = mapNodes();
+      const nodeIds = new Set(nodes.map(node => node.id));
+      const relations = visibleRelations().filter(edge => nodeIds.has(edge.source) && nodeIds.has(edge.target));
+      document.getElementById("mapEmpty").hidden = nodes.length > 0;
+      svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
+      svg.innerHTML = `
+        <defs>
+          <marker id="arrowDirect" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#2368d8"></path></marker>
+          <marker id="arrowAi" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#7b4ce2"></path></marker>
+          <marker id="arrowSelected" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8 Z" fill="#d92d3a"></path></marker>
+        </defs>
+      `;
+      if (!nodes.length) return;
+      const bounds = layoutBounds(nodes, width, height);
+      if (state.pendingFit) {
+        const scale = Math.min(1, width / Math.max(1, bounds.width), height / Math.max(1, bounds.height));
+        state.view = {
+          x: (width - bounds.width * scale) / 2,
+          y: (height - bounds.height * scale) / 2,
+          scale,
+        };
+        state.pendingFit = false;
+      }
+      const layer = svgElement("g", { transform: `translate(${state.view.x} ${state.view.y}) scale(${state.view.scale})` });
+      svg.append(layer);
+      const positions = layoutPositions(nodes, bounds.width, bounds.height);
+      if (state.showGroupFrames) drawGroupFrames(layer, nodes, positions);
+      const occurrence = new Map();
+      for (const edge of relations) {
+        const source = positions.get(edge.source);
+        const target = positions.get(edge.target);
+        if (!source || !target) continue;
+        const key = `${edge.source}->${edge.target}`;
+        const index = occurrence.get(key) || 0;
+        occurrence.set(key, index + 1);
+        drawRelation(layer, edge, source, target, index);
+      }
+      for (const node of nodes) {
+        const point = positions.get(node.id);
+        if (point) drawSkill(layer, node, point);
+      }
+      svg.onwheel = event => {
         event.preventDefault();
-        search.focus();
+        zoomMap(event.deltaY < 0 ? 1.12 : 1 / 1.12);
+      };
+      svg.onclick = event => {
+        if (event.target === svg) clearSelection();
+      };
+    }
+
+    function layoutBounds(nodes, width, height) {
+      const count = Math.max(1, nodes.length);
+      const columns = Math.max(1, Math.ceil(Math.sqrt(count)));
+      const rows = Math.max(1, Math.ceil(count / columns));
+      return {
+        width: Math.max(width, columns * 220 + 120),
+        height: Math.max(height, rows * 150 + 120),
+      };
+    }
+
+    function layoutPositions(nodes, width, height) {
+      const grouped = new Map();
+      for (const node of nodes) {
+        const key = categoryFor(node);
+        if (!grouped.has(key)) grouped.set(key, []);
+        grouped.get(key).push(node);
       }
+      const groupEntries = [...grouped.entries()];
+      const groupColumns = Math.max(1, Math.ceil(Math.sqrt(groupEntries.length)));
+      const groupRows = Math.max(1, Math.ceil(groupEntries.length / groupColumns));
+      const groupWidth = width / groupColumns;
+      const groupHeight = height / groupRows;
+      const positions = new Map();
+      groupEntries.forEach(([category, values], groupIndex) => {
+        const gx = groupIndex % groupColumns;
+        const gy = Math.floor(groupIndex / groupColumns);
+        const cols = Math.max(1, Math.ceil(Math.sqrt(values.length)));
+        const rows = Math.max(1, Math.ceil(values.length / cols));
+        values.forEach((node, index) => {
+          const col = index % cols;
+          const row = Math.floor(index / cols);
+          const x = gx * groupWidth + ((col + 1) / (cols + 1)) * groupWidth;
+          const y = gy * groupHeight + ((row + 1) / (rows + 1)) * groupHeight;
+          positions.set(node.id, { x, y, category });
+        });
+      });
+      return positions;
+    }
+
+    function drawGroupFrames(layer, nodes, positions) {
+      const groups = new Map();
+      for (const node of nodes) {
+        const point = positions.get(node.id);
+        if (!point) continue;
+        const key = categoryFor(node);
+        if (!groups.has(key)) groups.set(key, []);
+        groups.get(key).push(point);
+      }
+      for (const [category, points] of groups) {
+        const xs = points.map(point => point.x);
+        const ys = points.map(point => point.y);
+        const x = Math.min(...xs) - 96;
+        const y = Math.min(...ys) - 58;
+        const w = Math.max(...xs) - Math.min(...xs) + 192;
+        const h = Math.max(...ys) - Math.min(...ys) + 116;
+        layer.append(svgElement("rect", { class: "category-frame", x, y, width: w, height: h, rx: 8 }));
+        const label = svgElement("text", { class: "category-label", x: x + 12, y: y + 23 });
+        label.textContent = categoryLabel(category);
+        layer.append(label);
+      }
+    }
+
+    function drawRelation(layer, edge, source, target, index) {
+      const dx = target.x - source.x;
+      const dy = target.y - source.y;
+      const distance = Math.max(1, Math.hypot(dx, dy));
+      const offset = ((index % 5) - 2) * 16;
+      const sx = source.x + (dx / distance) * 76;
+      const sy = source.y + (dy / distance) * 28;
+      const tx = target.x - (dx / distance) * 76;
+      const ty = target.y - (dy / distance) * 28;
+      const mx = (sx + tx) / 2 - (dy / distance) * offset;
+      const my = (sy + ty) / 2 + (dx / distance) * offset;
+      const d = `M ${sx} ${sy} Q ${mx} ${my} ${tx} ${ty}`;
+      const selected = state.selected?.kind === "relation" && state.selected.value.id === edge.id;
+      const hit = svgElement("path", { class: "relation-hit", d });
+      hit.addEventListener("click", event => {
+        event.stopPropagation();
+        setSelection("relation", edge);
+      });
+      const path = svgElement("path", {
+        class: `relation-path ${isAiRelation(edge) ? "ai" : ""} ${selected ? "selected" : ""}`,
+        d,
+        "marker-end": selected ? "url(#arrowSelected)" : isAiRelation(edge) ? "url(#arrowAi)" : "url(#arrowDirect)",
+      });
+      path.addEventListener("click", event => {
+        event.stopPropagation();
+        setSelection("relation", edge);
+      });
+      layer.append(hit, path);
+    }
+
+    function drawSkill(layer, node, point) {
+      const selected = state.selected?.kind === "skill" && state.selected.value.id === node.id;
+      const hasAi = relationsForSkill(node.id).some(isAiRelation);
+      const group = svgElement("g", {
+        class: `skill-node ${hasAi ? "ai" : ""} ${selected ? "selected" : ""}`,
+        transform: `translate(${point.x - 78} ${point.y - 24})`,
+      });
+      group.addEventListener("click", event => {
+        event.stopPropagation();
+        setSelection("skill", node);
+      });
+      group.append(svgElement("rect", { width: 156, height: 48, rx: 8 }));
+      const label = svgElement("text", { x: 78, y: 29, "text-anchor": "middle" });
+      label.textContent = compactText(skillName(node.id), 20);
+      group.append(label);
+      layer.append(group);
+    }
+
+    function svgElement(name, attrs) {
+      const element = document.createElementNS("http://www.w3.org/2000/svg", name);
+      for (const [key, value] of Object.entries(attrs || {})) {
+        element.setAttribute(key, String(value));
+      }
+      return element;
+    }
+
+    function zoomMap(factor) {
+      state.view.scale = Math.max(.28, Math.min(2.6, state.view.scale * factor));
+      const map = document.getElementById("skillMap");
+      if (map) drawMap(map);
+    }
+
+    document.getElementById("globalSearch").addEventListener("input", event => {
+      state.searchQuery = event.target.value;
+      state.pendingFit = true;
+      render();
     });
-    resetLayout.addEventListener("click", resetGraphLayout);
-    resetView.addEventListener("click", () => {
-      resetGraphViewState();
-      draw();
+    document.getElementById("showDirectRelations").addEventListener("change", event => {
+      state.showDirectRelations = event.target.checked;
+      render();
     });
-    zoomIn.addEventListener("click", () => zoomGraphBy(1.18));
-    zoomOut.addEventListener("click", () => zoomGraphBy(1 / 1.18));
-    panUp.addEventListener("click", () => panGraphBy(0, -72));
-    panDown.addEventListener("click", () => panGraphBy(0, 72));
-    panLeft.addEventListener("click", () => panGraphBy(-72, 0));
-    panRight.addEventListener("click", () => panGraphBy(72, 0));
-    document.getElementById("graph").addEventListener("pointerdown", beginGraphPan);
-    document.getElementById("graph").addEventListener("wheel", wheelZoomGraph, { passive: false });
-    window.addEventListener("resize", draw);
-    draw();
+    document.getElementById("showAiRelations").addEventListener("change", event => {
+      state.showAiRelations = event.target.checked;
+      render();
+    });
+    document.getElementById("showGroupFrames").addEventListener("change", event => {
+      state.showGroupFrames = event.target.checked;
+      render();
+    });
+    window.addEventListener("resize", () => {
+      state.pendingFit = true;
+      render();
+    });
+
+    render();
   </script>
 </body>
 </html>

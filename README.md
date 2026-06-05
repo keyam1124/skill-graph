@@ -1,22 +1,32 @@
 # SkillGraph Cartographer
 
-`SkillGraph Cartographer` は、別リポジトリに `gh skill` でインストールして使う Agent Skill です。対象リポジトリ内の `SKILL.md` を読み取り、決定論的な参照関係と、Codex / Claude Code などの host agent が各 Skill を読み比べて解釈した関係を重ねた SkillGraph をローカルビューアで表示します。
+`SkillGraph Cartographer` は、別リポジトリに `gh skill` でインストールして使う Agent Skill です。対象リポジトリ内の `SKILL.md` を読み取り、スキルの全体像、スキル同士のつながり、確認が必要な項目をローカルビューアで表示します。
 
 配布対象は `skills/skillgraph-cartographer/` です。`gh skill` は `skills/*/SKILL.md` を検出するため、このリポジトリを skills repository として扱えます。
 
 ## できること
 
 - リポジトリ内の `SKILL.md` を収集する
-- Markdown リンクと `SKILL.md` パス参照から、直接確認できる関係を抽出する
-- 解決できない参照と重複 alias を診断する
-- 同じ Skill ID が複数 host scope に存在する場合、copy drift を診断する
+- Markdown リンクと `SKILL.md` パス参照から、直接書かれている関係を抽出する
+- 参照先が見つからない項目を見つける
+- 同じ呼び名のスキルを見つける
+- 置き場所ごとに内容が違うスキルを見つける
 - host agent 用の enrichment template を出し、base graph と enrichment JSON を merge する
-- host agent の推論で、表示用のラベル、要約、カテゴリ、クラスタ、解釈済みリレーションを追加する
+- host agent の推論で、表示用のラベル、要約、カテゴリ、クラスタ、AI が読み取った関係を追加する
 - `viewSuggestions` をビューアの操作に接続し、推奨ビューをクリックして絞り込む
-- 各 Skill の詳細で、incoming / outgoing のリレーション、根拠、推論理由を確認する
-- 決定論的な関係と推論由来の注釈を区別してローカルビューアに表示する
+- 各スキルの詳細で、関係しているスキル、根拠、理由を確認する
+- 直接書かれている関係と AI が読み取った関係を区別して表示する
 
 収集と表示は読み取り専用です。対象リポジトリ内のスキル定義や設定ファイルは変更しません。
+
+## ビューアで確認できること
+
+ビューアは次の 4 つの見方に分かれています。
+
+- 全体を把握する: スキル数、つながり数、確認が必要な項目をまとめて確認する
+- つながりを確認する: 直接書かれている関係と AI が読み取った関係を見分ける
+- 気になる点を確認する: 参照先が見つからない項目、同じ呼び名のスキル、置き場所ごとに内容が違うスキルを確認する
+- スキルを探す: スキル名、目的、説明、ファイル名で検索する
 
 ## インストール
 
@@ -124,7 +134,7 @@ CLI は外部 LLM API を呼びません。Codex / Claude Code など、この S
 - `viewSuggestions`: ビューア上で注目しやすいクラスタやフィルタ候補
 
 決定論的な `nodes` と `edges` は正本として扱い、推論結果では上書きしません。
-`inferredEdges` はグラフの edge として描画され、node 詳細の incoming / outgoing リレーションにも表示されます。
+`inferredEdges` は「AI が読み取った関係」として描画され、スキル詳細にも表示されます。
 推論リレーションには、短い `evidence` と判断理由の `rationale` を添えます。評価値は扱いません。
 関係がない Skill は正常な状態として扱い、孤立 Skill として診断しません。
 
@@ -174,8 +184,8 @@ gh skill install . skillgraph-cartographer --from-local --dir /tmp/skillgraph-ca
 - free-form な `SKILL.md` を扱える
 - 推論注釈をビューア用データへ安全に反映できる
 - Markdown link、reference-style link、line range evidence を扱える
-- 重複 alias と解決できない参照を診断できる
-- 推論 edge を重複 append しない
+- 同じ呼び名のスキルと解決できない参照を診断できる
+- 推論された関係を重複 append しない
 - 孤立 Skill を問題として診断しない
 
 ## 制約
