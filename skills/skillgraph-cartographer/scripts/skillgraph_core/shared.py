@@ -15,8 +15,7 @@ except Exception:  # pragma: no cover - exercised only when PyYAML is absent.
     yaml = None
 
 
-SCHEMA_VERSION = "skillgraph-lite.v1.1"
-CONFIDENCE_LABELS = {"low", "medium", "high"}
+SCHEMA_VERSION = "skillgraph-lite.v1.2"
 
 EXCLUDED_DIRS = {
     ".git",
@@ -126,7 +125,6 @@ class Edge:
     target: str
     type: str
     origin: str
-    confidence: str
     evidence: list[dict[str, Any]]
     legacy_type: str | None = None
 
@@ -185,22 +183,6 @@ def host_scope_for_path(path: str) -> str:
     if path.startswith("skills/"):
         return "repo"
     return "other"
-
-
-def normalize_confidence(value: Any, fallback: str = "medium") -> tuple[str, float | None]:
-    if isinstance(value, bool):
-        value = int(value)
-    if isinstance(value, (int, float)):
-        score = max(0.0, min(1.0, float(value)))
-        if score >= 0.75:
-            return "high", score
-        if score >= 0.45:
-            return "medium", score
-        return "low", score
-    label = str(value or fallback).strip().lower()
-    if label not in CONFIDENCE_LABELS:
-        label = fallback
-    return label, None
 
 
 def parse_simple_yaml(text: str) -> dict[str, Any]:

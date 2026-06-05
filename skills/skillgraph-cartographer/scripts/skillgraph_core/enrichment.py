@@ -6,7 +6,7 @@ import json
 import re
 from typing import Any
 
-from .shared import graph_digest, normalize_confidence
+from .shared import graph_digest
 
 
 def diagnostic_from_mapping(data: dict[str, Any], message: str) -> dict[str, Any]:
@@ -87,13 +87,20 @@ def inferred_edge_key(edge: dict[str, Any]) -> tuple[str, str, str, str, str]:
     )
 
 
+def strip_edge_strength(edge: dict[str, Any]) -> dict[str, Any]:
+    edge.pop("confidence", None)
+    edge.pop("confidenceScore", None)
+    return edge
+
+
 def valid_view_suggestion_filter(value: Any) -> bool:
     if value in (None, {}):
         return True
     if not isinstance(value, dict):
         return False
-    allowed = {"nodeIds", "clusterId", "suggestedCategory", "roleTags", "confidence", "origin", "query"}
-    return all(key in allowed for key in value)
+    allowed = {"nodeIds", "clusterId", "suggestedCategory", "roleTags", "origin", "query"}
+    deprecated_ignored = {"confidence"}
+    return all(key in allowed or key in deprecated_ignored for key in value)
 
 
 def enrich_graph(graph: dict[str, Any]) -> dict[str, Any]:
@@ -101,6 +108,9 @@ def enrich_graph(graph: dict[str, Any]) -> dict[str, Any]:
     nodes = graph.setdefault("nodes", [])
     edges = graph.setdefault("edges", [])
     diagnostics = graph.setdefault("diagnostics", [])
+    for edge in edges:
+        if isinstance(edge, dict):
+            strip_edge_strength(edge)
     node_ids = {node.get("id") for node in nodes if node.get("id")}
     node_index = {node.get("id"): node for node in nodes if node.get("id")}
 
@@ -135,7 +145,6 @@ def enrich_graph(graph: dict[str, Any]) -> dict[str, Any]:
         if source not in node_ids or target not in node_ids:
             diagnostics.append(diagnostic_from_mapping(edge, f"Agent inferred edge {source or '<missing>'} -> {target or '<missing>'} references an unknown node."))
             continue
-        confidence_label, confidence_score = normalize_confidence(edge.get("confidence", "medium"))
         base = re.sub(r"[^A-Za-z0-9_.-]+", "-", f"edge.inferred.{source}.{target}.{edge_type}").strip("-")
         counters[base] = counters.get(base, 0) + 1
         normalized = {
@@ -144,13 +153,10 @@ def enrich_graph(graph: dict[str, Any]) -> dict[str, Any]:
             "target": target,
             "type": edge_type,
             "origin": edge.get("origin") or "agent_inferred",
-            "confidence": confidence_label,
             "evidence": edge.get("evidence") if isinstance(edge.get("evidence"), list) else [],
             "rationale": edge.get("rationale") or "",
             "inferred": True,
         }
-        if confidence_score is not None:
-            normalized["confidenceScore"] = confidence_score
         valid_inferred_edges.append(normalized)
         key = inferred_edge_key(normalized)
         if key in existing_edges:
@@ -164,6 +170,9 @@ def enrich_graph(graph: dict[str, Any]) -> dict[str, Any]:
         if not isinstance(suggestion, dict):
             diagnostics.append(diagnostic_from_mapping({"value": suggestion}, "Agent view suggestion is not an object."))
             continue
+        suggestion_filter = suggestion.get("filter")
+        if isinstance(suggestion_filter, dict):
+            suggestion_filter.pop("confidence", None)
         if not valid_view_suggestion_filter(suggestion.get("filter")):
             diagnostics.append(diagnostic_from_mapping(suggestion, "Agent view suggestion filter contains unsupported keys or is not an object."))
             continue

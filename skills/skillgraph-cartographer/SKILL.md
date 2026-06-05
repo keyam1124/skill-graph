@@ -54,7 +54,7 @@ inferred skill relationships.
    - `edges`
    - `diagnostics`
    - `languageVariants`
-   - relation `origin`, `confidence`, and `evidence`
+   - relation `origin` and `evidence`
 
 5. Run an agent inference pass in memory:
 
@@ -129,7 +129,6 @@ Add these top-level fields to the collected graph when useful:
       "source": "ddd-tactical.aggregate-design",
       "target": "architecture.clean-architecture-review",
       "type": "depends_on",
-      "confidence": 0.68,
       "rationale": "Aggregate boundary design depends on architecture boundary review context.",
       "evidence": [
         {
@@ -181,10 +180,10 @@ Add these top-level fields to the collected graph when useful:
 - Deterministic relations come from direct `SKILL.md` links, raw `SKILL.md` path
   references.
 - Do not diagnose or report orphan skills. No relation is a normal outcome.
-- Prefer weak inferred edges with rationale over overstating uncertain
-  relationships.
-- If an inferred edge has no evidence, include a rationale and keep confidence
-  low.
+- Do not encode relationship strength. Add inferred edges only when a
+  meaningful relation can be explained with short evidence or a rationale.
+- If an inferred edge has no evidence, include a rationale that makes the
+  interpretation clear.
 
 ## Output Guidance
 
