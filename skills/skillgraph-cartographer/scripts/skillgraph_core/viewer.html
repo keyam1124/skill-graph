@@ -48,7 +48,8 @@
     }
 
     button,
-    input {
+    input,
+    select {
       font: inherit;
     }
 
@@ -316,6 +317,65 @@
       flex-wrap: wrap;
     }
 
+    .map-tools {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 9px;
+      flex-wrap: wrap;
+    }
+
+    .filter-control {
+      min-height: 34px;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0 10px;
+      background: var(--surface);
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .filter-control select {
+      max-width: 220px;
+      border: 0;
+      outline: 0;
+      background: transparent;
+      color: var(--text);
+      font-weight: 800;
+    }
+
+    .filter-control:focus-within {
+      border-color: var(--blue);
+      box-shadow: 0 0 0 3px rgba(35, 104, 216, .14);
+    }
+
+    .fit-button {
+      min-height: 34px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 0 11px;
+      background: var(--surface);
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .fit-button:hover {
+      border-color: var(--blue);
+      color: var(--blue);
+    }
+
+    .map-count {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
     .legend-item {
       display: inline-flex;
       align-items: center;
@@ -433,14 +493,14 @@
 
     .cluster-region rect {
       fill: rgba(237, 245, 255, .58);
-      stroke: #c4d6eb;
-      stroke-width: 1.2;
-      stroke-dasharray: 7 6;
+      stroke: #b9d5f4;
+      stroke-width: 1.4;
+      stroke-dasharray: 8 8;
     }
 
     .cluster-region text {
       fill: var(--muted);
-      font-size: 13px;
+      font-size: 16px;
       font-weight: 900;
       letter-spacing: 0;
     }
@@ -502,6 +562,7 @@
       font-size: 12px;
       font-weight: 800;
       pointer-events: none;
+      dominant-baseline: middle;
     }
 
     .warning-mark circle {
@@ -838,6 +899,14 @@
         <section class="map-panel">
           <div class="panel-head">
             <h2>スキルのつながり</h2>
+            <div class="map-tools" aria-label="地図の表示">
+              <label class="filter-control" for="groupFilter">
+                <span>まとまり</span>
+                <select id="groupFilter"></select>
+              </label>
+              <span class="map-count" id="visibleCount">0 スキル表示</span>
+              <button class="fit-button" id="fitButton" type="button">全体表示</button>
+            </div>
             <div class="legend" aria-label="地図の凡例">
               <span class="legend-item"><span class="line-sample"></span>直接書かれている関係</span>
               <span class="legend-item"><span class="line-sample ai"></span>AI が読み取った関係</span>
@@ -871,6 +940,7 @@
       selected: null,
       panelMode: "overall",
       searchQuery: "",
+      groupFilter: "",
       view: { x: 0, y: 0, scale: 1 },
       pendingFit: true,
       panning: null,
@@ -884,6 +954,12 @@
 
     const nodeIndex = new Map(graph.nodes.map(node => [node.id, node]));
     const edgeIndex = new Map(graph.edges.map(edge => [edge.id, edge]));
+    const NODE_MIN_WIDTH = 184;
+    const NODE_MAX_WIDTH = 304;
+    const NODE_LINE_HEIGHT = 16;
+    const NODE_HORIZONTAL_PADDING = 34;
+    const NODE_VERTICAL_PADDING = 22;
+    const NODE_CHAR_WIDTH = 7.2;
 
     const issueCopy = {
       dangling_reference: {
@@ -977,8 +1053,13 @@
       return node.annotation?.summary || node.description || "説明はまだ追加されていません。";
     }
 
+    function skillPath(node) {
+      return node.path || (Array.isArray(node.paths) ? node.paths[0] : "") || "";
+    }
+
     function skillGroupKey(node) {
-      return node.annotation?.suggestedCategory || node.annotation?.clusterId || node.category || "未分類";
+      const value = node.annotation?.suggestedCategory || node.annotation?.clusterId || node.category || "未分類";
+      return String(value || "未分類").trim() || "未分類";
     }
 
     function groupDisplayName(key) {
@@ -991,19 +1072,45 @@
         .join(" ");
     }
 
-    function clusterEntries() {
+    function clusterEntries(nodes = graph.nodes) {
       const counts = new Map();
-      for (const node of graph.nodes) {
+      for (const node of nodes) {
         const key = skillGroupKey(node);
         counts.set(key, (counts.get(key) || 0) + 1);
       }
       return [...counts.entries()]
         .map(([key, count]) => ({ key, label: groupDisplayName(key), count }))
-        .sort((left, right) => right.count - left.count || left.label.localeCompare(right.label));
+        .sort((left, right) => {
+          if (left.label === "未分類") return 1;
+          if (right.label === "未分類") return -1;
+          return right.count - left.count || left.label.localeCompare(right.label, "ja");
+        });
     }
 
-    function skillPath(node) {
-      return node.path || (Array.isArray(node.paths) ? node.paths[0] : "") || "";
+    function visibleNodes() {
+      if (!state.groupFilter) return graph.nodes;
+      return graph.nodes.filter(node => skillGroupKey(node) === state.groupFilter);
+    }
+
+    function visibleNodeIdSet() {
+      return new Set(visibleNodes().map(node => node.id));
+    }
+
+    function visibleRelations() {
+      const ids = visibleNodeIdSet();
+      return graph.edges.filter(relation => ids.has(relation.source) && ids.has(relation.target));
+    }
+
+    function visibleDiagnostics() {
+      if (!state.groupFilter) return graph.diagnostics;
+      const ids = visibleNodeIdSet();
+      const paths = visibleNodes().flatMap(node => [node.path, node.dir, ...(node.paths || []), ...(node.dirs || [])].filter(Boolean));
+      return graph.diagnostics.filter(item => {
+        if (ids.has(item.skill) || ids.has(item.target)) return true;
+        if (paths.some(path => item.path === path || String(item.path || "").startsWith(`${path}/`))) return true;
+        const skills = item.evidence && Array.isArray(item.evidence.skills) ? item.evidence.skills : [];
+        return skills.some(id => ids.has(id));
+      });
     }
 
     function searchableSkillText(node) {
@@ -1013,6 +1120,7 @@
         node.name,
         node.description,
         node.path,
+        groupDisplayName(skillGroupKey(node)),
         ...(node.aliases || []),
         node.annotation?.label,
         node.annotation?.summary,
@@ -1023,11 +1131,15 @@
     function matchingSkills() {
       const query = state.searchQuery.trim().toLowerCase();
       if (!query) return [];
-      return graph.nodes.filter(node => searchableSkillText(node).includes(query));
+      return visibleNodes().filter(node => searchableSkillText(node).includes(query));
     }
 
     function relationsForSkill(id) {
       return graph.edges.filter(relation => relation.source === id || relation.target === id);
+    }
+
+    function visibleRelationsForSkill(id) {
+      return visibleRelations().filter(relation => relation.source === id || relation.target === id);
     }
 
     function issuesForSkill(node) {
@@ -1042,7 +1154,7 @@
 
     function issueSkillIds() {
       const ids = new Set();
-      for (const item of graph.diagnostics) {
+      for (const item of visibleDiagnostics()) {
         if (nodeIndex.has(item.skill)) ids.add(item.skill);
         if (nodeIndex.has(item.target)) ids.add(item.target);
         const skills = item.evidence && Array.isArray(item.evidence.skills) ? item.evidence.skills : [];
@@ -1060,14 +1172,6 @@
     function issueActionList(item) {
       const actions = issueCopy[item.type]?.action || ["内容を確認し、必要なら SKILL.md を更新する"];
       return actions.map(action => `<li>${escapeHtml(action)}</li>`).join("");
-    }
-
-    function directRelationCount() {
-      return graph.edges.filter(relation => !isAiRelation(relation)).length;
-    }
-
-    function aiRelationCount() {
-      return graph.edges.filter(isAiRelation).length;
     }
 
     function setSelection(kind, value) {
@@ -1100,6 +1204,29 @@
       document.getElementById("totalIssues").textContent = String(graph.diagnostics.length);
       document.getElementById("globalSearch").value = state.searchQuery;
       document.getElementById("issueButton").classList.toggle("active", state.panelMode === "issues");
+      renderGroupFilter();
+    }
+
+    function renderGroupFilter() {
+      const select = document.getElementById("groupFilter");
+      const options = clusterEntries();
+      if (state.groupFilter && !options.some(option => option.key === state.groupFilter)) {
+        state.groupFilter = "";
+      }
+      const optionSignature = options.map(option => `${option.key}:${option.count}`).join("|");
+      if (select.dataset.options !== optionSignature) {
+        select.innerHTML = [
+          `<option value="">すべて</option>`,
+          ...options.map(option => `<option value="${escapeHtml(option.key)}">${escapeHtml(option.label)} (${option.count})</option>`),
+        ].join("");
+        select.dataset.options = optionSignature;
+      }
+      select.value = state.groupFilter;
+      const nodeCount = visibleNodes().length;
+      const relationCount = visibleRelations().length;
+      document.getElementById("visibleCount").textContent = state.groupFilter
+        ? `${nodeCount} スキル / ${relationCount} つながり表示`
+        : `${nodeCount} スキル表示`;
     }
 
     function renderDetails() {
@@ -1119,32 +1246,36 @@
     }
 
     function overallDetailsHtml() {
+      const nodes = visibleNodes();
+      const relations = visibleRelations();
+      const filtered = Boolean(state.groupFilter);
       return `
-        <h2 class="section-title">全体のまとめ</h2>
+        <h2 class="section-title">${filtered ? "表示中のまとまり" : "全体のまとめ"}</h2>
         <section class="summary-grid" aria-label="全体の件数">
           <div class="metric-card blue">
             <span>スキル</span>
-            <strong>${graph.nodes.length}</strong>
-            <small>読み取った SKILL.md</small>
+            <strong>${nodes.length}</strong>
+            <small>${filtered ? "表示中" : "読み取った SKILL.md"}</small>
           </div>
           <div class="metric-card green">
             <span>直接書かれている関係</span>
-            <strong>${directRelationCount()}</strong>
-            <small>リンクやファイルパス</small>
+            <strong>${relations.filter(relation => !isAiRelation(relation)).length}</strong>
+            <small>${filtered ? "まとまり内" : "リンクやファイルパス"}</small>
           </div>
           <div class="metric-card violet">
             <span>AI が読み取った関係</span>
-            <strong>${aiRelationCount()}</strong>
-            <small>本文から判断した関係</small>
+            <strong>${relations.filter(isAiRelation).length}</strong>
+            <small>${filtered ? "まとまり内" : "本文から判断した関係"}</small>
           </div>
           <div class="metric-card red">
             <span>確認が必要</span>
-            <strong>${graph.diagnostics.length}</strong>
-            <small>見ておきたい項目</small>
+            <strong>${visibleDiagnostics().length}</strong>
+            <small>${filtered ? "表示中に紐づく項目" : "見ておきたい項目"}</small>
           </div>
         </section>
         <section class="summary-card">
           <h3 class="sub-title">見方</h3>
+          ${filtered ? `<p class="muted">いまは「${escapeHtml(groupDisplayName(state.groupFilter))}」のまとまりだけを表示しています。別のまとまりを見る場合は、地図上部の選択を切り替えてください。</p>` : ""}
           <p class="muted">中央の地図では、スキル同士の関係を線で確認できます。実線は直接書かれている関係、点線は AI が読み取った関係です。</p>
           <p class="muted">背景の枠は、SKILL.md の内容から読み取ったスキルのまとまりです。検索すると該当するスキルが地図上で強調されます。</p>
         </section>
@@ -1159,10 +1290,11 @@
 
     function searchDetailsHtml() {
       const results = matchingSkills();
+      const scope = state.groupFilter ? `「${escapeHtml(groupDisplayName(state.groupFilter))}」のまとまり内で ` : "";
       return `
         <h2 class="section-title">検索結果</h2>
         <section class="detail-card">
-          <p class="muted">${results.length ? `${results.length} 件のスキルが見つかりました。地図上でも強調しています。` : "条件に合うスキルは見つかりませんでした。"}</p>
+          <p class="muted">${results.length ? `${scope}${results.length} 件のスキルが見つかりました。地図上でも強調しています。` : `${scope}条件に合うスキルは見つかりませんでした。`}</p>
           <div class="result-list">
             ${results.map(node => skillResultHtml(node)).join("") || `<div class="empty">別の言葉で検索してください。</div>`}
           </div>
@@ -1177,6 +1309,7 @@
           <strong>${escapeHtml(skillName(node.id))}</strong>
           <span>${escapeHtml(skillSummary(node))}</span>
           <span class="pill-row">
+            <span class="pill">${escapeHtml(groupDisplayName(skillGroupKey(node)))}</span>
             <span class="pill">${escapeHtml(skillPath(node))}</span>
             ${issueCount ? `<span class="pill issue">確認が必要 ${issueCount} 件</span>` : ""}
           </span>
@@ -1185,7 +1318,7 @@
     }
 
     function skillDetailsHtml(node) {
-      const relations = relationsForSkill(node.id);
+      const relations = state.groupFilter ? visibleRelationsForSkill(node.id) : relationsForSkill(node.id);
       const issues = issuesForSkill(node);
       return `
         <h2 class="section-title">選択中のスキル</h2>
@@ -1203,6 +1336,7 @@
           </div>
           <div class="detail-section">
             <h3>関係しているスキル</h3>
+            ${state.groupFilter ? `<p class="tiny">表示中のまとまり内でつながるスキルを表示しています。</p>` : ""}
             ${relations.length ? `<div class="relation-list">${relations.map(relation => relationRowHtml(relation, node.id)).join("")}</div>` : `<p class="muted">このスキルにつながる関係はありません。</p>`}
           </div>
           <div class="detail-section">
@@ -1252,9 +1386,11 @@
     }
 
     function issuesPanelHtml() {
+      const diagnostics = visibleDiagnostics();
       return `
         <h2 class="section-title">確認が必要な項目</h2>
-        ${graph.diagnostics.length ? graph.diagnostics.map(issueDetailsCardHtml).join("") : `<div class="empty">確認が必要な項目は見つかっていません。</div>`}
+        ${state.groupFilter ? `<p class="muted">「${escapeHtml(groupDisplayName(state.groupFilter))}」のまとまりに紐づく項目を表示しています。</p>` : ""}
+        ${diagnostics.length ? diagnostics.map(issueDetailsCardHtml).join("") : `<div class="empty">確認が必要な項目は見つかっていません。</div>`}
       `;
     }
 
@@ -1351,9 +1487,9 @@
     function drawMap(svg) {
       const width = Math.max(360, svg.clientWidth || svg.parentElement.clientWidth || 720);
       const height = Math.max(320, svg.clientHeight || svg.parentElement.clientHeight || 520);
-      const nodes = graph.nodes;
+      const nodes = visibleNodes();
       const nodeIds = new Set(nodes.map(node => node.id));
-      const relations = graph.edges.filter(relation => nodeIds.has(relation.source) && nodeIds.has(relation.target));
+      const relations = visibleRelations().filter(relation => nodeIds.has(relation.source) && nodeIds.has(relation.target));
       document.getElementById("mapEmpty").hidden = nodes.length > 0;
       svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
       svg.innerHTML = `
@@ -1364,7 +1500,8 @@
         </defs>
       `;
       if (!nodes.length) return;
-      const bounds = layoutBounds(nodes, width, height);
+      const layout = layoutGraph(nodes, width, height);
+      const bounds = { width: layout.width, height: layout.height };
       if (state.pendingFit) {
         const scale = Math.min(1, width / Math.max(1, bounds.width), height / Math.max(1, bounds.height));
         state.view = {
@@ -1376,15 +1513,13 @@
       }
       const layer = svgElement("g", { transform: `translate(${state.view.x} ${state.view.y}) scale(${state.view.scale})` });
       svg.append(layer);
-      const layout = layoutPositions(nodes, bounds.width, bounds.height);
-      const positions = layout.positions;
       for (const region of layout.regions) {
         drawClusterRegion(layer, region);
       }
       const occurrence = new Map();
       for (const relation of relations) {
-        const source = positions.get(relation.source);
-        const target = positions.get(relation.target);
+        const source = layout.positions.get(relation.source);
+        const target = layout.positions.get(relation.target);
         if (!source || !target) continue;
         const key = `${relation.source}->${relation.target}`;
         const index = occurrence.get(key) || 0;
@@ -1392,59 +1527,147 @@
         drawRelation(layer, relation, source, target, index);
       }
       for (const node of nodes) {
-        const point = positions.get(node.id);
+        const point = layout.positions.get(node.id);
         if (point) drawSkill(layer, node, point);
       }
       bindMapGestures(svg);
     }
 
-    function layoutBounds(nodes, width, height) {
-      const count = Math.max(1, nodes.length);
-      const columns = Math.max(1, Math.ceil(Math.sqrt(count)));
-      const rows = Math.max(1, Math.ceil(count / columns));
-      return {
-        width: Math.max(width, columns * 220 + 120),
-        height: Math.max(height, rows * 150 + 120),
-      };
-    }
-
-    function layoutPositions(nodes, width, height) {
+    function layoutGraph(nodes, viewportWidth, viewportHeight) {
       const grouped = new Map();
       for (const node of nodes) {
         const key = skillGroupKey(node);
         if (!grouped.has(key)) grouped.set(key, []);
         grouped.get(key).push(node);
       }
-      const groupEntries = [...grouped.entries()];
-      const groupColumns = Math.max(1, Math.ceil(Math.sqrt(groupEntries.length)));
-      const groupRows = Math.max(1, Math.ceil(groupEntries.length / groupColumns));
-      const groupWidth = width / groupColumns;
-      const groupHeight = height / groupRows;
+      const groupPlans = [...grouped.entries()].sort((a, b) => groupDisplayName(a[0]).localeCompare(groupDisplayName(b[0]), "ja")).map(([category, values]) => {
+        const sortedNodes = [...values].sort((a, b) => skillName(a.id).localeCompare(skillName(b.id), "ja"));
+        const metrics = new Map(sortedNodes.map(node => [node.id, nodeMetrics(node)]));
+        const columns = Math.max(1, Math.ceil(Math.sqrt(sortedNodes.length)));
+        const rows = Math.max(1, Math.ceil(sortedNodes.length / columns));
+        const maxWidth = Math.max(...sortedNodes.map(node => metrics.get(node.id).width));
+        const maxHeight = Math.max(...sortedNodes.map(node => metrics.get(node.id).height));
+        const cellWidth = Math.max(270, maxWidth + 84);
+        const cellHeight = Math.max(132, maxHeight + 66);
+        const paddingX = 40;
+        const paddingTop = 72;
+        const paddingBottom = 38;
+        return {
+          category,
+          label: groupDisplayName(category),
+          nodes: sortedNodes,
+          metrics,
+          columns,
+          rows,
+          cellWidth,
+          cellHeight,
+          paddingX,
+          paddingTop,
+          paddingBottom,
+          width: columns * cellWidth + paddingX * 2,
+          height: rows * cellHeight + paddingTop + paddingBottom,
+        };
+      });
+      const groupColumns = Math.max(1, Math.ceil(Math.sqrt(groupPlans.length)));
+      const groupRows = Math.max(1, Math.ceil(groupPlans.length / groupColumns));
+      const colWidths = Array(groupColumns).fill(0);
+      const rowHeights = Array(groupRows).fill(0);
+      groupPlans.forEach((plan, index) => {
+        const col = index % groupColumns;
+        const row = Math.floor(index / groupColumns);
+        colWidths[col] = Math.max(colWidths[col], plan.width);
+        rowHeights[row] = Math.max(rowHeights[row], plan.height);
+      });
+      const marginX = 58;
+      const marginY = 52;
+      const gutterX = 96;
+      const gutterY = 86;
+      const colLefts = [];
+      const rowTops = [];
+      let cursor = marginX;
+      for (const colWidth of colWidths) {
+        colLefts.push(cursor);
+        cursor += colWidth + gutterX;
+      }
+      cursor = marginY;
+      for (const rowHeight of rowHeights) {
+        rowTops.push(cursor);
+        cursor += rowHeight + gutterY;
+      }
+      const totalWidth = Math.max(viewportWidth, marginX * 2 + colWidths.reduce((sum, value) => sum + value, 0) + gutterX * Math.max(0, groupColumns - 1));
+      const totalHeight = Math.max(viewportHeight, marginY * 2 + rowHeights.reduce((sum, value) => sum + value, 0) + gutterY * Math.max(0, groupRows - 1));
       const positions = new Map();
       const regions = [];
-      groupEntries.forEach(([category, values], groupIndex) => {
-        const gx = groupIndex % groupColumns;
-        const gy = Math.floor(groupIndex / groupColumns);
+      groupPlans.forEach((plan, groupIndex) => {
+        const col = groupIndex % groupColumns;
+        const row = Math.floor(groupIndex / groupColumns);
+        const x = colLefts[col] + (colWidths[col] - plan.width) / 2;
+        const y = rowTops[row] + (rowHeights[row] - plan.height) / 2;
         regions.push({
-          key: category,
-          label: groupDisplayName(category),
-          count: values.length,
-          x: gx * groupWidth + 18,
-          y: gy * groupHeight + 18,
-          width: Math.max(140, groupWidth - 36),
-          height: Math.max(110, groupHeight - 36),
+          key: plan.category,
+          label: plan.label,
+          count: plan.nodes.length,
+          x,
+          y,
+          width: plan.width,
+          height: plan.height,
         });
-        const cols = Math.max(1, Math.ceil(Math.sqrt(values.length)));
-        const rows = Math.max(1, Math.ceil(values.length / cols));
-        values.forEach((node, index) => {
-          const col = index % cols;
-          const row = Math.floor(index / cols);
-          const x = gx * groupWidth + ((col + 1) / (cols + 1)) * groupWidth;
-          const y = gy * groupHeight + ((row + 1) / (rows + 1)) * groupHeight;
-          positions.set(node.id, { x, y, category });
+        plan.nodes.forEach((node, index) => {
+          const nodeCol = index % plan.columns;
+          const nodeRow = Math.floor(index / plan.columns);
+          positions.set(node.id, {
+            x: x + plan.paddingX + plan.cellWidth * (nodeCol + .5),
+            y: y + plan.paddingTop + plan.cellHeight * (nodeRow + .5),
+            category: plan.category,
+            metric: plan.metrics.get(node.id),
+          });
         });
       });
-      return { positions, regions };
+      return { positions, regions, width: totalWidth, height: totalHeight };
+    }
+
+    function nodeMetrics(node) {
+      const lines = wrapSkillLabel(skillName(node.id));
+      const longest = Math.max(...lines.map(line => line.length), 8);
+      const width = Math.max(NODE_MIN_WIDTH, Math.min(NODE_MAX_WIDTH, Math.ceil(longest * NODE_CHAR_WIDTH) + NODE_HORIZONTAL_PADDING * 2));
+      const height = Math.max(54, lines.length * NODE_LINE_HEIGHT + NODE_VERTICAL_PADDING * 2);
+      return { width, height, lines };
+    }
+
+    function wrapSkillLabel(value) {
+      const text = String(value || "").replace(/\s+/g, " ").trim() || "Unnamed skill";
+      const maxChars = Math.max(16, Math.floor((NODE_MAX_WIDTH - NODE_HORIZONTAL_PADDING * 2) / NODE_CHAR_WIDTH));
+      const tokens = text.split(/\s+/).flatMap(token => splitLongToken(token, maxChars));
+      const lines = [];
+      let current = "";
+      for (const token of tokens) {
+        const next = current ? `${current} ${token}` : token;
+        if (next.length <= maxChars) {
+          current = next;
+          continue;
+        }
+        if (current) lines.push(current);
+        current = token;
+      }
+      if (current) lines.push(current);
+      return lines.length ? lines : [text];
+    }
+
+    function splitLongToken(token, maxChars) {
+      const chunks = [];
+      let rest = String(token || "");
+      while (rest.length > maxChars) {
+        let cut = -1;
+        for (const char of ["-", "_", "/", ".", ":"]) {
+          const index = rest.lastIndexOf(char, maxChars);
+          if (index > cut) cut = index;
+        }
+        if (cut < Math.floor(maxChars * .45)) cut = maxChars - 1;
+        chunks.push(rest.slice(0, cut + 1));
+        rest = rest.slice(cut + 1);
+      }
+      if (rest) chunks.push(rest);
+      return chunks;
     }
 
     function focusInfo() {
@@ -1455,7 +1678,8 @@
       if (state.selected?.kind === "skill") {
         const id = state.selected.value.id;
         relatedIds.add(id);
-        for (const relation of relationsForSkill(id)) {
+        const relations = state.groupFilter ? visibleRelationsForSkill(id) : relationsForSkill(id);
+        for (const relation of relations) {
           focusedRelationIds.add(relation.id);
           relatedIds.add(relation.source);
           relatedIds.add(relation.target);
@@ -1480,11 +1704,13 @@
       const dx = target.x - source.x;
       const dy = target.y - source.y;
       const distance = Math.max(1, Math.hypot(dx, dy));
-      const offset = ((index % 5) - 2) * 16;
-      const sx = source.x + (dx / distance) * 76;
-      const sy = source.y + (dy / distance) * 28;
-      const tx = target.x - (dx / distance) * 76;
-      const ty = target.y - (dy / distance) * 28;
+      const offset = ((index % 7) - 3) * 22;
+      const sourceAnchor = edgeAnchor(source, target);
+      const targetAnchor = edgeAnchor(target, source);
+      const sx = sourceAnchor.x;
+      const sy = sourceAnchor.y;
+      const tx = targetAnchor.x;
+      const ty = targetAnchor.y;
       const mx = (sx + tx) / 2 - (dy / distance) * offset;
       const my = (sy + ty) / 2 + (dx / distance) * offset;
       const d = `M ${sx} ${sy} Q ${mx} ${my} ${tx} ${ty}`;
@@ -1517,12 +1743,26 @@
         transform: `translate(${region.x} ${region.y})`,
       });
       group.append(svgElement("rect", { width: region.width, height: region.height, rx: 8 }));
-      const label = svgElement("text", { x: 14, y: 24 });
-      label.textContent = compactText(region.label, 26);
-      const count = svgElement("text", { class: "cluster-count", x: 14, y: 43 });
+      const label = svgElement("text", { x: 22, y: 32 });
+      label.textContent = compactText(region.label, 42);
+      const count = svgElement("text", { class: "cluster-count", x: 22, y: 53 });
       count.textContent = `${region.count} スキル`;
       group.append(label, count);
       layer.append(group);
+    }
+
+    function edgeAnchor(from, to) {
+      const dx = to.x - from.x;
+      const dy = to.y - from.y;
+      const halfWidth = (from.metric?.width || NODE_MIN_WIDTH) / 2 + 12;
+      const halfHeight = (from.metric?.height || 54) / 2 + 12;
+      const tx = dx === 0 ? Infinity : halfWidth / Math.abs(dx);
+      const ty = dy === 0 ? Infinity : halfHeight / Math.abs(dy);
+      const ratio = Math.min(tx, ty, 1);
+      return {
+        x: from.x + dx * ratio,
+        y: from.y + dy * ratio,
+      };
     }
 
     function drawSkill(layer, node, point) {
@@ -1532,22 +1772,31 @@
       const related = focus.relatedIds.has(node.id);
       const hasIssue = issuesForSkill(node).length > 0;
       const issueFocused = state.panelMode === "issues" && focus.issueIds.has(node.id);
-      const hasAi = relationsForSkill(node.id).some(isAiRelation);
+      const hasAi = (state.groupFilter ? visibleRelationsForSkill(node.id) : relationsForSkill(node.id)).some(isAiRelation);
       const dim = focus.hasFocus && !(selected || searched || related || issueFocused);
+      const metric = point.metric || nodeMetrics(node);
       const group = svgElement("g", {
         class: `skill-node ${hasAi ? "ai" : ""} ${selected ? "selected" : ""} ${searched ? "search" : ""} ${related ? "related" : ""} ${issueFocused ? "issue" : ""} ${dim ? "dim" : ""}`,
-        transform: `translate(${point.x - 78} ${point.y - 24})`,
+        transform: `translate(${point.x - metric.width / 2} ${point.y - metric.height / 2})`,
       });
       group.addEventListener("click", event => {
         event.stopPropagation();
         setSelection("skill", node);
       });
-      group.append(svgElement("rect", { width: 156, height: 48, rx: 8 }));
-      const label = svgElement("text", { x: 78, y: 29, "text-anchor": "middle" });
-      label.textContent = compactText(skillName(node.id), 20);
+      const title = svgElement("title", {});
+      title.textContent = skillName(node.id);
+      group.append(title);
+      group.append(svgElement("rect", { width: metric.width, height: metric.height, rx: 8 }));
+      const labelY = metric.height / 2 - ((metric.lines.length - 1) * NODE_LINE_HEIGHT) / 2;
+      const label = svgElement("text", { x: metric.width / 2, y: labelY, "text-anchor": "middle" });
+      metric.lines.forEach((line, index) => {
+        const tspan = svgElement("tspan", { x: metric.width / 2, dy: index === 0 ? 0 : NODE_LINE_HEIGHT });
+        tspan.textContent = line;
+        label.append(tspan);
+      });
       group.append(label);
       if (hasIssue) {
-        const warning = svgElement("g", { class: "warning-mark", transform: "translate(145 -9)" });
+        const warning = svgElement("g", { class: "warning-mark", transform: `translate(${metric.width - 11} -9)` });
         warning.append(svgElement("title", {}));
         warning.querySelector("title").textContent = "確認が必要な項目があります";
         warning.append(svgElement("circle", { cx: 0, cy: 0, r: 10 }));
@@ -1614,6 +1863,19 @@
       state.searchQuery = event.target.value;
       state.selected = null;
       state.panelMode = state.searchQuery.trim() ? "search" : "overall";
+      render();
+    });
+
+    document.getElementById("groupFilter").addEventListener("change", event => {
+      state.groupFilter = event.target.value;
+      state.selected = null;
+      state.pendingFit = true;
+      state.panelMode = state.searchQuery.trim() ? "search" : "overall";
+      render();
+    });
+
+    document.getElementById("fitButton").addEventListener("click", () => {
+      state.pendingFit = true;
       render();
     });
 
