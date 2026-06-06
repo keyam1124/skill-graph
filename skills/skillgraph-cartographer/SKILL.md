@@ -56,6 +56,8 @@ inferred skill relationships.
    - `diagnostics`
    - `languageVariants`
    - relation `origin` and `evidence`
+   - direct references from Markdown links, raw `SKILL.md` paths, and
+     backticked known Skill names
 
 5. Run an agent inference pass in memory:
 
@@ -169,7 +171,8 @@ Add these top-level fields to the collected graph when useful:
 - Treat `SKILL.md` as free-form Markdown. Do not attach special meaning to
   fixed section names.
 - Deterministic relations come from direct `SKILL.md` links, raw `SKILL.md` path
-  references.
+  references, and backticked known Skill names. Plain text mentions stay in the
+  host-agent inference layer.
 - Do not create viewer modes, tabs, or purpose filters. Search, skill clicks,
   relationship clicks, and the needs-review button should be enough for normal
   viewer use.

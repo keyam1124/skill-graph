@@ -191,6 +191,57 @@ class SkillGraphViewerWorkflowTest(unittest.TestCase):
         self.assertIn("markdown_link", {item.get("matchKind") for item in evidence})
         self.assertIn("reference_link", {item.get("matchKind") for item in evidence})
 
+    def test_collect_turns_backticked_skill_names_into_direct_references(self):
+        skillgraph = load_skillgraph_module()
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            self._write(
+                root / "skills" / "alpha" / "SKILL.md",
+                """\
+                ---
+                name: alpha
+                description: Use when testing explicit skill name references.
+                ---
+                # Alpha
+
+                Plain text mentions gamma-special but should not create an edge.
+
+                ## Related Skills
+                - `beta`
+                - `gamma-special`
+                - `missing-skill`
+                """,
+            )
+            self._write(
+                root / "skills" / "beta" / "SKILL.md",
+                """\
+                ---
+                name: beta
+                description: Use when testing explicit skill name references.
+                ---
+                # Beta
+                """,
+            )
+            self._write(
+                root / "skills" / "gamma_special" / "SKILL.md",
+                """\
+                ---
+                name: gamma-special
+                description: Use when testing explicit skill name references.
+                ---
+                # Gamma
+                """,
+            )
+
+            graph = skillgraph.analyze_graph(root)
+
+        edges = self._edges(graph)
+        beta = self._assert_edge(edges, "alpha", "beta", "direct_reference", "inline_code_reference")
+        gamma = self._assert_edge(edges, "alpha", "gamma-special", "direct_reference", "inline_code_reference")
+        self.assertEqual(beta.get("legacyType"), "depends_on")
+        self.assertEqual(gamma.get("evidence", [{}])[0].get("matchKind"), "inline_code_reference")
+        self.assertFalse(any(edge.get("target") == "missing-skill" for edge in edges))
+
     def test_enrich_graph_dedupes_inferred_edges(self):
         skillgraph = load_skillgraph_module()
         graph = {
