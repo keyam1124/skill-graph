@@ -341,6 +341,14 @@
       border-top-style: dashed;
     }
 
+    .cluster-sample {
+      width: 22px;
+      height: 14px;
+      border: 1px dashed #9bb8d6;
+      border-radius: 4px;
+      background: var(--blue-soft);
+    }
+
     .warning-sample {
       width: 18px;
       height: 18px;
@@ -417,6 +425,30 @@
       stroke-width: 18;
       cursor: pointer;
       pointer-events: stroke;
+    }
+
+    .cluster-region {
+      pointer-events: none;
+    }
+
+    .cluster-region rect {
+      fill: rgba(237, 245, 255, .58);
+      stroke: #c4d6eb;
+      stroke-width: 1.2;
+      stroke-dasharray: 7 6;
+    }
+
+    .cluster-region text {
+      fill: var(--muted);
+      font-size: 13px;
+      font-weight: 900;
+      letter-spacing: 0;
+    }
+
+    .cluster-region .cluster-count {
+      fill: var(--faint);
+      font-size: 11px;
+      font-weight: 800;
     }
 
     .skill-node {
@@ -809,6 +841,7 @@
             <div class="legend" aria-label="地図の凡例">
               <span class="legend-item"><span class="line-sample"></span>直接書かれている関係</span>
               <span class="legend-item"><span class="line-sample ai"></span>AI が読み取った関係</span>
+              <span class="legend-item"><span class="cluster-sample"></span>スキルのまとまり</span>
               <span class="legend-item"><span class="warning-sample">!</span>確認が必要</span>
             </div>
           </div>
@@ -942,6 +975,31 @@
 
     function skillSummary(node) {
       return node.annotation?.summary || node.description || "説明はまだ追加されていません。";
+    }
+
+    function skillGroupKey(node) {
+      return node.annotation?.suggestedCategory || node.annotation?.clusterId || node.category || "未分類";
+    }
+
+    function groupDisplayName(key) {
+      const value = String(key || "").trim();
+      if (!value || value === "Uncategorized" || value === "未分類") return "未分類";
+      return value
+        .split(/[._-]+/)
+        .filter(Boolean)
+        .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+        .join(" ");
+    }
+
+    function clusterEntries() {
+      const counts = new Map();
+      for (const node of graph.nodes) {
+        const key = skillGroupKey(node);
+        counts.set(key, (counts.get(key) || 0) + 1);
+      }
+      return [...counts.entries()]
+        .map(([key, count]) => ({ key, label: groupDisplayName(key), count }))
+        .sort((left, right) => right.count - left.count || left.label.localeCompare(right.label));
     }
 
     function skillPath(node) {
@@ -1088,7 +1146,13 @@
         <section class="summary-card">
           <h3 class="sub-title">見方</h3>
           <p class="muted">中央の地図では、スキル同士の関係を線で確認できます。実線は直接書かれている関係、点線は AI が読み取った関係です。</p>
-          <p class="muted">検索すると該当するスキルが地図上で強調されます。スキルや線をクリックすると、このパネルに詳しい説明を表示します。</p>
+          <p class="muted">背景の枠は、SKILL.md の内容から読み取ったスキルのまとまりです。検索すると該当するスキルが地図上で強調されます。</p>
+        </section>
+        <section class="summary-card">
+          <h3 class="sub-title">スキルのまとまり</h3>
+          <div class="relation-list">
+            ${clusterEntries().map(entry => `<div class="relation-row"><strong>${escapeHtml(entry.label)}</strong><span>${entry.count} スキル</span></div>`).join("") || `<div class="empty">まとまりはまだ読み取られていません。</div>`}
+          </div>
         </section>
       `;
     }
@@ -1134,6 +1198,9 @@
             </div>
           </div>
           <div class="file-row">${escapeHtml(skillPath(node))}</div>
+          <div class="pill-row">
+            <span class="pill">${escapeHtml(groupDisplayName(skillGroupKey(node)))}</span>
+          </div>
           <div class="detail-section">
             <h3>関係しているスキル</h3>
             ${relations.length ? `<div class="relation-list">${relations.map(relation => relationRowHtml(relation, node.id)).join("")}</div>` : `<p class="muted">このスキルにつながる関係はありません。</p>`}
@@ -1309,7 +1376,11 @@
       }
       const layer = svgElement("g", { transform: `translate(${state.view.x} ${state.view.y}) scale(${state.view.scale})` });
       svg.append(layer);
-      const positions = layoutPositions(nodes, bounds.width, bounds.height);
+      const layout = layoutPositions(nodes, bounds.width, bounds.height);
+      const positions = layout.positions;
+      for (const region of layout.regions) {
+        drawClusterRegion(layer, region);
+      }
       const occurrence = new Map();
       for (const relation of relations) {
         const source = positions.get(relation.source);
@@ -1340,7 +1411,7 @@
     function layoutPositions(nodes, width, height) {
       const grouped = new Map();
       for (const node of nodes) {
-        const key = node.annotation?.suggestedCategory || node.annotation?.clusterId || node.category || "未分類";
+        const key = skillGroupKey(node);
         if (!grouped.has(key)) grouped.set(key, []);
         grouped.get(key).push(node);
       }
@@ -1350,9 +1421,19 @@
       const groupWidth = width / groupColumns;
       const groupHeight = height / groupRows;
       const positions = new Map();
+      const regions = [];
       groupEntries.forEach(([category, values], groupIndex) => {
         const gx = groupIndex % groupColumns;
         const gy = Math.floor(groupIndex / groupColumns);
+        regions.push({
+          key: category,
+          label: groupDisplayName(category),
+          count: values.length,
+          x: gx * groupWidth + 18,
+          y: gy * groupHeight + 18,
+          width: Math.max(140, groupWidth - 36),
+          height: Math.max(110, groupHeight - 36),
+        });
         const cols = Math.max(1, Math.ceil(Math.sqrt(values.length)));
         const rows = Math.max(1, Math.ceil(values.length / cols));
         values.forEach((node, index) => {
@@ -1363,7 +1444,7 @@
           positions.set(node.id, { x, y, category });
         });
       });
-      return positions;
+      return { positions, regions };
     }
 
     function focusInfo() {
@@ -1428,6 +1509,20 @@
         setSelection("relation", relation);
       });
       layer.append(hit, path);
+    }
+
+    function drawClusterRegion(layer, region) {
+      const group = svgElement("g", {
+        class: "cluster-region",
+        transform: `translate(${region.x} ${region.y})`,
+      });
+      group.append(svgElement("rect", { width: region.width, height: region.height, rx: 8 }));
+      const label = svgElement("text", { x: 14, y: 24 });
+      label.textContent = compactText(region.label, 26);
+      const count = svgElement("text", { class: "cluster-count", x: 14, y: 43 });
+      count.textContent = `${region.count} スキル`;
+      group.append(label, count);
+      layer.append(group);
     }
 
     function drawSkill(layer, node, point) {
