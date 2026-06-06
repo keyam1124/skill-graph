@@ -7,7 +7,7 @@
 ## できること
 
 - リポジトリ内の `SKILL.md` を収集する
-- Markdown リンクと `SKILL.md` パス参照から、直接書かれている関係を抽出する
+- Markdown リンク、`SKILL.md` パス参照、backtick で明示された既知の Skill 名から、直接書かれている関係を抽出する
 - 参照先が見つからない項目を見つける
 - 同じ呼び名のスキルを見つける
 - 置き場所ごとに内容が違うスキルを見つける
@@ -187,7 +187,7 @@ gh skill install . skillgraph-cartographer --from-local --dir /tmp/skillgraph-ca
 - `collect` が対象リポジトリを書き換えない
 - free-form な `SKILL.md` を扱える
 - 推論注釈をビューア用データへ安全に反映できる
-- Markdown link、reference-style link、line range evidence を扱える
+- Markdown link、reference-style link、backtick の Skill 名参照、line range evidence を扱える
 - 同じ呼び名のスキルと解決できない参照を診断できる
 - 推論された関係を重複 append しない
 - 孤立 Skill を問題として診断しない

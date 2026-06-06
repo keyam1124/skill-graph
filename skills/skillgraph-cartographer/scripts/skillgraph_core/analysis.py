@@ -15,6 +15,7 @@ from .shared import (
     evidence,
     first_h1,
     first_meaningful_paragraph,
+    iter_inline_code_references,
     iter_markdown_skill_links,
     iter_skill_path_references,
     markdown_headings,
@@ -184,6 +185,46 @@ def skill_path_reference_edges(
     return edges, diagnostics
 
 
+def inline_skill_reference_edges(
+    root: Path,
+    skill: dict[str, Any],
+    skills: dict[str, dict[str, Any]],
+    alias_map: dict[str, list[str]],
+    source_file: Path,
+    source_text: str | None = None,
+) -> tuple[list[Edge], list[Diagnostic]]:
+    text = source_text if source_text is not None else read_text(source_file)
+    edges: list[Edge] = []
+    diagnostics: list[Diagnostic] = []
+    for reference in iter_inline_code_references(text):
+        raw = reference.raw
+        if "SKILL" in raw and raw.endswith(".md"):
+            continue
+        target = resolve_skill(raw, skills, alias_map)
+        if not target or target == skill["id"]:
+            continue
+        edges.append(
+            make_edge(
+                skill["id"],
+                target,
+                "direct_reference",
+                "inline_code_reference",
+                [
+                    evidence(
+                        rel_path(source_file, root),
+                        reference.text,
+                        start_line=reference.line,
+                        match_kind=reference.match_kind,
+                        raw=raw,
+                        normalized_target=target,
+                    )
+                ],
+                legacy_type="depends_on",
+            )
+        )
+    return edges, diagnostics
+
+
 def alias_source_evidence(alias: str, skills: dict[str, dict[str, Any]], skill_ids: list[str]) -> list[dict[str, str]]:
     values: list[dict[str, str]] = []
     for skill_id in skill_ids:
@@ -340,6 +381,9 @@ def analyze_graph(
             path_edges, path_diags = skill_path_reference_edges(root, skill, path_to_skill, root / path)
             edges.extend(path_edges)
             diagnostics.extend(path_diags)
+            inline_edges, inline_diags = inline_skill_reference_edges(root, skill, skills, alias_map, root / path)
+            edges.extend(inline_edges)
+            diagnostics.extend(inline_diags)
 
     edges = merge_dependency_edges(edges)
 

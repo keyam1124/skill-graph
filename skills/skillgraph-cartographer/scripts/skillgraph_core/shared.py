@@ -40,6 +40,7 @@ SKILL_PATH_RE = re.compile(
     r"(?P<path>(?:\.\./|\.\/)?[^\s)`'\"<>]*SKILL(?:\.[A-Za-z0-9_-]+)?\.md|"
     r"(?:skills|\.codex/skills|\.claude/skills|\.agents/skills)/[^\s)`'\"<>]*SKILL(?:\.[A-Za-z0-9_-]+)?\.md)"
 )
+INLINE_CODE_RE = re.compile(r"`([^`\n]+)`")
 LINK_RE = re.compile(r"!?\[[^\]]*\]\(([^)]+)\)")
 REFERENCE_LINK_DEFINITION_RE = re.compile(r"^\s*\[([^\]]+)\]:\s+(.+?)\s*$")
 FRONTMATTER_RE = re.compile(r"\A---\s*\n(.*?)\n---\s*(?:\n|\Z)", re.DOTALL)
@@ -472,6 +473,20 @@ def iter_skill_path_references(text: str) -> Iterator[MarkdownReference]:
         line = strip_inline_code_spans(raw_line)
         for match in SKILL_PATH_RE.finditer(line):
             yield MarkdownReference(match.group("path"), line_number, raw_line.strip(), "path_reference")
+
+
+def iter_inline_code_references(text: str) -> Iterator[MarkdownReference]:
+    in_fence = False
+    for line_number, raw_line in enumerate(text.splitlines(), start=1):
+        if is_fence_line(raw_line):
+            in_fence = not in_fence
+            continue
+        if in_fence:
+            continue
+        for match in INLINE_CODE_RE.finditer(raw_line):
+            raw = match.group(1).strip()
+            if raw:
+                yield MarkdownReference(raw, line_number, raw_line.strip(), "inline_code_reference")
 
 
 def markdown_headings(text: str) -> list[str]:
